@@ -148,7 +148,7 @@
 
     if (enabled) {
       startSiren();
-      startSpeakingLoop(alert.type);
+      startSpeakingLoop(alert);
     }
   }
 
@@ -196,7 +196,7 @@
     // "Warm up" de los <audio> para desbloquear reproducción en móviles.
     warmUpAudio(ensureSirenAudio());
     // Arranca un voice para que también quede desbloqueado (simulacro como placeholder).
-    warmUpAudio(ensureVoiceAudio("simulacro"));
+    warmUpAudio(ensureVoiceAudio(VOICE_BASE + "simulacro.mp3"));
 
     enableBtn.textContent = "Sonido activado";
     enableBtn.disabled = true;
@@ -204,7 +204,7 @@
     // si ya hay una alerta activa, arrancá sirena y voz
     if (currentAlert) {
       startSiren();
-      startSpeakingLoop(currentAlert.type);
+      startSpeakingLoop(currentAlert);
     }
   });
 
