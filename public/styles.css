@@ -634,15 +634,21 @@ body {
 body.client {
   background: var(--c-bg);
   color: var(--c-text);
+  overflow: hidden; /* que el único scroll sea el de .app__content */
+  height: 100%;
+}
+html:has(body.client) {
+  height: 100%;
 }
 
 /* App shell -------------------------------------------------------- */
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   background: var(--c-bg);
+  overflow: hidden;
 }
 
 .app__topbar {
@@ -650,8 +656,6 @@ body.client {
   align-items: center;
   justify-content: space-between;
   padding: max(1rem, env(safe-area-inset-top, 0px)) 1.25rem 0.75rem;
-  position: sticky;
-  top: 0;
   background: linear-gradient(
     180deg,
     rgba(11, 18, 32, 0.98),
@@ -660,6 +664,7 @@ body.client {
   backdrop-filter: saturate(140%) blur(6px);
   -webkit-backdrop-filter: saturate(140%) blur(6px);
   z-index: 5;
+  flex-shrink: 0;
 }
 .app__brand {
   display: inline-flex;
@@ -697,10 +702,14 @@ body.client {
 }
 
 .app__content {
-  flex: 1;
-  padding: 0.25rem 1.25rem
-    calc(5.25rem + env(safe-area-inset-bottom, 0px));
+  flex: 1 1 auto;
+  min-height: 0; /* necesario para que flex + overflow funcione bien */
+  overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0.25rem 1.25rem
+    calc(1.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* Tabs (contenido) */
@@ -732,19 +741,15 @@ body.client {
   margin: 0.25rem 0 1rem;
 }
 
-/* Bottom tabs navigation */
+/* Bottom tabs navigation (dentro del flow, no fixed, para que el scroll
+ * interno del .app__content no quede tapado). */
 .tabs {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   display: flex;
   background: rgba(11, 18, 32, 0.97);
   border-top: 1px solid var(--c-border);
   padding: 0.35rem 0 max(0.35rem, env(safe-area-inset-bottom, 0px));
   z-index: 6;
-  backdrop-filter: saturate(140%) blur(8px);
-  -webkit-backdrop-filter: saturate(140%) blur(8px);
+  flex-shrink: 0;
 }
 .tabs__btn {
   flex: 1;

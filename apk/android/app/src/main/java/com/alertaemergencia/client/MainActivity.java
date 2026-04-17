@@ -1,8 +1,12 @@
 package com.alertaemergencia.client;
 
+import android.Manifest;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.TypedValue;
@@ -23,11 +27,16 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String PREFS = "alerta_config";
     private static final String KEY_URL = "server_url";
+
+    private static final int REQ_NOTIF = 2001;
+    private static final int REQ_CAMERA = 2002;
 
     private WebView webView;
 
@@ -38,11 +47,57 @@ public class MainActivity extends AppCompatActivity {
         // Pantalla siempre prendida (útil para recibir alertas en cualquier momento).
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        requestRuntimePermissions();
+
         String url = getSavedUrl();
         if (url == null || url.isEmpty()) {
             showConfigScreen(null);
         } else {
             showWebView(url);
+            startAlertService(url);
+        }
+    }
+
+    private void requestRuntimePermissions() {
+        // Android 13+: notificaciones en runtime.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        REQ_NOTIF);
+            }
+        }
+        // Cámara: necesaria para el flash (torch).
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.CAMERA},
+                    REQ_CAMERA);
+        }
+    }
+
+    private void startAlertService(String url) {
+        Intent i = new Intent(this, AlertService.class);
+        i.setAction(AlertService.ACTION_START);
+        i.putExtra(AlertService.EXTRA_SERVER_URL, url);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(i);
+            } else {
+                startService(i);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void stopAlertService() {
+        Intent i = new Intent(this, AlertService.class);
+        i.setAction(AlertService.ACTION_STOP);
+        try {
+            startService(i);
+        } catch (Exception ignored) {
         }
     }
 
@@ -141,6 +196,7 @@ public class MainActivity extends AppCompatActivity {
             }
             saveUrl(full);
             showWebView(full);
+            startAlertService(full);
         });
         root.addView(connect);
 
@@ -190,6 +246,13 @@ public class MainActivity extends AppCompatActivity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(false);
+        // Marcamos el User-Agent para que el JS del /client detecte que corre
+        // dentro del APK y desactive sirena/flash/vibración en la web (lo hace
+        // el servicio nativo para que funcione también en background).
+        try {
+            s.setUserAgentString(s.getUserAgentString() + " AlertaClienteAPK/2.0");
+        } catch (Exception ignored) {
+        }
         webView.setBackgroundColor(0xFF0B1220);
 
         webView.setWebViewClient(new WebViewClient() {
@@ -241,7 +304,10 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle("Cambiar servidor")
                 .setMessage("¿Querés conectarte a otro servidor? " +
                         "Tu configuración actual se va a poder editar.")
-                .setPositiveButton("Sí", (d, w) -> showConfigScreen(null))
+                .setPositiveButton("Sí", (d, w) -> {
+                    stopAlertService();
+                    showConfigScreen(null);
+                })
                 .setNegativeButton("Cancelar", null)
                 .show();
     }

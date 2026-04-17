@@ -1,6 +1,13 @@
 (function () {
   const socket = io();
 
+  // Detectamos si corremos dentro del APK nativo. En ese caso el servicio
+  // Android se encarga de la sirena, la vibración, el flash de la cámara y
+  // el overlay a pantalla completa (AlertActivity) aunque la app esté en
+  // background o el celu bloqueado. Para no duplicar sirena/voz/flash, el JS
+  // web sólo actualiza UI + historial.
+  const IS_APK = /AlertaClienteAPK/i.test(navigator.userAgent || "");
+
   // --- DOM -------------------------------------------------------------
   const app = document.getElementById("app");
   const statusDot = document.getElementById("statusDot");
@@ -427,11 +434,15 @@
     if (tickTimer) clearInterval(tickTimer);
     tickTimer = setInterval(update, 250);
 
-    if (enabled) {
-      startSiren();
-      startSpeakingLoop(alert);
+    // Dentro del APK, el servicio Android se encarga de la sirena, la voz
+    // y la vibración — no las duplicamos en la WebView para evitar solapes.
+    if (!IS_APK) {
+      if (enabled) {
+        startSiren();
+        startSpeakingLoop(alert);
+      }
+      startVibration();
     }
-    startVibration();
 
     if (!currentAlertIsTest) addHistoryEntry(alert);
   }
@@ -611,6 +622,35 @@
   socket.on("alert:stop", () => {
     hideAlert();
   });
+
+  // --- APK tweaks ------------------------------------------------------
+  // En el APK, la sirena/voz/flash/vibración los maneja el servicio nativo.
+  // Ocultamos el botón "Activar sonido y voz" (no hace falta) y avisamos al
+  // usuario. También tildamos como activo el estado de audio.
+  if (IS_APK) {
+    enabled = true;
+    audioStatusText.textContent = "Gestionado por la app";
+    audioStatusText.classList.add("is-positive");
+    if (enableCard) {
+      enableCard.innerHTML =
+        '<div class="card__title">Modo app</div>' +
+        '<div class="card__body">' +
+        '<p class="card__text" style="margin:0">' +
+        "La sirena, voz, flash de la cámara y vibración se manejan " +
+        "automáticamente por la app — funciona aún con la pantalla bloqueada o " +
+        "la app minimizada." +
+        "</p>" +
+        "</div>";
+      enableCard.classList.add("is-done");
+    }
+    // El "Probar alerta" del APK no tiene sentido (el servicio no se entera).
+    if (testAlertBtn) {
+      testAlertBtn.disabled = true;
+      testAlertBtn.style.opacity = "0.5";
+      testAlertBtn.title =
+        "En la app, las alertas reales ya incluyen flash y sirena nativos.";
+    }
+  }
 
   // --- Init ------------------------------------------------------------
   applySettingsToUI();
