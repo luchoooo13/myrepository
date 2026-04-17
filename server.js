@@ -13,6 +13,14 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// Rutas amigables (sin extensión) para usar desde los otros dispositivos
+app.get("/host", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "host.html"));
+});
+app.get("/client", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "client.html"));
+});
+
 // Estado actual de la alerta (permite sincronizar clientes que se conectan tarde)
 let currentAlert = null; // { type, label, startedAt, endsAt }
 let alertTimer = null;
