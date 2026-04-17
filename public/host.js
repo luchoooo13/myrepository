@@ -25,6 +25,10 @@
   const currentType = document.getElementById("currentType");
   const currentTime = document.getElementById("currentTime");
   const stopBtn = document.getElementById("stopBtn");
+  const scheduleForm = document.getElementById("scheduleForm");
+  const scheduleTimeEl = document.getElementById("scheduleTime");
+  const scheduleTypeEl = document.getElementById("scheduleType");
+  const scheduleListEl = document.getElementById("scheduleList");
 
   let currentAlert = null;
   let tickTimer = null;
@@ -71,6 +75,85 @@
     stopTick();
     currentBox.hidden = true;
   }
+
+  // --- Scheduler ------------------------------------------------------
+  function renderScheduleOptions() {
+    scheduleTypeEl.innerHTML = "";
+    for (const alert of ALERTS) {
+      if (alert.customPrompt) continue; // no programamos mensajes personalizados
+      const opt = document.createElement("option");
+      opt.value = alert.type;
+      opt.textContent = alert.label;
+      scheduleTypeEl.appendChild(opt);
+    }
+    scheduleTypeEl.value = "simulacro";
+  }
+
+  function formatFireAt(fireAt) {
+    try {
+      const fmt = new Intl.DateTimeFormat("es-AR", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      return fmt.format(new Date(fireAt));
+    } catch {
+      return new Date(fireAt).toLocaleString();
+    }
+  }
+
+  function renderSchedules(list) {
+    scheduleListEl.innerHTML = "";
+    if (!list || list.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "host__scheduler-empty";
+      empty.textContent = "No hay alertas programadas.";
+      scheduleListEl.appendChild(empty);
+      return;
+    }
+    for (const s of list) {
+      const li = document.createElement("li");
+      li.className = "host__scheduler-item";
+      const hhmm =
+        String(s.hour).padStart(2, "0") + ":" + String(s.minute).padStart(2, "0");
+      const info = document.createElement("div");
+      info.className = "host__scheduler-item-info";
+      info.innerHTML = `
+        <strong>${hhmm}</strong>
+        <span>${s.label}</span>
+        <small>${formatFireAt(s.fireAt)}</small>
+      `;
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "btn btn--cancel";
+      cancel.textContent = "Cancelar";
+      cancel.addEventListener("click", () => {
+        socket.emit("schedule:remove", { id: s.id });
+      });
+      li.appendChild(info);
+      li.appendChild(cancel);
+      scheduleListEl.appendChild(li);
+    }
+  }
+
+  scheduleForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const time = scheduleTimeEl.value; // "HH:MM"
+    const type = scheduleTypeEl.value;
+    if (!time || !type) return;
+    const match = /^(\d{2}):(\d{2})$/.exec(time);
+    if (!match) return;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    const alertDef = ALERTS.find((a) => a.type === type);
+    const label = alertDef ? alertDef.label : type;
+    socket.emit("schedule:add", { hour, minute, type, label });
+    scheduleForm.reset();
+  });
 
   function renderButtons() {
     grid.innerHTML = "";
@@ -119,7 +202,12 @@
   socket.on("alert:stop", () => {
     hideCurrent();
   });
+  socket.on("schedule:list", (list) => {
+    renderSchedules(list);
+  });
 
   renderButtons();
+  renderScheduleOptions();
+  renderSchedules([]);
   setStatus("Conectando…");
 })();

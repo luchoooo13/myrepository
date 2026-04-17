@@ -29,6 +29,26 @@
       <!-- botones inyectados por host.js -->
     </section>
 
+    <section class="host__scheduler">
+      <h2 class="host__scheduler-title">Programar alerta (hora Buenos Aires)</h2>
+      <form class="host__scheduler-form" id="scheduleForm" autocomplete="off">
+        <label class="host__scheduler-field">
+          <span>Hora</span>
+          <input type="time" id="scheduleTime" required />
+        </label>
+        <label class="host__scheduler-field">
+          <span>Tipo de alerta</span>
+          <select id="scheduleType" required>
+            <!-- opciones inyectadas por host.js -->
+          </select>
+        </label>
+        <button class="btn btn--schedule" type="submit">Programar</button>
+      </form>
+      <ul class="host__scheduler-list" id="scheduleList">
+        <li class="host__scheduler-empty">No hay alertas programadas.</li>
+      </ul>
+    </section>
+
     <footer class="host__footer">
       <p>
         Al presionar un botón, todos los dispositivos cliente conectados a esta

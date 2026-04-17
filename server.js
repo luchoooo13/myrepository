@@ -61,6 +61,103 @@ app.get("/tts", async (req, res) => {
 let currentAlert = null; // { type, label, startedAt, endsAt }
 let alertTimer = null;
 
+// --- Programación de alertas (hora Buenos Aires) -----------------------
+// schedule: { id, hour, minute, type, label, fireAt }
+const schedules = [];
+let nextScheduleId = 1;
+const BA_TZ = "America/Argentina/Buenos_Aires";
+
+// Calcula el próximo timestamp en UTC para una hora:minuto en Buenos Aires.
+// Buenos Aires está en UTC-3 todo el año (sin horario de verano).
+function nextFireAtBA(hour, minute) {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: BA_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = {};
+  for (const p of fmt.formatToParts(now)) {
+    if (p.type !== "literal") parts[p.type] = p.value;
+  }
+  let y = Number(parts.year);
+  let m = Number(parts.month);
+  let d = Number(parts.day);
+  const nowBaMin = Number(parts.hour) * 60 + Number(parts.minute);
+  const targetMin = hour * 60 + minute;
+  // Si la hora objetivo ya pasó (o es este mismo minuto), programá para mañana.
+  if (targetMin <= nowBaMin) {
+    const next = new Date(Date.UTC(y, m - 1, d));
+    next.setUTCDate(next.getUTCDate() + 1);
+    y = next.getUTCFullYear();
+    m = next.getUTCMonth() + 1;
+    d = next.getUTCDate();
+  }
+  const iso =
+    `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}T` +
+    `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`;
+  return new Date(iso).getTime();
+}
+
+function broadcastSchedules() {
+  io.emit("schedule:list", serializeSchedules());
+}
+
+function serializeSchedules() {
+  return schedules
+    .slice()
+    .sort((a, b) => a.fireAt - b.fireAt)
+    .map((s) => ({
+      id: s.id,
+      hour: s.hour,
+      minute: s.minute,
+      type: s.type,
+      label: s.label,
+      fireAt: s.fireAt,
+    }));
+}
+
+function addSchedule({ hour, minute, type, label }) {
+  const fireAt = nextFireAtBA(hour, minute);
+  const entry = {
+    id: nextScheduleId++,
+    hour,
+    minute,
+    type,
+    label,
+    fireAt,
+  };
+  schedules.push(entry);
+  broadcastSchedules();
+  return entry;
+}
+
+function removeSchedule(id) {
+  const idx = schedules.findIndex((s) => s.id === id);
+  if (idx === -1) return false;
+  schedules.splice(idx, 1);
+  broadcastSchedules();
+  return true;
+}
+
+// Chequea cada 10 segundos si alguna programación llegó a su hora.
+setInterval(() => {
+  const now = Date.now();
+  const due = schedules.filter((s) => s.fireAt <= now);
+  if (due.length === 0) return;
+  for (const s of due) {
+    const idx = schedules.indexOf(s);
+    if (idx !== -1) schedules.splice(idx, 1);
+    console.log(`[schedule] disparando ${s.type} (${s.label}) programada`);
+    startAlert({ type: s.type, label: s.label });
+  }
+  broadcastSchedules();
+}, 10 * 1000);
+
 function clearAlertTimer() {
   if (alertTimer) {
     clearTimeout(alertTimer);
@@ -95,6 +192,8 @@ io.on("connection", (socket) => {
   if (currentAlert && Date.now() < currentAlert.endsAt) {
     socket.emit("alert:start", currentAlert);
   }
+  // Sincronizar lista de programaciones
+  socket.emit("schedule:list", serializeSchedules());
 
   socket.on("alert:trigger", (payload) => {
     if (!payload || typeof payload.type !== "string") return;
@@ -107,6 +206,33 @@ io.on("connection", (socket) => {
 
   socket.on("alert:stop", () => {
     stopAlert("manual");
+  });
+
+  socket.on("schedule:add", (payload) => {
+    if (!payload || typeof payload.type !== "string") return;
+    const hour = Number(payload.hour);
+    const minute = Number(payload.minute);
+    if (
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59
+    ) {
+      return;
+    }
+    const rawLabel =
+      typeof payload.label === "string" && payload.label.trim().length > 0
+        ? payload.label.trim().slice(0, 200)
+        : payload.type;
+    addSchedule({ hour, minute, type: payload.type, label: rawLabel });
+  });
+
+  socket.on("schedule:remove", (payload) => {
+    const id = payload && Number(payload.id);
+    if (!Number.isInteger(id)) return;
+    removeSchedule(id);
   });
 });
 
