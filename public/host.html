@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>HOST · Panel de Alertas</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="host">
+    <header class="host__header">
+      <h1>Panel de Alertas</h1>
+      <div class="host__status" id="status">Conectando…</div>
+    </header>
+
+    <section class="host__current" id="current" hidden>
+      <div class="host__current-label">ALERTA ACTIVA</div>
+      <div class="host__current-type" id="currentType">—</div>
+      <div class="host__current-time" id="currentTime">—</div>
+      <button class="btn btn--stop" id="stopBtn">DETENER ALERTA</button>
+    </section>
+
+    <section class="host__grid" id="buttons">
+      <!-- botones inyectados por host.js -->
+    </section>
+
+    <footer class="host__footer">
+      <p>
+        Al presionar un botón, todos los dispositivos cliente conectados a esta
+        red recibirán la alerta durante 1 minuto y 30 segundos.
+      </p>
+    </footer>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/host.js"></script>
+  </body>
+</html>

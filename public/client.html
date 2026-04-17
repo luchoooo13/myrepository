@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CLIENTE · Pantalla de Alertas</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="client">
+    <div class="client__idle" id="idle">
+      <h1>Pantalla de Alertas</h1>
+      <p class="client__status" id="status">Conectando…</p>
+      <button class="btn btn--enable" id="enableBtn">
+        Activar sonido y voz
+      </button>
+      <p class="client__hint">
+        Tocá el botón una vez para que el navegador permita reproducir audio y
+        voz automáticamente cuando llegue una alerta.
+      </p>
+    </div>
+
+    <div class="client__alert" id="alertOverlay" hidden>
+      <div class="client__alert-inner">
+        <div class="client__alert-tag">ALERTA</div>
+        <div class="client__alert-type" id="alertType">—</div>
+        <div class="client__alert-time" id="alertTime">1:30</div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/client.js"></script>
+  </body>
+</html>
