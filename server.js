@@ -212,7 +212,8 @@ function removeSchedule(id) {
   return true;
 }
 
-// Chequea cada 10 segundos si alguna programación llegó a su hora.
+// Chequea cada 1 segundo si alguna programación llegó a su hora.
+// Con 1s de granularidad, el máximo retraso es <1s (en 10s era de hasta ~10s).
 setInterval(() => {
   const now = realNow();
   const due = schedules.filter((s) => s.fireAt <= now);
@@ -232,7 +233,7 @@ setInterval(() => {
     }
   }
   broadcastSchedules();
-}, 10 * 1000);
+}, 1000);
 
 function clearAlertTimer() {
   if (alertTimer) {
