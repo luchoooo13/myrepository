@@ -1,33 +1,229 @@
 (function () {
   const socket = io();
 
-  const idleEl = document.getElementById("idle");
-  const statusEl = document.getElementById("status");
+  // --- DOM -------------------------------------------------------------
+  const app = document.getElementById("app");
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+  const connStatusText = document.getElementById("connStatusText");
+  const audioStatusText = document.getElementById("audioStatusText");
+  const lastAlertText = document.getElementById("lastAlertText");
   const enableBtn = document.getElementById("enableBtn");
+  const enableCard = document.getElementById("enableCard");
+
   const overlay = document.getElementById("alertOverlay");
   const alertTypeEl = document.getElementById("alertType");
   const alertTimeEl = document.getElementById("alertTime");
   const alertCloseBtn = document.getElementById("alertCloseBtn");
 
+  const historyListEl = document.getElementById("historyList");
+  const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+  const setVibration = document.getElementById("setVibration");
+  const setStrobe = document.getElementById("setStrobe");
+  const setVoice = document.getElementById("setVoice");
+  const setVolume = document.getElementById("setVolume");
+  const volumeLabel = document.getElementById("volumeLabel");
+  const testAlertBtn = document.getElementById("testAlertBtn");
+  const resetDataBtn = document.getElementById("resetDataBtn");
+
+  // --- Estado ----------------------------------------------------------
   let sirenAudio = null;
   let voiceAudio = null;
   let currentAlert = null;
+  let currentAlertIsTest = false;
   let tickTimer = null;
   let voiceTimer = null;
-  let enabled = false;
-  let currentVoiceObjectUrl = null; // blob URL para voces personalizadas (iOS friendly)
   let vibrationTimer = null;
-  let locallyDismissed = false; // si el usuario cerró la alerta en este equipo
+  let enabled = false;
+  let locallyDismissed = false;
+  let currentVoiceObjectUrl = null;
 
   const SIREN_SRC = "/sounds/siren.mp3";
   const VOICE_BASE = "/sounds/voice/";
-  // Cuánto esperar entre repeticiones del audio de voz (ms).
   const VOICE_REPEAT_MS = 5000;
+  const HISTORY_KEY = "alertas.history.v1";
+  const SETTINGS_KEY = "alertas.settings.v1";
+  const HISTORY_MAX = 50;
 
+  // --- Settings --------------------------------------------------------
+  const defaultSettings = {
+    vibration: true,
+    strobe: true,
+    voice: true,
+    volume: 100,
+  };
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) return { ...defaultSettings };
+      const parsed = JSON.parse(raw);
+      return { ...defaultSettings, ...parsed };
+    } catch {
+      return { ...defaultSettings };
+    }
+  }
+
+  function saveSettings(s) {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let settings = loadSettings();
+
+  function applySettingsToUI() {
+    setVibration.checked = !!settings.vibration;
+    setStrobe.checked = !!settings.strobe;
+    setVoice.checked = !!settings.voice;
+    setVolume.value = String(settings.volume);
+    volumeLabel.textContent = Math.round(settings.volume) + " %";
+    applyVolumeToAudio();
+    applyStrobeClass();
+  }
+
+  function applyVolumeToAudio() {
+    const v = Math.max(0, Math.min(1, settings.volume / 100));
+    if (sirenAudio) sirenAudio.volume = v;
+    if (voiceAudio) voiceAudio.volume = v;
+  }
+
+  function applyStrobeClass() {
+    overlay.classList.toggle("is-nostrobe", !settings.strobe);
+  }
+
+  // --- Historial -------------------------------------------------------
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed;
+    } catch {
+      return [];
+    }
+  }
+
+  function saveHistory(list) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, HISTORY_MAX)));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function addHistoryEntry(alert) {
+    if (!alert || alert.__test) return;
+    const list = loadHistory();
+    const entry = {
+      type: alert.type,
+      label: alert.label || alert.type,
+      startedAt: alert.startedAt || Date.now(),
+    };
+    // Evitar duplicados consecutivos (mismo startedAt).
+    if (list.length && list[0].startedAt === entry.startedAt) return;
+    list.unshift(entry);
+    saveHistory(list);
+    renderHistory();
+    updateLastAlert(entry);
+  }
+
+  function formatDateTime(ms) {
+    try {
+      return new Intl.DateTimeFormat("es-AR", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).format(new Date(ms));
+    } catch {
+      return new Date(ms).toLocaleString("es-AR");
+    }
+  }
+
+  function renderHistory() {
+    const list = loadHistory();
+    if (list.length === 0) {
+      historyListEl.innerHTML =
+        '<div class="history__empty">Todavía no recibiste ninguna alerta.</div>';
+      return;
+    }
+    historyListEl.innerHTML = "";
+    for (const e of list) {
+      const row = document.createElement("div");
+      row.className = "history__item";
+      if (e.type === "simulacro") row.classList.add("is-simulacro");
+      row.innerHTML = `
+        <div class="history__item-main">
+          <div class="history__item-type">${escapeHtml(e.label || e.type)}</div>
+          <div class="history__item-time">${formatDateTime(e.startedAt)}</div>
+        </div>
+        <div class="history__item-icon" aria-hidden="true">${iconForType(e.type)}</div>
+      `;
+      historyListEl.appendChild(row);
+    }
+  }
+
+  function updateLastAlert(entry) {
+    if (!entry) {
+      const list = loadHistory();
+      if (!list.length) {
+        lastAlertText.textContent = "Ninguna";
+        return;
+      }
+      entry = list[0];
+    }
+    lastAlertText.textContent = `${entry.label || entry.type} · ${formatDateTime(
+      entry.startedAt,
+    )}`;
+  }
+
+  function iconForType(t) {
+    switch ((t || "").toLowerCase()) {
+      case "simulacro":
+        return "🧪";
+      case "incendio":
+        return "🔥";
+      case "sismo":
+        return "🌐";
+      case "evacuacion":
+        return "🚪";
+      case "intruso":
+        return "🛡️";
+      case "medica":
+        return "🧑‍⚕️";
+      case "gas":
+        return "💨";
+      case "bomba":
+        return "💣";
+      case "tormenta":
+        return "⛈️";
+      case "custom":
+        return "📣";
+      default:
+        return "⚠️";
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => {
+      return (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || c
+      );
+    });
+  }
+
+  // --- Status ----------------------------------------------------------
   function setStatus(text, state) {
-    statusEl.textContent = text;
-    statusEl.classList.toggle("is-online", state === "online");
-    statusEl.classList.toggle("is-offline", state === "offline");
+    statusText.textContent = text;
+    connStatusText.textContent = text;
+    statusDot.classList.toggle("is-online", state === "online");
+    statusDot.classList.toggle("is-offline", state === "offline");
   }
 
   function formatRemaining(ms) {
@@ -37,14 +233,14 @@
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
 
-  // --- Sirena (archivo MP3 en loop) -------------------------------------
+  // --- Sirena ----------------------------------------------------------
   function ensureSirenAudio() {
     if (!sirenAudio) {
       sirenAudio = new Audio(SIREN_SRC);
       sirenAudio.loop = true;
       sirenAudio.preload = "auto";
-      sirenAudio.volume = 1.0;
     }
+    applyVolumeToAudio();
     return sirenAudio;
   }
 
@@ -71,11 +267,7 @@
     }
   }
 
-  // --- Voz (archivo MP3 pre-generado con Google TTS) --------------------
-  // iOS Safari es quisquilloso con cambiar el `src` de un <audio> sobre la
-  // marcha: a veces queda mudo. Para el mensaje personalizado bajamos el MP3
-  // con fetch() y lo convertimos a un Blob URL, así el <audio> lo ve como
-  // un archivo local ya cargado y lo reproduce sin problemas.
+  // --- Voz -------------------------------------------------------------
   function resolveVoiceSrc(alertObj) {
     if (alertObj.type === "custom") {
       const remote =
@@ -104,16 +296,15 @@
     if (!voiceAudio) {
       voiceAudio = new Audio(src);
       voiceAudio.preload = "auto";
-      voiceAudio.volume = 1.0;
     } else if (voiceAudio.src.indexOf(src) === -1) {
       voiceAudio.src = src;
-      // iOS Safari requiere load() después de cambiar src.
       try {
         voiceAudio.load();
       } catch {
         /* ignore */
       }
     }
+    applyVolumeToAudio();
     return voiceAudio;
   }
 
@@ -132,15 +323,14 @@
 
   function startSpeakingLoop(alertObj) {
     stopSpeakingLoop();
+    if (!settings.voice) return;
     const myAlert = alertObj;
     resolveVoiceSrc(alertObj)
       .then((src) => {
-        // Si mientras bajábamos el MP3 cambió/terminó la alerta, cortamos.
         if (!currentAlert || currentAlert !== myAlert) return;
         playVoiceOnce(src);
         voiceTimer = setInterval(() => {
           if (!currentAlert) return;
-          // si el audio aun se está reproduciendo, no lo reinicies
           if (voiceAudio && !voiceAudio.paused && !voiceAudio.ended) return;
           playVoiceOnce(src);
         }, VOICE_REPEAT_MS);
@@ -173,10 +363,10 @@
     }
   }
 
-  // --- Vibración (solo Android Chrome / APK WebView; iOS lo ignora) ----
+  // --- Vibración -------------------------------------------------------
   function startVibration() {
+    if (!settings.vibration) return;
     if (!("vibrate" in navigator)) return;
-    // Patrón: vibra 600ms, pausa 300ms, repite mientras haya alerta.
     const tick = () => {
       try {
         navigator.vibrate([600, 300]);
@@ -205,7 +395,6 @@
 
   // --- Overlay ---------------------------------------------------------
   function showAlert(alert) {
-    // Si el usuario cerró esta misma alerta localmente, no la re-mostramos.
     if (
       locallyDismissed &&
       currentAlert &&
@@ -215,11 +404,17 @@
     }
     locallyDismissed = false;
     currentAlert = alert;
+    currentAlertIsTest = !!alert.__test;
     const label = alert.label || alert.type;
     alertTypeEl.textContent = label;
-    overlay.classList.toggle("is-simulacro", alert.type === "simulacro");
+
+    overlay.classList.remove("is-simulacro");
+    if (alert.type === "simulacro" || currentAlertIsTest) {
+      overlay.classList.add("is-simulacro");
+    }
+    applyStrobeClass();
     overlay.hidden = false;
-    idleEl.hidden = true;
+    if (app) app.setAttribute("aria-hidden", "true");
 
     const update = () => {
       const remaining = alert.endsAt - Date.now();
@@ -237,35 +432,34 @@
       startSpeakingLoop(alert);
     }
     startVibration();
+
+    if (!currentAlertIsTest) addHistoryEntry(alert);
   }
 
   function hideAlert() {
     currentAlert = null;
+    currentAlertIsTest = false;
     locallyDismissed = false;
     if (tickTimer) {
       clearInterval(tickTimer);
       tickTimer = null;
     }
     overlay.hidden = true;
-    idleEl.hidden = false;
+    if (app) app.removeAttribute("aria-hidden");
     stopSiren();
     stopSpeakingLoop();
     stopVibration();
   }
 
-  // Cerrar la alerta SOLO en este dispositivo (no avisa al server, así otros
-  // clientes siguen recibiendo la alerta normalmente).
   function dismissLocally() {
     if (!currentAlert) return;
     locallyDismissed = true;
     hideAlert();
   }
 
-  if (alertCloseBtn) {
-    alertCloseBtn.addEventListener("click", dismissLocally);
-  }
+  alertCloseBtn.addEventListener("click", dismissLocally);
 
-  // --- Activar audio (gesto requerido por navegadores) ------------------
+  // --- Activar audio ---------------------------------------------------
   function warmUpAudio(audio) {
     if (!audio) return;
     try {
@@ -292,27 +486,120 @@
     }
   }
 
-  enableBtn.addEventListener("click", () => {
+  function markEnabled() {
     enabled = true;
-    // "Warm up" de los <audio> para desbloquear reproducción en móviles.
-    warmUpAudio(ensureSirenAudio());
-    // Arranca un voice para que también quede desbloqueado (simulacro como placeholder).
-    warmUpAudio(ensureVoiceAudio(VOICE_BASE + "simulacro.mp3"));
-
-    enableBtn.textContent = "Sonido activado";
+    enableBtn.textContent = "Sonido activado ✓";
     enableBtn.disabled = true;
+    enableBtn.classList.add("is-enabled");
+    audioStatusText.textContent = "Activo";
+    audioStatusText.classList.add("is-positive");
+    if (enableCard) enableCard.classList.add("is-done");
+  }
 
-    // si ya hay una alerta activa, arrancá sirena y voz
+  enableBtn.addEventListener("click", () => {
+    warmUpAudio(ensureSirenAudio());
+    warmUpAudio(ensureVoiceAudio(VOICE_BASE + "simulacro.mp3"));
+    markEnabled();
     if (currentAlert) {
       startSiren();
       startSpeakingLoop(currentAlert);
     }
   });
 
+  // --- Tabs ------------------------------------------------------------
+  const tabButtons = document.querySelectorAll(".tabs__btn");
+  const tabSections = document.querySelectorAll(".tab");
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.getAttribute("data-tab-target");
+      tabButtons.forEach((b) =>
+        b.classList.toggle("is-active", b === btn),
+      );
+      tabSections.forEach((sec) => {
+        sec.hidden = sec.getAttribute("data-tab") !== target;
+      });
+      if (target === "history") renderHistory();
+    });
+  });
+
+  // --- Settings handlers ----------------------------------------------
+  function persistAndApply() {
+    saveSettings(settings);
+    applyVolumeToAudio();
+    applyStrobeClass();
+  }
+
+  setVibration.addEventListener("change", () => {
+    settings.vibration = setVibration.checked;
+    persistAndApply();
+    if (!settings.vibration) stopVibration();
+    else if (currentAlert) startVibration();
+  });
+
+  setStrobe.addEventListener("change", () => {
+    settings.strobe = setStrobe.checked;
+    persistAndApply();
+  });
+
+  setVoice.addEventListener("change", () => {
+    settings.voice = setVoice.checked;
+    persistAndApply();
+    if (!settings.voice) stopSpeakingLoop();
+    else if (currentAlert) startSpeakingLoop(currentAlert);
+  });
+
+  setVolume.addEventListener("input", () => {
+    settings.volume = parseInt(setVolume.value, 10) || 0;
+    volumeLabel.textContent = settings.volume + " %";
+    persistAndApply();
+  });
+
+  clearHistoryBtn.addEventListener("click", () => {
+    if (!confirm("¿Seguro que querés borrar el historial local?")) return;
+    localStorage.removeItem(HISTORY_KEY);
+    renderHistory();
+    updateLastAlert();
+  });
+
+  testAlertBtn.addEventListener("click", () => {
+    if (currentAlert) return;
+    if (!enabled) {
+      alert(
+        'Primero tocá "Activar sonido y voz" en la pestaña Inicio para que se escuche la sirena.',
+      );
+      return;
+    }
+    const fake = {
+      type: "simulacro",
+      label: "Prueba (5 seg)",
+      startedAt: Date.now(),
+      endsAt: Date.now() + 5000,
+      __test: true,
+    };
+    showAlert(fake);
+    setTimeout(() => {
+      if (currentAlert === fake) hideAlert();
+    }, 5000);
+  });
+
+  resetDataBtn.addEventListener("click", () => {
+    if (
+      !confirm(
+        "Esto borra el historial y vuelve los ajustes a sus valores por defecto. ¿Continuar?",
+      )
+    )
+      return;
+    localStorage.removeItem(HISTORY_KEY);
+    localStorage.removeItem(SETTINGS_KEY);
+    settings = loadSettings();
+    applySettingsToUI();
+    renderHistory();
+    updateLastAlert();
+  });
+
   // --- Socket ----------------------------------------------------------
   socket.on("connect", () => {
-    setStatus("Listo · esperando alertas", "online");
-    // Avisamos al server que somos un cliente (para el contador del host).
+    setStatus("En línea · esperando alertas", "online");
     socket.emit("role:client");
   });
   socket.on("disconnect", () => setStatus("Desconectado", "offline"));
@@ -325,5 +612,9 @@
     hideAlert();
   });
 
+  // --- Init ------------------------------------------------------------
+  applySettingsToUI();
+  renderHistory();
+  updateLastAlert();
   setStatus("Conectando…");
 })();
