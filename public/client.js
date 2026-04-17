@@ -7,6 +7,7 @@
   const overlay = document.getElementById("alertOverlay");
   const alertTypeEl = document.getElementById("alertType");
   const alertTimeEl = document.getElementById("alertTime");
+  const alertCloseBtn = document.getElementById("alertCloseBtn");
 
   let sirenAudio = null;
   let voiceAudio = null;
@@ -15,6 +16,8 @@
   let voiceTimer = null;
   let enabled = false;
   let currentVoiceObjectUrl = null; // blob URL para voces personalizadas (iOS friendly)
+  let vibrationTimer = null;
+  let locallyDismissed = false; // si el usuario cerró la alerta en este equipo
 
   const SIREN_SRC = "/sounds/siren.mp3";
   const VOICE_BASE = "/sounds/voice/";
@@ -170,8 +173,47 @@
     }
   }
 
+  // --- Vibración (solo Android Chrome / APK WebView; iOS lo ignora) ----
+  function startVibration() {
+    if (!("vibrate" in navigator)) return;
+    // Patrón: vibra 600ms, pausa 300ms, repite mientras haya alerta.
+    const tick = () => {
+      try {
+        navigator.vibrate([600, 300]);
+      } catch {
+        /* ignore */
+      }
+    };
+    tick();
+    if (vibrationTimer) clearInterval(vibrationTimer);
+    vibrationTimer = setInterval(tick, 900);
+  }
+
+  function stopVibration() {
+    if (vibrationTimer) {
+      clearInterval(vibrationTimer);
+      vibrationTimer = null;
+    }
+    if ("vibrate" in navigator) {
+      try {
+        navigator.vibrate(0);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   // --- Overlay ---------------------------------------------------------
   function showAlert(alert) {
+    // Si el usuario cerró esta misma alerta localmente, no la re-mostramos.
+    if (
+      locallyDismissed &&
+      currentAlert &&
+      currentAlert.startedAt === alert.startedAt
+    ) {
+      return;
+    }
+    locallyDismissed = false;
     currentAlert = alert;
     const label = alert.label || alert.type;
     alertTypeEl.textContent = label;
@@ -194,10 +236,12 @@
       startSiren();
       startSpeakingLoop(alert);
     }
+    startVibration();
   }
 
   function hideAlert() {
     currentAlert = null;
+    locallyDismissed = false;
     if (tickTimer) {
       clearInterval(tickTimer);
       tickTimer = null;
@@ -206,6 +250,19 @@
     idleEl.hidden = false;
     stopSiren();
     stopSpeakingLoop();
+    stopVibration();
+  }
+
+  // Cerrar la alerta SOLO en este dispositivo (no avisa al server, así otros
+  // clientes siguen recibiendo la alerta normalmente).
+  function dismissLocally() {
+    if (!currentAlert) return;
+    locallyDismissed = true;
+    hideAlert();
+  }
+
+  if (alertCloseBtn) {
+    alertCloseBtn.addEventListener("click", dismissLocally);
   }
 
   // --- Activar audio (gesto requerido por navegadores) ------------------

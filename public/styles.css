@@ -508,6 +508,39 @@ body {
   max-width: 100%;
   z-index: 12;
 }
+.client__alert-close {
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 13;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.client__alert-close:hover,
+.client__alert-close:focus-visible {
+  background: rgba(0, 0, 0, 0.75);
+  outline: none;
+}
+.client__alert-close:active {
+  transform: scale(0.92);
+}
+.client__alert-close span {
+  display: block;
+  transform: translateY(-2px);
+}
 .clock--overlay {
   position: relative;
   z-index: 12;
