@@ -90,17 +90,33 @@ async function fetchWithTimeout(url, ms, method = "GET") {
   }
 }
 
+async function sampleSource(src) {
+  const t0 = Date.now();
+  const ext = await src();
+  const t1 = Date.now();
+  const latency = (t1 - t0) / 2;
+  return { offset: ext - (t0 + latency), latency };
+}
+
 async function syncClock() {
+  // Tomamos 5 muestras y nos quedamos con la de menor latencia,
+  // para minimizar el error causado por una conexión lenta.
   for (const src of TIME_SOURCES) {
     try {
-      const t0 = Date.now();
-      const ext = await src();
-      const t1 = Date.now();
-      const latency = (t1 - t0) / 2;
-      // ext corresponde aprox al momento t0 + latency
-      timeOffsetMs = ext - (t0 + latency);
+      const samples = [];
+      for (let i = 0; i < 5; i++) {
+        try {
+          samples.push(await sampleSource(src));
+        } catch {
+          /* ignore sample */
+        }
+      }
+      if (samples.length === 0) throw new Error("sin muestras");
+      samples.sort((a, b) => a.latency - b.latency);
+      const best = samples[0];
+      timeOffsetMs = Math.round(best.offset);
       console.log(
-        `[time-sync] offset = ${timeOffsetMs}ms (latency ${Math.round(latency)}ms)`,
+        `[time-sync] offset = ${timeOffsetMs}ms (latencia ${Math.round(best.latency)}ms, ${samples.length} muestras)`,
       );
       return;
     } catch (err) {
