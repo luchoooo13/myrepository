@@ -14,6 +14,7 @@
   let tickTimer = null;
   let voiceTimer = null;
   let enabled = false;
+  let currentVoiceObjectUrl = null; // blob URL para voces personalizadas (iOS friendly)
 
   const SIREN_SRC = "/sounds/siren.mp3";
   const VOICE_BASE = "/sounds/voice/";
@@ -68,11 +69,32 @@
   }
 
   // --- Voz (archivo MP3 pre-generado con Google TTS) --------------------
-  function voiceUrlFor(alert) {
-    if (alert.type === "custom") {
-      return "/tts?text=" + encodeURIComponent(alert.label || "Alerta");
+  // iOS Safari es quisquilloso con cambiar el `src` de un <audio> sobre la
+  // marcha: a veces queda mudo. Para el mensaje personalizado bajamos el MP3
+  // con fetch() y lo convertimos a un Blob URL, así el <audio> lo ve como
+  // un archivo local ya cargado y lo reproduce sin problemas.
+  function resolveVoiceSrc(alertObj) {
+    if (alertObj.type === "custom") {
+      const remote =
+        "/tts?text=" + encodeURIComponent(alertObj.label || "Alerta");
+      return fetch(remote)
+        .then((r) => {
+          if (!r.ok) throw new Error("tts http " + r.status);
+          return r.blob();
+        })
+        .then((blob) => {
+          if (currentVoiceObjectUrl) {
+            try {
+              URL.revokeObjectURL(currentVoiceObjectUrl);
+            } catch {
+              /* ignore */
+            }
+          }
+          currentVoiceObjectUrl = URL.createObjectURL(blob);
+          return currentVoiceObjectUrl;
+        });
     }
-    return VOICE_BASE + alert.type + ".mp3";
+    return Promise.resolve(VOICE_BASE + alertObj.type + ".mp3");
   }
 
   function ensureVoiceAudio(src) {
@@ -82,6 +104,12 @@
       voiceAudio.volume = 1.0;
     } else if (voiceAudio.src.indexOf(src) === -1) {
       voiceAudio.src = src;
+      // iOS Safari requiere load() después de cambiar src.
+      try {
+        voiceAudio.load();
+      } catch {
+        /* ignore */
+      }
     }
     return voiceAudio;
   }
@@ -101,14 +129,22 @@
 
   function startSpeakingLoop(alertObj) {
     stopSpeakingLoop();
-    const src = voiceUrlFor(alertObj);
-    playVoiceOnce(src);
-    voiceTimer = setInterval(() => {
-      if (!currentAlert) return;
-      // si el audio aun se está reproduciendo, no lo reinicies
-      if (voiceAudio && !voiceAudio.paused && !voiceAudio.ended) return;
-      playVoiceOnce(src);
-    }, VOICE_REPEAT_MS);
+    const myAlert = alertObj;
+    resolveVoiceSrc(alertObj)
+      .then((src) => {
+        // Si mientras bajábamos el MP3 cambió/terminó la alerta, cortamos.
+        if (!currentAlert || currentAlert !== myAlert) return;
+        playVoiceOnce(src);
+        voiceTimer = setInterval(() => {
+          if (!currentAlert) return;
+          // si el audio aun se está reproduciendo, no lo reinicies
+          if (voiceAudio && !voiceAudio.paused && !voiceAudio.ended) return;
+          playVoiceOnce(src);
+        }, VOICE_REPEAT_MS);
+      })
+      .catch((err) => {
+        console.warn("No se pudo preparar la voz:", err);
+      });
   }
 
   function stopSpeakingLoop() {
@@ -123,6 +159,14 @@
       } catch {
         /* ignore */
       }
+    }
+    if (currentVoiceObjectUrl) {
+      try {
+        URL.revokeObjectURL(currentVoiceObjectUrl);
+      } catch {
+        /* ignore */
+      }
+      currentVoiceObjectUrl = null;
     }
   }
 

@@ -341,10 +341,26 @@ body {
   padding: 2rem;
   animation: alertFlash 1s steps(2, end) infinite;
   z-index: 10;
+  overflow: hidden;
+}
+.client__alert-strobe {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  animation: alertStrobe 0.35s steps(2, end) infinite;
+  z-index: 11;
 }
 .client__alert-inner {
+  position: relative;
   text-align: center;
   max-width: 100%;
+  z-index: 12;
+}
+.clock--overlay {
+  position: relative;
+  z-index: 12;
 }
 .client__alert-tag {
   font-size: clamp(1.5rem, 4vw, 2.5rem);
@@ -376,6 +392,21 @@ body {
   51%,
   100% {
     background: #7f1d1d;
+  }
+}
+
+@keyframes alertStrobe {
+  0%,
+  45% {
+    opacity: 0;
+  }
+  46%,
+  55% {
+    opacity: 0.85;
+  }
+  56%,
+  100% {
+    opacity: 0;
   }
 }
 
