@@ -215,18 +215,20 @@ public class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // Botón flotante chico para reconfigurar servidor (arriba a la izquierda,
-        // así no tapa el botón X de cerrar alerta que vive arriba a la derecha).
+        // Botón flotante chico para reconfigurar servidor. Lo mandamos al
+        // costado inferior derecho, apenas arriba de la barra de pestañas web
+        // (~84px desde el fondo), para no tapar el header ni el botón X de
+        // cerrar alerta (que vive arriba a la derecha).
         Button cfg = new Button(this);
         cfg.setText("⚙");
         cfg.setAllCaps(false);
-        cfg.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        cfg.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         cfg.setTextColor(0xFFFFFFFF);
-        cfg.setBackgroundColor(0x80000000);
-        FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(dp(40), dp(40));
-        flp.gravity = Gravity.TOP | Gravity.START;
-        flp.topMargin = dp(8);
-        flp.leftMargin = dp(8);
+        cfg.setBackgroundColor(0x66000000);
+        FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(dp(34), dp(34));
+        flp.gravity = Gravity.BOTTOM | Gravity.END;
+        flp.bottomMargin = dp(92);
+        flp.rightMargin = dp(10);
         cfg.setLayoutParams(flp);
         cfg.setOnClickListener(v -> confirmReconfigure());
         container.addView(cfg);
