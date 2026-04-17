@@ -284,6 +284,10 @@ body {
 .alert-btn--tormenta {
   background: linear-gradient(135deg, #0f172a, #1e40af);
 }
+.alert-btn--custom {
+  background: linear-gradient(135deg, #334155, #64748b);
+  border: 2px dashed rgba(255, 255, 255, 0.35);
+}
 
 .host__footer {
   margin-top: 2rem;

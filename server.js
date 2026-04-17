@@ -3,6 +3,7 @@ const os = require("os");
 const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
+const googleTTS = require("google-tts-api");
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const ALERT_DURATION_MS = 90 * 1000; // 1 minuto 30 segundos
@@ -19,6 +20,41 @@ app.get("/host", (_req, res) => {
 });
 app.get("/client", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "client.html"));
+});
+
+// Proxy a Google TTS para alertas con mensaje personalizado.
+// Devuelve un MP3 con la voz de Google leyendo el texto pedido.
+const ttsCache = new Map(); // text -> Buffer
+app.get("/tts", async (req, res) => {
+  const raw = (req.query.text || "").toString().trim();
+  const text = raw.slice(0, 500);
+  if (!text) {
+    res.status(400).send("missing text");
+    return;
+  }
+  try {
+    let mp3 = ttsCache.get(text);
+    if (!mp3) {
+      const chunks = await googleTTS.getAllAudioBase64(text, {
+        lang: "es",
+        slow: false,
+        host: "https://translate.google.com",
+        splitPunct: ",.?!;",
+      });
+      const buffers = chunks.map((c) => Buffer.from(c.base64, "base64"));
+      mp3 = Buffer.concat(buffers);
+      // cache chico para no pegarle a Google cada 5 segundos
+      if (ttsCache.size > 50) ttsCache.clear();
+      ttsCache.set(text, mp3);
+    }
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Content-Length", String(mp3.length));
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(mp3);
+  } catch (err) {
+    console.error("TTS error:", err.message);
+    res.status(502).send("tts error");
+  }
 });
 
 // Estado actual de la alerta (permite sincronizar clientes que se conectan tarde)

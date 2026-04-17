@@ -68,8 +68,14 @@
   }
 
   // --- Voz (archivo MP3 pre-generado con Google TTS) --------------------
-  function ensureVoiceAudio(type) {
-    const src = VOICE_BASE + type + ".mp3";
+  function voiceUrlFor(alert) {
+    if (alert.type === "custom") {
+      return "/tts?text=" + encodeURIComponent(alert.label || "Alerta");
+    }
+    return VOICE_BASE + alert.type + ".mp3";
+  }
+
+  function ensureVoiceAudio(src) {
     if (!voiceAudio) {
       voiceAudio = new Audio(src);
       voiceAudio.preload = "auto";
@@ -80,8 +86,8 @@
     return voiceAudio;
   }
 
-  function playVoiceOnce(type) {
-    const audio = ensureVoiceAudio(type);
+  function playVoiceOnce(src) {
+    const audio = ensureVoiceAudio(src);
     try {
       audio.currentTime = 0;
     } catch {
@@ -93,14 +99,15 @@
     }
   }
 
-  function startSpeakingLoop(type) {
+  function startSpeakingLoop(alertObj) {
     stopSpeakingLoop();
-    playVoiceOnce(type);
+    const src = voiceUrlFor(alertObj);
+    playVoiceOnce(src);
     voiceTimer = setInterval(() => {
       if (!currentAlert) return;
       // si el audio aun se está reproduciendo, no lo reinicies
       if (voiceAudio && !voiceAudio.paused && !voiceAudio.ended) return;
-      playVoiceOnce(type);
+      playVoiceOnce(src);
     }, VOICE_REPEAT_MS);
   }
 

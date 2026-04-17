@@ -9,6 +9,13 @@
     { type: "gas", label: "Fuga de Gas", icon: "☣️", className: "gas" },
     { type: "bomba", label: "Amenaza de Bomba", icon: "💣", className: "bomba" },
     { type: "tormenta", label: "Tormenta Severa", icon: "⛈️", className: "tormenta" },
+    {
+      type: "custom",
+      label: "Mensaje Personalizado",
+      icon: "✏️",
+      className: "custom",
+      customPrompt: true,
+    },
   ];
 
   const socket = io();
@@ -76,6 +83,18 @@
         <span class="alert-btn__label">${alert.label}</span>
       `;
       btn.addEventListener("click", () => {
+        if (alert.customPrompt) {
+          const raw = window.prompt(
+            "Escribí el mensaje que va a leer la voz en todos los clientes:",
+            ""
+          );
+          if (raw === null) return;
+          const text = raw.trim().slice(0, 200);
+          if (!text) return;
+          if (!window.confirm(`¿Enviar alerta con mensaje: "${text}"?`)) return;
+          socket.emit("alert:trigger", { type: "custom", label: text });
+          return;
+        }
         const confirmed =
           alert.type === "simulacro" ||
           window.confirm(`¿Enviar alerta de "${alert.label}" a todos los clientes?`);
