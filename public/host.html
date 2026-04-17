@@ -9,7 +9,13 @@
   <body class="host">
     <header class="host__header">
       <h1>Panel de Alertas</h1>
-      <div class="host__status" id="status">Conectando…</div>
+      <div class="host__header-right">
+        <div class="clock" aria-live="off">
+          <div class="clock__time" data-clock-time>--:--:--</div>
+          <div class="clock__date" data-clock-date>—</div>
+        </div>
+        <div class="host__status" id="status">Conectando…</div>
+      </div>
     </header>
 
     <section class="host__current" id="current" hidden>
@@ -31,6 +37,7 @@
     </footer>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/clock.js"></script>
     <script src="/host.js"></script>
   </body>
 </html>

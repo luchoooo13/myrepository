@@ -8,6 +8,10 @@
   </head>
   <body class="client">
     <div class="client__idle" id="idle">
+      <div class="clock clock--big">
+        <div class="clock__time" data-clock-time>--:--:--</div>
+        <div class="clock__date" data-clock-date>—</div>
+      </div>
       <h1>Pantalla de Alertas</h1>
       <p class="client__status" id="status">Conectando…</p>
       <button class="btn btn--enable" id="enableBtn">
@@ -20,6 +24,9 @@
     </div>
 
     <div class="client__alert" id="alertOverlay" hidden>
+      <div class="clock clock--overlay">
+        <div class="clock__time" data-clock-time>--:--:--</div>
+      </div>
       <div class="client__alert-inner">
         <div class="client__alert-tag">ALERTA</div>
         <div class="client__alert-type" id="alertType">—</div>
@@ -28,6 +35,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/clock.js"></script>
     <script src="/client.js"></script>
   </body>
 </html>
