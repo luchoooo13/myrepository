@@ -9,12 +9,16 @@
   const alertTimeEl = document.getElementById("alertTime");
 
   let sirenAudio = null;
+  let voiceAudio = null;
   let currentAlert = null;
   let tickTimer = null;
-  let ttsTimer = null;
+  let voiceTimer = null;
   let enabled = false;
 
   const SIREN_SRC = "/sounds/siren.mp3";
+  const VOICE_BASE = "/sounds/voice/";
+  // Cuánto esperar entre repeticiones del audio de voz (ms).
+  const VOICE_REPEAT_MS = 5000;
 
   function setStatus(text, state) {
     statusEl.textContent = text;
@@ -63,97 +67,52 @@
     }
   }
 
-  // --- Voz (Web Speech API) ---------------------------------------------
-  let cachedSpanishFemaleVoice = null;
-
-  function pickSpanishFemaleVoice() {
-    if (!("speechSynthesis" in window)) return null;
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
-
-    const spanish = voices.filter((v) =>
-      (v.lang || "").toLowerCase().startsWith("es")
-    );
-    if (spanish.length === 0) return voices[0] || null;
-
-    const femaleHints = [
-      "female",
-      "mujer",
-      "mónica",
-      "monica",
-      "paulina",
-      "helena",
-      "lucia",
-      "lucía",
-      "sabina",
-      "marisol",
-      "esperanza",
-      "elena",
-      "laura",
-      "google español",
-      "microsoft sabina",
-      "microsoft helena",
-      "microsoft paulina",
-    ];
-    const byName = spanish.find((v) => {
-      const n = (v.name || "").toLowerCase();
-      return femaleHints.some((h) => n.includes(h));
-    });
-    if (byName) return byName;
-
-    const notMale = spanish.find((v) => {
-      const n = (v.name || "").toLowerCase();
-      return !/(male|hombre|jorge|diego|carlos|juan|pablo)/i.test(n);
-    });
-    return notMale || spanish[0];
-  }
-
-  function ensureVoice() {
-    if (cachedSpanishFemaleVoice) return cachedSpanishFemaleVoice;
-    cachedSpanishFemaleVoice = pickSpanishFemaleVoice();
-    return cachedSpanishFemaleVoice;
-  }
-
-  function speakOnce(text) {
-    if (!("speechSynthesis" in window)) return;
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = "es-ES";
-    const voice = ensureVoice();
-    if (voice) {
-      utter.voice = voice;
-      utter.lang = voice.lang || "es-ES";
+  // --- Voz (archivo MP3 pre-generado con Google TTS) --------------------
+  function ensureVoiceAudio(type) {
+    const src = VOICE_BASE + type + ".mp3";
+    if (!voiceAudio) {
+      voiceAudio = new Audio(src);
+      voiceAudio.preload = "auto";
+      voiceAudio.volume = 1.0;
+    } else if (voiceAudio.src.indexOf(src) === -1) {
+      voiceAudio.src = src;
     }
-    utter.rate = 1;
-    utter.pitch = 1.1;
-    utter.volume = 1;
+    return voiceAudio;
+  }
+
+  function playVoiceOnce(type) {
+    const audio = ensureVoiceAudio(type);
     try {
-      window.speechSynthesis.speak(utter);
+      audio.currentTime = 0;
     } catch {
       /* ignore */
     }
+    const p = audio.play();
+    if (p && typeof p.catch === "function") {
+      p.catch((err) => console.warn("No se pudo reproducir la voz:", err));
+    }
   }
 
-  function startSpeakingLoop(label) {
+  function startSpeakingLoop(type) {
     stopSpeakingLoop();
-    const phrase = `Atención. ${label}. ${label}.`;
-    // hablar inmediatamente y luego repetir
-    speakOnce(phrase);
-    ttsTimer = setInterval(() => {
+    playVoiceOnce(type);
+    voiceTimer = setInterval(() => {
       if (!currentAlert) return;
-      // evita apilar utterances si el anterior aun habla
-      if (window.speechSynthesis && window.speechSynthesis.speaking) return;
-      speakOnce(phrase);
-    }, 4500);
+      // si el audio aun se está reproduciendo, no lo reinicies
+      if (voiceAudio && !voiceAudio.paused && !voiceAudio.ended) return;
+      playVoiceOnce(type);
+    }, VOICE_REPEAT_MS);
   }
 
   function stopSpeakingLoop() {
-    if (ttsTimer) {
-      clearInterval(ttsTimer);
-      ttsTimer = null;
+    if (voiceTimer) {
+      clearInterval(voiceTimer);
+      voiceTimer = null;
     }
-    if ("speechSynthesis" in window) {
+    if (voiceAudio) {
       try {
-        window.speechSynthesis.cancel();
+        voiceAudio.pause();
+        voiceAudio.currentTime = 0;
       } catch {
         /* ignore */
       }
@@ -182,7 +141,7 @@
 
     if (enabled) {
       startSiren();
-      startSpeakingLoop(label);
+      startSpeakingLoop(alert.type);
     }
   }
 
@@ -199,58 +158,48 @@
   }
 
   // --- Activar audio (gesto requerido por navegadores) ------------------
-  enableBtn.addEventListener("click", () => {
-    enabled = true;
-    // "Warm up" del <audio> para desbloquear reproducción en móviles.
-    const audio = ensureSirenAudio();
+  function warmUpAudio(audio) {
+    if (!audio) return;
     try {
       audio.muted = true;
       const warm = audio.play();
-      if (warm && typeof warm.then === "function") {
-        warm
-          .then(() => {
-            audio.pause();
-            audio.currentTime = 0;
-            audio.muted = false;
-          })
-          .catch(() => {
-            audio.muted = false;
-          });
-      } else {
-        audio.pause();
-        audio.currentTime = 0;
+      const finish = () => {
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+        } catch {
+          /* ignore */
+        }
         audio.muted = false;
+      };
+      if (warm && typeof warm.then === "function") {
+        warm.then(finish).catch(() => {
+          audio.muted = false;
+        });
+      } else {
+        finish();
       }
     } catch {
       /* ignore */
     }
-    // dispara una utterance vacía para "desbloquear" la voz en mobile
-    if ("speechSynthesis" in window) {
-      try {
-        const warm = new SpeechSynthesisUtterance(" ");
-        warm.volume = 0;
-        window.speechSynthesis.speak(warm);
-      } catch {
-        /* ignore */
-      }
-    }
+  }
+
+  enableBtn.addEventListener("click", () => {
+    enabled = true;
+    // "Warm up" de los <audio> para desbloquear reproducción en móviles.
+    warmUpAudio(ensureSirenAudio());
+    // Arranca un voice para que también quede desbloqueado (simulacro como placeholder).
+    warmUpAudio(ensureVoiceAudio("simulacro"));
+
     enableBtn.textContent = "Sonido activado";
     enableBtn.disabled = true;
 
     // si ya hay una alerta activa, arrancá sirena y voz
     if (currentAlert) {
       startSiren();
-      startSpeakingLoop(currentAlert.label || currentAlert.type);
+      startSpeakingLoop(currentAlert.type);
     }
   });
-
-  // refrescar la lista de voces cuando estén disponibles
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.onvoiceschanged = () => {
-      cachedSpanishFemaleVoice = null;
-      ensureVoice();
-    };
-  }
 
   // --- Socket ----------------------------------------------------------
   socket.on("connect", () => setStatus("Listo · esperando alertas", "online"));
