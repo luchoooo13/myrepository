@@ -57,6 +57,71 @@ app.get("/tts", async (req, res) => {
   }
 });
 
+// --- Sincronización con hora real (NTP "pobre" via HTTP) ---------------
+// Cuando el reloj de la PC que corre el server está corrido algunos
+// segundos, queremos mostrar la hora correcta y disparar las alertas en el
+// momento correcto igualmente. Probamos varias fuentes de hora.
+let timeOffsetMs = 0; // realNow - Date.now()
+const TIME_SOURCES = [
+  async () => {
+    const r = await fetchWithTimeout(
+      "https://worldtimeapi.org/api/timezone/America/Argentina/Buenos_Aires",
+      4000,
+    );
+    if (!r.ok) throw new Error("worldtimeapi " + r.status);
+    const j = await r.json();
+    return new Date(j.datetime).getTime();
+  },
+  async () => {
+    const r = await fetchWithTimeout("https://www.google.com", 4000, "HEAD");
+    const h = r.headers.get("date");
+    if (!h) throw new Error("google no date");
+    return new Date(h).getTime();
+  },
+];
+
+async function fetchWithTimeout(url, ms, method = "GET") {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { method, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function syncClock() {
+  for (const src of TIME_SOURCES) {
+    try {
+      const t0 = Date.now();
+      const ext = await src();
+      const t1 = Date.now();
+      const latency = (t1 - t0) / 2;
+      // ext corresponde aprox al momento t0 + latency
+      timeOffsetMs = ext - (t0 + latency);
+      console.log(
+        `[time-sync] offset = ${timeOffsetMs}ms (latency ${Math.round(latency)}ms)`,
+      );
+      return;
+    } catch (err) {
+      console.warn("[time-sync] fuente fallida:", err.message);
+    }
+  }
+  console.warn("[time-sync] ninguna fuente respondió, uso reloj local");
+}
+
+function realNow() {
+  return Date.now() + timeOffsetMs;
+}
+
+syncClock();
+setInterval(syncClock, 15 * 60 * 1000);
+
+app.get("/time", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ now: realNow() });
+});
+
 // Estado actual de la alerta (permite sincronizar clientes que se conectan tarde)
 let currentAlert = null; // { type, label, startedAt, endsAt }
 let alertTimer = null;
@@ -69,8 +134,9 @@ const BA_TZ = "America/Argentina/Buenos_Aires";
 
 // Calcula el próximo timestamp en UTC para una hora:minuto en Buenos Aires.
 // Buenos Aires está en UTC-3 todo el año (sin horario de verano).
-function nextFireAtBA(hour, minute) {
-  const now = new Date();
+function nextFireAtBA(hour, minute, afterMs) {
+  const base = afterMs || realNow();
+  const now = new Date(base);
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: BA_TZ,
     year: "numeric",
@@ -118,10 +184,11 @@ function serializeSchedules() {
       type: s.type,
       label: s.label,
       fireAt: s.fireAt,
+      recurring: s.recurring,
     }));
 }
 
-function addSchedule({ hour, minute, type, label }) {
+function addSchedule({ hour, minute, type, label, recurring }) {
   const fireAt = nextFireAtBA(hour, minute);
   const entry = {
     id: nextScheduleId++,
@@ -130,6 +197,7 @@ function addSchedule({ hour, minute, type, label }) {
     type,
     label,
     fireAt,
+    recurring: !!recurring,
   };
   schedules.push(entry);
   broadcastSchedules();
@@ -146,14 +214,22 @@ function removeSchedule(id) {
 
 // Chequea cada 10 segundos si alguna programación llegó a su hora.
 setInterval(() => {
-  const now = Date.now();
+  const now = realNow();
   const due = schedules.filter((s) => s.fireAt <= now);
   if (due.length === 0) return;
   for (const s of due) {
-    const idx = schedules.indexOf(s);
-    if (idx !== -1) schedules.splice(idx, 1);
-    console.log(`[schedule] disparando ${s.type} (${s.label}) programada`);
+    console.log(
+      `[schedule] disparando ${s.type} (${s.label})` +
+        (s.recurring ? " [diaria]" : ""),
+    );
     startAlert({ type: s.type, label: s.label });
+    if (s.recurring) {
+      // Reprogramá para el próximo día a la misma hora.
+      s.fireAt = nextFireAtBA(s.hour, s.minute, now + 60 * 1000);
+    } else {
+      const idx = schedules.indexOf(s);
+      if (idx !== -1) schedules.splice(idx, 1);
+    }
   }
   broadcastSchedules();
 }, 10 * 1000);
@@ -187,6 +263,12 @@ function startAlert(payload) {
   }, ALERT_DURATION_MS);
 }
 
+// --- Contador de clientes conectados (solo /client) --------------------
+const clientSockets = new Set();
+function broadcastClientCount() {
+  io.emit("clients:count", { count: clientSockets.size });
+}
+
 io.on("connection", (socket) => {
   // Al conectarse, sincronizar con la alerta activa si existe
   if (currentAlert && Date.now() < currentAlert.endsAt) {
@@ -194,6 +276,20 @@ io.on("connection", (socket) => {
   }
   // Sincronizar lista de programaciones
   socket.emit("schedule:list", serializeSchedules());
+  socket.emit("clients:count", { count: clientSockets.size });
+
+  socket.on("role:client", () => {
+    if (!clientSockets.has(socket.id)) {
+      clientSockets.add(socket.id);
+      broadcastClientCount();
+    }
+  });
+
+  socket.on("disconnect", () => {
+    if (clientSockets.delete(socket.id)) {
+      broadcastClientCount();
+    }
+  });
 
   socket.on("alert:trigger", (payload) => {
     if (!payload || typeof payload.type !== "string") return;
@@ -226,7 +322,13 @@ io.on("connection", (socket) => {
       typeof payload.label === "string" && payload.label.trim().length > 0
         ? payload.label.trim().slice(0, 200)
         : payload.type;
-    addSchedule({ hour, minute, type: payload.type, label: rawLabel });
+    addSchedule({
+      hour,
+      minute,
+      type: payload.type,
+      label: rawLabel,
+      recurring: !!payload.recurring,
+    });
   });
 
   socket.on("schedule:remove", (payload) => {

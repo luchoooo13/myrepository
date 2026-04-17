@@ -15,6 +15,11 @@
           <div class="clock__date" data-clock-date>—</div>
         </div>
         <div class="host__status" id="status">Conectando…</div>
+        <div class="host__clients" id="clients" title="Dispositivos cliente conectados">
+          <span class="host__clients-icon" aria-hidden="true">📺</span>
+          <span class="host__clients-count" id="clientsCount">0</span>
+          <span class="host__clients-label">clientes</span>
+        </div>
       </div>
     </header>
 
@@ -41,6 +46,10 @@
           <select id="scheduleType" required>
             <!-- opciones inyectadas por host.js -->
           </select>
+        </label>
+        <label class="host__scheduler-field host__scheduler-field--check">
+          <input type="checkbox" id="scheduleRecurring" />
+          <span>Repetir todos los días</span>
         </label>
         <button class="btn btn--schedule" type="submit">Programar</button>
       </form>

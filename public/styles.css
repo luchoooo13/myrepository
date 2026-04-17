@@ -316,6 +316,48 @@ body {
   font-size: 0.85rem;
   color: var(--muted);
 }
+.host__scheduler-field--check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  padding-bottom: 0.45rem;
+  color: inherit;
+  font-size: 0.95rem;
+  user-select: none;
+}
+.host__scheduler-field--check input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #0ea5e9;
+}
+.host__scheduler-badge {
+  display: inline-block;
+  font-style: normal;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #0c4a6e;
+  background: #7dd3fc;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+}
+.host__clients {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: #bbf7d0;
+}
+.host__clients-count {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #f0fdf4;
+}
 .host__scheduler-field input,
 .host__scheduler-field select {
   font: inherit;

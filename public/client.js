@@ -253,7 +253,11 @@
   });
 
   // --- Socket ----------------------------------------------------------
-  socket.on("connect", () => setStatus("Listo · esperando alertas", "online"));
+  socket.on("connect", () => {
+    setStatus("Listo · esperando alertas", "online");
+    // Avisamos al server que somos un cliente (para el contador del host).
+    socket.emit("role:client");
+  });
   socket.on("disconnect", () => setStatus("Desconectado", "offline"));
   socket.on("connect_error", () => setStatus("Error de conexión", "offline"));
 

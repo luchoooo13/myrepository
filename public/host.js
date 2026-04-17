@@ -28,7 +28,9 @@
   const scheduleForm = document.getElementById("scheduleForm");
   const scheduleTimeEl = document.getElementById("scheduleTime");
   const scheduleTypeEl = document.getElementById("scheduleType");
+  const scheduleRecurringEl = document.getElementById("scheduleRecurring");
   const scheduleListEl = document.getElementById("scheduleList");
+  const clientsCountEl = document.getElementById("clientsCount");
 
   let currentAlert = null;
   let tickTimer = null;
@@ -122,9 +124,13 @@
         String(s.hour).padStart(2, "0") + ":" + String(s.minute).padStart(2, "0");
       const info = document.createElement("div");
       info.className = "host__scheduler-item-info";
+      const recBadge = s.recurring
+        ? '<em class="host__scheduler-badge">diaria</em>'
+        : "";
       info.innerHTML = `
         <strong>${hhmm}</strong>
         <span>${s.label}</span>
+        ${recBadge}
         <small>${formatFireAt(s.fireAt)}</small>
       `;
       const cancel = document.createElement("button");
@@ -151,7 +157,8 @@
     const minute = Number(match[2]);
     const alertDef = ALERTS.find((a) => a.type === type);
     const label = alertDef ? alertDef.label : type;
-    socket.emit("schedule:add", { hour, minute, type, label });
+    const recurring = !!scheduleRecurringEl.checked;
+    socket.emit("schedule:add", { hour, minute, type, label, recurring });
     scheduleForm.reset();
   });
 
@@ -204,6 +211,10 @@
   });
   socket.on("schedule:list", (list) => {
     renderSchedules(list);
+  });
+  socket.on("clients:count", (payload) => {
+    const n = payload && typeof payload.count === "number" ? payload.count : 0;
+    clientsCountEl.textContent = String(n);
   });
 
   renderButtons();
