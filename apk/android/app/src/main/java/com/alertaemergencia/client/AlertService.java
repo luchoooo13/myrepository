@@ -71,6 +71,11 @@ public class AlertService extends Service {
     public static final String KEY_SET_STROBE = "set_strobe";
     public static final String KEY_SET_VOICE = "set_voice";
     public static final String KEY_SET_VOLUME = "set_volume";
+    // Persistimos el startedAt de la última alerta descartada con la X. Si
+    // el servicio muere (OOM / Doze / RestartReceiver) pierde el valor en
+    // memoria y al reconectar el socket volvía a disparar la alerta. Con esto
+    // sobrevive a restarts del proceso.
+    public static final String KEY_DISMISSED_STARTED_AT = "dismissed_started_at";
 
     private static final int NOTIF_ONGOING = 101;
     private static final int NOTIF_ALERT = 102;
@@ -105,6 +110,14 @@ public class AlertService extends Service {
     public void onCreate() {
         super.onCreate();
         createChannels();
+        // Rehidratamos el startedAt descartado desde prefs, por si el proceso
+        // fue matado por Android y un replay del server nos reactivaría una
+        // alerta que el usuario ya cerró.
+        try {
+            SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+            dismissedStartedAt = sp.getLong(KEY_DISMISSED_STARTED_AT, 0);
+        } catch (Exception ignored) {
+        }
         flash = new FlashController(getApplicationContext());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             VibratorManager vm = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
@@ -133,9 +146,16 @@ public class AlertService extends Service {
         if (ACTION_DISMISS_ALERT.equals(action)) {
             // Recordamos la alerta que el usuario descartó para que si el
             // server nos re-envía `alert:start` (replay al reconectar el
-            // socket), no la volvamos a mostrar.
+            // socket, o tras un restart del servicio), no la volvamos a mostrar.
             if (currentAlertStartedAt > 0) {
                 dismissedStartedAt = currentAlertStartedAt;
+                try {
+                    SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+                    sp.edit()
+                            .putLong(KEY_DISMISSED_STARTED_AT, dismissedStartedAt)
+                            .apply();
+                } catch (Exception ignored) {
+                }
             }
             stopAlertMedia("dismiss-from-user");
             return START_STICKY;
