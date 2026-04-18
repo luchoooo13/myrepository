@@ -48,8 +48,11 @@ try {
     console.warn("[web-push] no se pudo guardar vapid-keys.json:", err.message);
   }
 }
+// Apple (web.push.apple.com) rechaza el JWT VAPID si el subject no es
+// una URL https:// o un mailto: con un TLD válido. "@local" no es
+// un TLD válido y hace que Apple devuelva 400/403.
 webpush.setVapidDetails(
-  process.env.VAPID_CONTACT || "mailto:schoolalerts@local",
+  process.env.VAPID_CONTACT || "mailto:schoolalerts@example.com",
   vapidKeys.publicKey,
   vapidKeys.privateKey,
 );
@@ -118,9 +121,20 @@ async function sendPushToAll(payload) {
         if (err && (err.statusCode === 404 || err.statusCode === 410)) {
           dead.push(sub.endpoint);
         } else {
+          const code = err && err.statusCode ? err.statusCode : "?";
+          const body =
+            err && err.body ? String(err.body).slice(0, 200) : "";
+          const host = (() => {
+            try {
+              return new URL(sub.endpoint).host;
+            } catch {
+              return "?";
+            }
+          })();
           console.warn(
-            "[web-push] error enviando push:",
-            err && err.message ? err.message : err,
+            `[web-push] error ${code} enviando a ${host}:`,
+            (err && err.message) || err,
+            body,
           );
         }
       }
