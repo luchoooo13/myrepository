@@ -1,43 +1,43 @@
 @echo off
-rem ---------------------------------------------------------------
-rem  Registra "iniciar-alertas.bat" para que arranque solo cuando
-rem  prendes la compu. Hace dos cosas:
-rem    1) Crea un acceso directo de iniciar-alertas.bat en la
-rem       carpeta de Inicio de Windows (%APPDATA%\Microsoft\Windows\
-rem       Start Menu\Programs\Startup).
-rem    2) Pide una vez que confirmes el Firewall de Windows (al primer
-rem       arranque desde npm start ya te lo pide solo).
-rem  Para quitarlo: correr "quitar-autoarranque.bat" (al lado).
-rem ---------------------------------------------------------------
-
 setlocal
-set SCRIPT_DIR=%~dp0
-set BAT_PATH=%SCRIPT_DIR%iniciar-alertas.bat
-set STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
-set SHORTCUT=%STARTUP_DIR%\Alertas de Emergencia.lnk
+
+echo.
+echo === Instalador de autoarranque ===
+echo.
+
+set "SCRIPT_DIR=%~dp0"
+set "BAT_PATH=%SCRIPT_DIR%iniciar-alertas.bat"
+set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "SHORTCUT=%STARTUP_DIR%\Alertas de Emergencia.lnk"
 
 if not exist "%BAT_PATH%" (
-    echo.
     echo [ERROR] No encuentro "iniciar-alertas.bat" en %SCRIPT_DIR%
-    echo Asegurate de ejecutar este .bat desde la misma carpeta.
+    echo Asegurate de ejecutar este .bat desde la carpeta "windows\" del repo.
+    echo.
     pause
     exit /b 1
 )
 
-echo Creando acceso directo en la carpeta de Inicio de Windows...
+echo Carpeta del script : %SCRIPT_DIR%
+echo Bat a registrar    : %BAT_PATH%
+echo Carpeta de Inicio  : %STARTUP_DIR%
+echo.
+echo Creando acceso directo...
 
-rem Creamos el .lnk con PowerShell (viene con Windows 10/11).
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT%');" ^
-    "$s.TargetPath = '%BAT_PATH%';" ^
-    "$s.WorkingDirectory = '%SCRIPT_DIR%';" ^
-    "$s.WindowStyle = 1;" ^
-    "$s.Description = 'Servidor de Alertas de Emergencia';" ^
-    "$s.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT%'); $s.TargetPath = '%BAT_PATH%'; $s.WorkingDirectory = '%SCRIPT_DIR%'; $s.WindowStyle = 1; $s.Description = 'Servidor de Alertas de Emergencia'; $s.Save()"
 
 if errorlevel 1 (
     echo.
     echo [ERROR] No se pudo crear el acceso directo.
+    echo.
+    pause
+    exit /b 1
+)
+
+if not exist "%SHORTCUT%" (
+    echo.
+    echo [ERROR] PowerShell no fallo pero el acceso directo no quedo creado.
+    echo.
     pause
     exit /b 1
 )
@@ -54,4 +54,5 @@ echo.
 echo  Para desinstalar: corre "quitar-autoarranque.bat"
 echo  (al lado de este archivo).
 echo =====================================================
+echo.
 pause
