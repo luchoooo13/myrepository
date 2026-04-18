@@ -489,6 +489,15 @@
     overlay.hidden = false;
     if (app) app.setAttribute("aria-hidden", "true");
 
+    // Si la alerta ya venció (ej. el server la replay-ea a un cliente que
+    // se conecta justo al final), salimos sin arrancar sirena ni timer para
+    // no escuchar 250ms de sirena antes del cleanup.
+    const remaining0 = alert.endsAt - Date.now();
+    if (remaining0 <= 0) {
+      hideAlert();
+      return;
+    }
+
     const update = () => {
       const remaining = alert.endsAt - Date.now();
       alertTimeEl.textContent = formatRemaining(remaining);
