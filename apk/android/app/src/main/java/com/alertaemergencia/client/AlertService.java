@@ -89,6 +89,14 @@ public class AlertService extends Service {
 
     private volatile boolean alertActive = false;
     private String currentVoiceUrl;
+    // startedAt (timestamp del server) de la alerta actualmente mostrada.
+    private long currentAlertStartedAt = 0;
+    // startedAt de la última alerta que el usuario descartó con la X. Sirve
+    // para ignorar replays: cuando el servicio reconecta el socket (heartbeat
+    // restart, red que vuelve, etc.) el server re-emite `alert:start` de la
+    // alerta en curso. Si el usuario ya la descartó en este equipo, no la
+    // volvemos a disparar.
+    private long dismissedStartedAt = 0;
 
     // ------------------------------------------------------------------
     //  Lifecycle
@@ -123,6 +131,12 @@ public class AlertService extends Service {
             return START_NOT_STICKY;
         }
         if (ACTION_DISMISS_ALERT.equals(action)) {
+            // Recordamos la alerta que el usuario descartó para que si el
+            // server nos re-envía `alert:start` (replay al reconectar el
+            // socket), no la volvamos a mostrar.
+            if (currentAlertStartedAt > 0) {
+                dismissedStartedAt = currentAlertStartedAt;
+            }
             stopAlertMedia("dismiss-from-user");
             return START_STICKY;
         }
@@ -133,7 +147,7 @@ public class AlertService extends Service {
                     buildOngoingNotification("Prueba de alerta (5 seg)"));
             main.post(() -> {
                 if (!alertActive) {
-                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false);
+                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0);
                 }
                 main.postDelayed(() -> stopAlertMedia("test-timeout"), 5000);
             });
@@ -294,6 +308,13 @@ public class AlertService extends Service {
         JSONObject alert = (JSONObject) args[0];
         String type = alert.optString("type", "alerta");
         String label = alert.optString("label", type);
+        final long startedAt = alert.optLong("startedAt", 0);
+        // Si el usuario ya descartó esta misma alerta en este equipo,
+        // ignoramos los replays (ej. reconexión del socket mientras la
+        // alerta sigue activa en el server).
+        if (startedAt > 0 && startedAt == dismissedStartedAt) {
+            return;
+        }
         // Overrides opcionales: el server puede pedir una sirena custom
         // (ej. simulacro) y/o que no reproduzcamos la voz aparte porque el
         // mp3 de la sirena ya incluye la locución.
@@ -308,7 +329,7 @@ public class AlertService extends Service {
                         || "null".equals(sirenUrlRaw))
                         ? null
                         : absolutizeUrl(sirenUrlRaw);
-        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice));
+        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt));
     };
 
     /**
@@ -327,8 +348,15 @@ public class AlertService extends Service {
     //  Alerta
     // ------------------------------------------------------------------
     private void startAlertMedia(String type, String label,
-                                 String sirenUrl, boolean skipVoice) {
+                                 String sirenUrl, boolean skipVoice,
+                                 long startedAt) {
         if (alertActive) {
+            // Si nos reenvían la MISMA alerta que ya estamos mostrando
+            // (replay del server al reconectar socket), no hacemos nada
+            // para evitar el parpadeo "se va / vuelve".
+            if (startedAt > 0 && startedAt == currentAlertStartedAt) {
+                return;
+            }
             // Reemplazo de alerta en curso (ej. del host llegó un nuevo
             // `alert:start` sin que se haya emitido `alert:stop` antes). Hay
             // que parar sirena/voz/flash/vibración/activity actuales para que
@@ -337,6 +365,7 @@ public class AlertService extends Service {
             stopAlertMedia("replaced-by-new-alert");
         }
         alertActive = true;
+        currentAlertStartedAt = startedAt;
         acquireWakeLock();
         // Leemos los toggles del usuario (pestaña Ajustes del cliente web).
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -356,6 +385,7 @@ public class AlertService extends Service {
     private void stopAlertMedia(String reason) {
         Log.d(TAG, "stopAlertMedia: " + reason);
         alertActive = false;
+        currentAlertStartedAt = 0;
         stopSiren();
         stopVoiceLoop();
         stopVibrationLoop();
