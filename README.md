@@ -5,8 +5,7 @@ permite disparar alertas con botones (Simulacro, Incendio, Sismo, Evacuación,
 Intruso, Médica, Fuga de Gas, Amenaza de Bomba, Tormenta). Todos los
 dispositivos **cliente** conectados al mismo servidor reciben la alerta en
 tiempo real: la pantalla se pone con fondo rojo parpadeante, suena una sirena y
-una voz femenina en español repite el tipo de alerta durante **1 minuto y 30
-segundos**.
+una voz femenina en español repite el tipo de alerta durante **1 minuto**.
 
 ## Requisitos
 
@@ -51,7 +50,7 @@ Desde cualquier teléfono/tablet/PC en la misma red WiFi:
    Simulacro se pide confirmación antes de enviar.
 3. Todos los clientes muestran pantalla roja parpadeante con el nombre de la
    alerta, suena la sirena y la voz femenina en español repite el tipo hasta
-   que pasan 1:30 o hasta que el host toca **“Detener alerta”**.
+   que pasa 1 minuto o hasta que el host toca **“Detener alerta”**..**.
 
 ## Cómo funciona
 
@@ -62,7 +61,7 @@ Desde cualquier teléfono/tablet/PC en la misma red WiFi:
   archivos mp3), modulando la frecuencia para un efecto de sirena.
 - **Voz:** usa la Web Speech API del navegador (`speechSynthesis`) eligiendo
   una voz en español y prefiriendo voces femeninas disponibles en el sistema.
-- **Duración:** 1 minuto 30 segundos fija, configurable en `server.js`
+- **Duración:** 1 minuto fija, configurable en `server.js`
   (`ALERT_DURATION_MS`).
 
 ## Troubleshooting

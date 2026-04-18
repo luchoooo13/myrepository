@@ -146,10 +146,12 @@ public class AlertService extends Service {
             startForeground(NOTIF_ONGOING,
                     buildOngoingNotification("Prueba de alerta (5 seg)"));
             main.post(() -> {
+                // Si ya hay una alerta real en curso, no corremos el test
+                // (ni programamos el stop de 5s) para no interrumpirla.
                 if (!alertActive) {
                     startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0);
+                    main.postDelayed(() -> stopAlertMedia("test-timeout"), 5000);
                 }
-                main.postDelayed(() -> stopAlertMedia("test-timeout"), 5000);
             });
             return START_STICKY;
         }
@@ -434,7 +436,15 @@ public class AlertService extends Service {
             AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
             if (am != null) {
                 int max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
-                am.setStreamVolume(AudioManager.STREAM_ALARM, max, 0);
+                // Aplicamos el porcentaje que el usuario eligió en Ajustes
+                // (slider de volumen). Si no hay nada guardado, por defecto 100%.
+                SharedPreferences volSp = getSharedPreferences(PREFS, MODE_PRIVATE);
+                int pct = volSp.getInt(KEY_SET_VOLUME, 100);
+                if (pct < 0) pct = 0;
+                if (pct > 100) pct = 100;
+                int target = Math.round((pct / 100f) * max);
+                if (target < 1 && pct > 0) target = 1;
+                am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
             }
             if (usedRemote) {
                 // Para URLs remotas usamos prepareAsync para no bloquear el hilo.
