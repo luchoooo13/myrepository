@@ -50,7 +50,7 @@ Desde cualquier teléfono/tablet/PC en la misma red WiFi:
    Simulacro se pide confirmación antes de enviar.
 3. Todos los clientes muestran pantalla roja parpadeante con el nombre de la
    alerta, suena la sirena y la voz femenina en español repite el tipo hasta
-   que pasa 1 minuto o hasta que el host toca **“Detener alerta”**..**.
+   que pasa 1 minuto o hasta que el host toca **   Detener alerta”**..**.
 
 ## Cómo funciona
 
