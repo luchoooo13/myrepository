@@ -258,11 +258,17 @@ public class AlertService extends Service {
         // Overrides opcionales: el server puede pedir una sirena custom
         // (ej. simulacro) y/o que no reproduzcamos la voz aparte porque el
         // mp3 de la sirena ya incluye la locución.
-        String sirenUrlRaw = alert.optString("sirenUrl", "");
+        // OJO: `optString` en org.json devuelve la cadena literal "null" si
+        // el valor JSON es null, por eso chequeamos `isNull` primero.
+        String sirenUrlRaw = alert.isNull("sirenUrl")
+                ? ""
+                : alert.optString("sirenUrl", "");
         boolean skipVoice = alert.optBoolean("skipVoice", false);
-        final String sirenUrl = (sirenUrlRaw == null || sirenUrlRaw.isEmpty())
-                ? null
-                : absolutizeUrl(sirenUrlRaw);
+        final String sirenUrl =
+                (sirenUrlRaw == null || sirenUrlRaw.isEmpty()
+                        || "null".equals(sirenUrlRaw))
+                        ? null
+                        : absolutizeUrl(sirenUrlRaw);
         main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice));
     };
 
