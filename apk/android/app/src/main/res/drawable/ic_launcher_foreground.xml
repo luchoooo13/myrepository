@@ -3,13 +3,13 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!--
+        Logo minimalista: tri\u00e1ngulo de alerta negro sobre fondo blanco.
+        El recorte redondeado de las esquinas lo aporta el propio
+        adaptive-icon del launcher (squircle / rounded-square / circle
+        seg\u00fan el dispositivo).
+    -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,24 L78,78 L30,78 Z" />
-    <path
-        android:fillColor="#DC2626"
-        android:pathData="M52,48 H56 V66 H52 Z" />
-    <path
-        android:fillColor="#DC2626"
-        android:pathData="M52,70 H56 V74 H52 Z" />
+        android:fillColor="#0A0A0A"
+        android:pathData="M54,34 L80,78 L28,78 Z" />
 </vector>
