@@ -118,7 +118,7 @@ public class MainActivity extends AppCompatActivity {
         root.setPadding(pad, dp(64), pad, pad);
 
         TextView title = new TextView(this);
-        title.setText("Alertas de Emergencia");
+        title.setText("SchoolAlerts");
         title.setTextColor(0xFFFFFFFF);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
         root.addView(title);

@@ -551,7 +551,7 @@ public class AlertService extends Service {
 
         NotificationChannel alert = new NotificationChannel(
                 CHANNEL_ALERT,
-                "Alertas de emergencia",
+                "SchoolAlerts",
                 NotificationManager.IMPORTANCE_HIGH);
         alert.setDescription("Alertas en vivo: sirena, flash y pantalla completa.");
         alert.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
@@ -572,7 +572,7 @@ public class AlertService extends Service {
 
         return new NotificationCompat.Builder(this, CHANNEL_ONGOING)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("Alertas de emergencia")
+                .setContentTitle("SchoolAlerts")
                 .setContentText(text)
                 .setOngoing(true)
                 .setShowWhen(false)
