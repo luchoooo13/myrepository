@@ -1,5 +1,6 @@
 package com.alertaemergencia.client;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -7,6 +8,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.AssetFileDescriptor;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
@@ -55,6 +57,12 @@ public class AlertService extends Service {
 
     public static final String CHANNEL_ONGOING = "alertas_ongoing";
     public static final String CHANNEL_ALERT = "alertas_alert";
+
+    // Compartidos con MainActivity para leer la URL del servidor si hay que
+    // reiniciar el servicio sin que MainActivity esté viva (ej. el usuario
+    // cerró la app del multitarea).
+    public static final String PREFS = "alerta_config";
+    public static final String KEY_SERVER_URL = "server_url";
 
     private static final int NOTIF_ONGOING = 101;
     private static final int NOTIF_ALERT = 102;
@@ -112,13 +120,64 @@ public class AlertService extends Service {
         }
 
         String url = intent != null ? intent.getStringExtra(EXTRA_SERVER_URL) : null;
+        if (url == null || url.isEmpty()) {
+            // Si no vino URL (ej. al ser resucitado por AlarmManager después
+            // de que el usuario cerró la app), la leemos de SharedPreferences.
+            url = getSavedServerUrl();
+        }
         if (url != null && !url.isEmpty()) {
             serverOrigin = extractOrigin(url);
+            // Guardamos la URL para futuros restarts silenciosos.
+            SharedPreferences prefs =
+                    getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            prefs.edit().putString(KEY_SERVER_URL, url).apply();
         }
 
         startForeground(NOTIF_ONGOING, buildOngoingNotification("Conectando…"));
         connectSocket();
         return START_STICKY;
+    }
+
+    /**
+     * Se llama cuando el usuario hace swipe-away de la app en el multitarea.
+     * Android suele matar el servicio después; nosotros programamos un
+     * restart casi inmediato usando AlarmManager + un BroadcastReceiver, que
+     * vuelve a arrancar el servicio en foreground con la última URL guardada.
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        scheduleRestart(1500);
+    }
+
+    private void scheduleRestart(long delayMs) {
+        try {
+            Intent restart = new Intent(getApplicationContext(),
+                    RestartReceiver.class);
+            restart.setAction(RestartReceiver.ACTION_RESTART);
+            PendingIntent pi = PendingIntent.getBroadcast(
+                    getApplicationContext(),
+                    1,
+                    restart,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            AlarmManager am =
+                    (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (am == null) return;
+            long when = System.currentTimeMillis() + delayMs;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
+            } else {
+                am.set(AlarmManager.RTC_WAKEUP, when, pi);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "scheduleRestart falló", e);
+        }
+    }
+
+    private String getSavedServerUrl() {
+        SharedPreferences prefs =
+                getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        return prefs.getString(KEY_SERVER_URL, "");
     }
 
     @Override
