@@ -929,8 +929,33 @@
     // las alertas por WebSocket y las muestra en pantalla completa.
     if (IS_APK) return;
     if (!pushCard) return;
-    if (!pushSupported()) return;
+    // Siempre mostramos la tarjeta: si el navegador no soporta push, le
+    // damos un mensaje explicando qué falta (en vez de esconderla y que
+    // parezca un bug).
     pushCard.hidden = false;
+    if (!pushSupported()) {
+      const flags = {
+        sw: "serviceWorker" in navigator,
+        pm: "PushManager" in window,
+        n: "Notification" in window,
+        standalone: isStandalonePWA(),
+      };
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      let msg = "Este navegador no soporta notificaciones push.";
+      if (isIOS && !flags.standalone) {
+        msg =
+          "En iPhone / iPad, las notificaciones push funcionan sólo si agregás la app a la pantalla de inicio (Compartir → Agregar a pantalla de inicio, con 'Abrir como app web' en ON) y la abrís desde el ícono del home.";
+      } else if (isIOS && flags.standalone && !flags.pm) {
+        msg =
+          "Tu versión de iOS no soporta notificaciones push (se necesita iOS 16.4 o superior). Actualizá el sistema.";
+      }
+      setPushStatus(
+        msg + " [debug sw=" + flags.sw + " pm=" + flags.pm + " n=" + flags.n +
+          " standalone=" + flags.standalone + "]",
+      );
+      pushEnableBtn.disabled = true;
+      return;
+    }
     // Si ya había permiso previo, intentá rehidratar la suscripción.
     if (Notification.permission === "granted") {
       try {
