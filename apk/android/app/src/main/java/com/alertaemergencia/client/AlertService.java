@@ -150,14 +150,21 @@ public class AlertService extends Service {
 
         startForeground(NOTIF_ONGOING, buildOngoingNotification("Conectando…"));
         connectSocket();
+
+        // Heartbeat: mientras el servicio está vivo, re-programamos un
+        // restart para dentro de 60s. Si el sistema lo mata (Doze, OEM
+        // agresivo, etc) igual va a volver a la vida gracias a este alarm.
+        scheduleRestart(60000);
         return START_STICKY;
     }
 
     /**
      * Se llama cuando el usuario hace swipe-away de la app en el multitarea.
-     * Android suele matar el servicio después; nosotros programamos un
-     * restart casi inmediato usando AlarmManager + un BroadcastReceiver, que
+     * Android suele matar el servicio después; nosotros programamos varios
+     * restarts escalonados usando AlarmManager + un BroadcastReceiver, que
      * vuelve a arrancar el servicio en foreground con la última URL guardada.
+     * El escalonado es para que si el primero falla (p.ej. Doze justo en ese
+     * momento) el siguiente igual lo reviva más adelante.
      */
     @Override
     public void onTaskRemoved(Intent rootIntent) {
@@ -165,24 +172,35 @@ public class AlertService extends Service {
         scheduleRestart(1500);
     }
 
-    private void scheduleRestart(long delayMs) {
+    /**
+     * Programa UNA cadena de alarms escalonados (1.5s, 10s, 30s, 60s, 120s)
+     * apuntando al {@link RestartReceiver}. Usa PendingIntents distintos por
+     * cada retardo así coexisten. Cada alarm arranca el servicio otra vez
+     * (idempotente: si ya estaba arriba, simplemente reconecta el socket).
+     */
+    private void scheduleRestart(long firstDelayMs) {
         try {
-            Intent restart = new Intent(getApplicationContext(),
-                    RestartReceiver.class);
-            restart.setAction(RestartReceiver.ACTION_RESTART);
-            PendingIntent pi = PendingIntent.getBroadcast(
-                    getApplicationContext(),
-                    1,
-                    restart,
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             AlarmManager am =
                     (AlarmManager) getSystemService(Context.ALARM_SERVICE);
             if (am == null) return;
-            long when = System.currentTimeMillis() + delayMs;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
-            } else {
-                am.set(AlarmManager.RTC_WAKEUP, when, pi);
+            long[] delays = {firstDelayMs, 10000L, 30000L, 60000L, 120000L};
+            int reqCode = 1000;
+            for (long delay : delays) {
+                Intent restart = new Intent(getApplicationContext(),
+                        RestartReceiver.class);
+                restart.setAction(RestartReceiver.ACTION_RESTART);
+                PendingIntent pi = PendingIntent.getBroadcast(
+                        getApplicationContext(),
+                        reqCode++,
+                        restart,
+                        PendingIntent.FLAG_UPDATE_CURRENT
+                                | PendingIntent.FLAG_IMMUTABLE);
+                long when = System.currentTimeMillis() + delay;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
+                } else {
+                    am.set(AlarmManager.RTC_WAKEUP, when, pi);
+                }
             }
         } catch (Exception e) {
             Log.w(TAG, "scheduleRestart falló", e);

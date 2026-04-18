@@ -1,6 +1,7 @@
 package com.alertaemergencia.client;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
@@ -8,8 +9,11 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.media.AudioManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -58,6 +62,28 @@ public class MainActivity extends AppCompatActivity {
         } else {
             showWebView(url);
             startAlertService(url);
+        }
+
+        // Para que el servicio sobreviva a "cerrar desde multitarea", la
+        // app necesita estar fuera del ahorro de batería. Pedimos la exención
+        // una sola vez; el usuario puede aceptar o rechazar.
+        requestBatteryOptimizationExemption();
+    }
+
+    private void requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm == null) return;
+            if (pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+            @SuppressLint("BatteryLife")
+            Intent i = new Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            i.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(i);
+        } catch (Exception ignored) {
+            // Algunos OEM no tienen esta intent; el usuario tendrá que
+            // hacerlo a mano desde Ajustes → Batería → SchoolAlerts.
         }
     }
 
