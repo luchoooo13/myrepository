@@ -25,6 +25,10 @@
 
   const historyListEl = document.getElementById("historyList");
   const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+  const pushCard = document.getElementById("pushCard");
+  const pushEnableBtn = document.getElementById("pushEnableBtn");
+  const pushHelp = document.getElementById("pushHelp");
+  const pushStatus = document.getElementById("pushStatus");
   const setVibration = document.getElementById("setVibration");
   const setStrobe = document.getElementById("setStrobe");
   const setVoice = document.getElementById("setVoice");
@@ -810,9 +814,161 @@
     }
   }
 
+  // --- Web Push (iOS 16.4+, Android Chrome, desktop) -------------------
+  // Permite recibir notificaciones aunque la app esté cerrada o el celu
+  // bloqueado. Requiere:
+  //  - Service worker registrado (public/sw.js).
+  //  - Suscripción al PushManager con la clave VAPID del server.
+  //  - En iOS: la PWA debe estar instalada en la pantalla de inicio.
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  function isStandalonePWA() {
+    return (
+      (window.matchMedia &&
+        window.matchMedia("(display-mode: standalone)").matches) ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function pushSupported() {
+    return (
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      "Notification" in window
+    );
+  }
+
+  function setPushStatus(msg) {
+    if (!pushStatus) return;
+    if (!msg) {
+      pushStatus.hidden = true;
+      pushStatus.textContent = "";
+      return;
+    }
+    pushStatus.hidden = false;
+    pushStatus.textContent = msg;
+  }
+
+  async function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return null;
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      return reg;
+    } catch (err) {
+      console.warn("[push] no se pudo registrar SW:", err);
+      return null;
+    }
+  }
+
+  async function subscribeToPush() {
+    if (!pushSupported()) {
+      setPushStatus("Tu navegador no soporta notificaciones push.");
+      return;
+    }
+    // iOS sólo permite push si la PWA está instalada en pantalla de inicio.
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (isIOS && !isStandalonePWA()) {
+      setPushStatus(
+        "En iPhone, primero tenés que agregar la app a la pantalla de inicio (botón Compartir → Agregar a pantalla de inicio) y abrirla desde el ícono del home.",
+      );
+      return;
+    }
+
+    pushEnableBtn.disabled = true;
+    try {
+      const reg = await registerServiceWorker();
+      if (!reg) {
+        setPushStatus("No se pudo activar el service worker.");
+        pushEnableBtn.disabled = false;
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        setPushStatus(
+          "Permiso de notificaciones denegado. Activalo desde Ajustes del sistema.",
+        );
+        pushEnableBtn.disabled = false;
+        return;
+      }
+      const keyRes = await fetch("/vapid-public-key");
+      if (!keyRes.ok) throw new Error("no vapid key");
+      const { publicKey } = await keyRes.json();
+      let subscription = await reg.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+      await fetch("/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription),
+      });
+      setPushStatus("Notificaciones activadas ✓");
+      pushEnableBtn.textContent = "Notificaciones activadas";
+      pushEnableBtn.classList.add("is-enabled");
+      pushEnableBtn.disabled = true;
+    } catch (err) {
+      console.warn("[push] error:", err);
+      setPushStatus("No se pudieron activar las notificaciones: " + err.message);
+      pushEnableBtn.disabled = false;
+    }
+  }
+
+  async function initPushUI() {
+    // Dentro del APK nativo no hace falta: el servicio Android ya recibe
+    // las alertas por WebSocket y las muestra en pantalla completa.
+    if (IS_APK) return;
+    if (!pushCard) return;
+    if (!pushSupported()) return;
+    pushCard.hidden = false;
+    // Si ya había permiso previo, intentá rehidratar la suscripción.
+    if (Notification.permission === "granted") {
+      try {
+        const reg = await registerServiceWorker();
+        if (reg) {
+          const existing = await reg.pushManager.getSubscription();
+          if (existing) {
+            // Reenviamos la suscripción por si el server reinició y perdió
+            // el archivo de subs (o simplemente para idempotencia).
+            try {
+              await fetch("/push/subscribe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(existing),
+              });
+            } catch {
+              /* ignore */
+            }
+            setPushStatus("Notificaciones activadas ✓");
+            pushEnableBtn.textContent = "Notificaciones activadas";
+            pushEnableBtn.classList.add("is-enabled");
+            pushEnableBtn.disabled = true;
+            return;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (pushEnableBtn) {
+      pushEnableBtn.addEventListener("click", subscribeToPush);
+    }
+  }
+
   // --- Init ------------------------------------------------------------
   applySettingsToUI();
   renderHistory();
   updateLastAlert();
   setStatus("Conectando…");
+  initPushUI();
 })();

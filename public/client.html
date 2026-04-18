@@ -7,8 +7,15 @@
       content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
     <meta name="theme-color" content="#0b1220" />
-    <title>CLIENTE · Pantalla de Alertas</title>
+    <title>SchoolAlerts · Cliente</title>
     <link rel="stylesheet" href="/styles.css" />
+    <!-- PWA / iOS -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="SchoolAlerts" />
   </head>
   <body class="client">
     <div class="app" id="app">
@@ -44,6 +51,20 @@
               <button class="btn btn--primary btn--block" id="enableBtn">
                 Activar sonido y voz
               </button>
+            </div>
+          </div>
+
+          <div class="card" id="pushCard" hidden>
+            <div class="card__title">Notificaciones en segundo plano</div>
+            <div class="card__body">
+              <p class="card__text" id="pushHelp">
+                Permití notificaciones para enterarte de alertas incluso con el
+                celular bloqueado o la app cerrada.
+              </p>
+              <button class="btn btn--primary btn--block" id="pushEnableBtn">
+                Activar notificaciones
+              </button>
+              <p class="card__text" id="pushStatus" hidden></p>
             </div>
           </div>
 

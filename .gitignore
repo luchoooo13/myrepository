@@ -7,3 +7,10 @@ yarn-error.log*
 .env.local
 .vscode/
 .idea/
+
+# Claves VAPID generadas en el primer arranque del server.
+# Cada deployment tiene las suyas; no se comparten via git.
+vapid-keys.json
+# Suscripciones web-push de los navegadores registrados.
+# Son datos de runtime, no código.
+push-subs.json

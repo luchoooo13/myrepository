@@ -1,9 +1,11 @@
 const path = require("path");
 const os = require("os");
+const fs = require("fs");
 const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
 const googleTTS = require("google-tts-api");
+const webpush = require("web-push");
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const ALERT_DURATION_MS = 60 * 1000; // 1 minuto
@@ -12,7 +14,115 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
+app.use(express.json({ limit: "200kb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+// --- Web Push (VAPID) --------------------------------------------------
+// Genera las claves VAPID la primera vez que se arranca el server y las
+// guarda en vapid-keys.json (gitignored) para que sean estables entre
+// reinicios. Las suscripciones de los navegadores se guardan en
+// push-subs.json para que sobrevivan reinicios del server.
+const VAPID_FILE = path.join(__dirname, "vapid-keys.json");
+let vapidKeys;
+try {
+  vapidKeys = JSON.parse(fs.readFileSync(VAPID_FILE, "utf8"));
+} catch {
+  vapidKeys = webpush.generateVAPIDKeys();
+  try {
+    fs.writeFileSync(VAPID_FILE, JSON.stringify(vapidKeys, null, 2));
+    console.log(
+      "[web-push] claves VAPID generadas y guardadas en vapid-keys.json",
+    );
+  } catch (err) {
+    console.warn("[web-push] no se pudo guardar vapid-keys.json:", err.message);
+  }
+}
+webpush.setVapidDetails(
+  process.env.VAPID_CONTACT || "mailto:schoolalerts@local",
+  vapidKeys.publicKey,
+  vapidKeys.privateKey,
+);
+
+const SUBS_FILE = path.join(__dirname, "push-subs.json");
+let pushSubs = [];
+try {
+  const raw = fs.readFileSync(SUBS_FILE, "utf8");
+  const parsed = JSON.parse(raw);
+  if (Array.isArray(parsed)) pushSubs = parsed;
+} catch {
+  pushSubs = [];
+}
+function savePushSubs() {
+  try {
+    fs.writeFileSync(SUBS_FILE, JSON.stringify(pushSubs, null, 2));
+  } catch (err) {
+    console.warn("[web-push] no se pudo guardar push-subs.json:", err.message);
+  }
+}
+
+app.get("/vapid-public-key", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ publicKey: vapidKeys.publicKey });
+});
+
+app.post("/push/subscribe", (req, res) => {
+  const sub = req.body;
+  if (!sub || typeof sub.endpoint !== "string" || !sub.keys) {
+    res.status(400).json({ error: "missing subscription" });
+    return;
+  }
+  const idx = pushSubs.findIndex((s) => s.endpoint === sub.endpoint);
+  if (idx === -1) {
+    pushSubs.push(sub);
+    savePushSubs();
+    console.log(
+      `[web-push] nueva suscripción (total: ${pushSubs.length})`,
+    );
+  }
+  res.json({ ok: true });
+});
+
+app.post("/push/unsubscribe", (req, res) => {
+  const endpoint = req.body && req.body.endpoint;
+  if (!endpoint) {
+    res.status(400).json({ error: "missing endpoint" });
+    return;
+  }
+  const before = pushSubs.length;
+  pushSubs = pushSubs.filter((s) => s.endpoint !== endpoint);
+  if (pushSubs.length !== before) savePushSubs();
+  res.json({ ok: true });
+});
+
+async function sendPushToAll(payload) {
+  if (pushSubs.length === 0) return;
+  const body = JSON.stringify(payload);
+  const dead = [];
+  await Promise.all(
+    pushSubs.map(async (sub) => {
+      try {
+        await webpush.sendNotification(sub, body);
+      } catch (err) {
+        // 404/410 = suscripción expirada/revocada: limpiamos.
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+          dead.push(sub.endpoint);
+        } else {
+          console.warn(
+            "[web-push] error enviando push:",
+            err && err.message ? err.message : err,
+          );
+        }
+      }
+    }),
+  );
+  if (dead.length > 0) {
+    pushSubs = pushSubs.filter((s) => !dead.includes(s.endpoint));
+    savePushSubs();
+    console.log(
+      `[web-push] ${dead.length} suscripciones vencidas eliminadas (quedan ${pushSubs.length})`,
+    );
+  }
+}
 
 // Rutas amigables (sin extensión) para usar desde los otros dispositivos
 app.get("/host", (_req, res) => {
@@ -276,7 +386,11 @@ const ALERT_OVERRIDES = {
 
 function startAlert(payload) {
   clearAlertTimer();
-  const now = Date.now();
+  // Usamos realNow() (no Date.now()) así startedAt/endsAt están en la
+  // misma escala que el reloj de los clientes; si el reloj de la PC
+  // server está corrido varios segundos, el cliente igual ve el
+  // countdown correcto.
+  const now = realNow();
   const override = ALERT_OVERRIDES[payload.type] || {};
   currentAlert = {
     type: payload.type,
@@ -288,6 +402,17 @@ function startAlert(payload) {
     skipVoice: !!override.skipVoice,
   };
   io.emit("alert:start", currentAlert);
+  // Notificación push a iPhones / Androids con la PWA instalada y
+  // notificaciones permitidas. Llega aunque la app esté cerrada o el
+  // celu esté bloqueado. No bloqueamos la alerta si falla.
+  sendPushToAll({
+    title: "🚨 ALERTA: " + (currentAlert.label || currentAlert.type),
+    body: "Abrí SchoolAlerts para ver la alerta en pantalla completa.",
+    type: currentAlert.type,
+    startedAt: currentAlert.startedAt,
+  }).catch((err) => {
+    console.warn("[web-push] fallo al notificar:", err && err.message);
+  });
   alertTimer = setTimeout(() => {
     stopAlert("timeout");
   }, ALERT_DURATION_MS);
@@ -300,8 +425,9 @@ function broadcastClientCount() {
 }
 
 io.on("connection", (socket) => {
-  // Al conectarse, sincronizar con la alerta activa si existe
-  if (currentAlert && Date.now() < currentAlert.endsAt) {
+  // Al conectarse, sincronizar con la alerta activa si existe.
+  // Comparamos contra realNow() para ser consistentes con startAlert().
+  if (currentAlert && realNow() < currentAlert.endsAt) {
     socket.emit("alert:start", currentAlert);
   }
   // Sincronizar lista de programaciones
