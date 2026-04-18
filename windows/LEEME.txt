@@ -1,0 +1,32 @@
+AUTOARRANQUE DEL SERVIDOR CON LA COMPU
+======================================
+
+Los .bat en esta carpeta te permiten que el server arranque solo
+cuando prendes la PC con Windows.
+
+PASOS (una sola vez):
+
+  1. Doble click en "instalar-autoarranque.bat".
+  2. Windows puede preguntarte "Windows protegio el equipo" ->
+     Mas informacion -> Ejecutar de todos modos.
+  3. Apretas una tecla cuando diga "LISTO - autoarranque instalado".
+
+LISTO. La proxima vez que prendas / reinicies la compu:
+
+  * Se va a abrir sola una ventana negra (CMD).
+  * Va a correr "npm install" si es la primera vez, y despues
+    "npm start".
+  * Mira la linea "LAN: http://192.168.X.X:3000/" - esa es la URL
+    que tenes que poner en los celulares (en el APK, el boton del
+    engranaje abajo a la derecha).
+  * NO CIERRES esa ventana mientras quieras recibir alertas. Podes
+    minimizarla sin problema.
+
+SI QUERES DESINSTALARLO:
+  Doble click en "quitar-autoarranque.bat".
+
+TIPS:
+  * Combinalo con los comandos de "no suspender" (en el chat te los
+    paso) para que la PC quede 24/7 escuchando.
+  * Si cambia la IP de la PC (DHCP), los celulares necesitan la IP
+    nueva - volve a configurarla en cada APK desde el engranaje.
