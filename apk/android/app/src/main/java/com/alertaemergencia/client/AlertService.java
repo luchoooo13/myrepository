@@ -63,13 +63,16 @@ public class AlertService extends Service {
     private String serverOrigin;
 
     private MediaPlayer sirenPlayer;
+    private MediaPlayer voicePlayer;
     private FlashController flash;
     private Vibrator vibrator;
     private PowerManager.WakeLock wakeLock;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Handler vibHandler = new Handler(Looper.getMainLooper());
+    private final Handler voiceHandler = new Handler(Looper.getMainLooper());
 
     private volatile boolean alertActive = false;
+    private String currentVoiceUrl;
 
     // ------------------------------------------------------------------
     //  Lifecycle
@@ -208,6 +211,7 @@ public class AlertService extends Service {
         alertActive = true;
         acquireWakeLock();
         startSiren();
+        startVoiceLoop(type, label);
         startVibrationLoop();
         if (flash != null) flash.startBlinking();
         showAlertNotification(type, label);
@@ -218,6 +222,7 @@ public class AlertService extends Service {
         Log.d(TAG, "stopAlertMedia: " + reason);
         alertActive = false;
         stopSiren();
+        stopVoiceLoop();
         stopVibrationLoop();
         if (flash != null) flash.stopBlinking();
         dismissAlertNotification();
@@ -267,6 +272,85 @@ public class AlertService extends Service {
             }
             sirenPlayer = null;
         }
+    }
+
+    private void startVoiceLoop(String type, String label) {
+        stopVoiceLoop();
+        if (serverOrigin == null) return;
+        try {
+            String url;
+            if ("custom".equalsIgnoreCase(type)) {
+                String q = java.net.URLEncoder.encode(
+                        label == null ? "" : label, "UTF-8");
+                url = serverOrigin + "/tts?text=" + q;
+            } else {
+                url = serverOrigin + "/sounds/voice/" + type + ".mp3";
+            }
+            currentVoiceUrl = url;
+            playVoiceOnce();
+        } catch (Exception e) {
+            Log.w(TAG, "startVoiceLoop falló", e);
+        }
+    }
+
+    private void playVoiceOnce() {
+        if (!alertActive || currentVoiceUrl == null) return;
+        // Liberamos el player anterior si quedó vivo.
+        stopVoicePlayer();
+        try {
+            voicePlayer = new MediaPlayer();
+            voicePlayer.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build());
+            voicePlayer.setDataSource(currentVoiceUrl);
+            voicePlayer.setLooping(false);
+            voicePlayer.setOnPreparedListener(mp -> {
+                try {
+                    if (alertActive) mp.start();
+                } catch (IllegalStateException ignored) {
+                }
+            });
+            voicePlayer.setOnCompletionListener(mp -> {
+                // Repetimos cada 5s aprox mientras dure la alerta.
+                voiceHandler.removeCallbacksAndMessages(null);
+                voiceHandler.postDelayed(() -> {
+                    if (alertActive) playVoiceOnce();
+                }, 5000);
+            });
+            voicePlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.w(TAG, "voicePlayer error " + what + "/" + extra);
+                // En error, reintentamos en 5s (red puede volver).
+                voiceHandler.postDelayed(() -> {
+                    if (alertActive) playVoiceOnce();
+                }, 5000);
+                return true;
+            });
+            voicePlayer.prepareAsync();
+        } catch (Exception e) {
+            Log.w(TAG, "playVoiceOnce falló", e);
+        }
+    }
+
+    private void stopVoicePlayer() {
+        if (voicePlayer != null) {
+            try {
+                if (voicePlayer.isPlaying()) voicePlayer.stop();
+            } catch (IllegalStateException ignored) {
+            }
+            try {
+                voicePlayer.reset();
+                voicePlayer.release();
+            } catch (Exception ignored) {
+            }
+            voicePlayer = null;
+        }
+    }
+
+    private void stopVoiceLoop() {
+        voiceHandler.removeCallbacksAndMessages(null);
+        stopVoicePlayer();
+        currentVoiceUrl = null;
     }
 
     private void startVibrationLoop() {
