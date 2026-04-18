@@ -30,36 +30,67 @@ TUNEL HTTPS PARA iPHONE / iPAD (notificaciones push)
 =====================================================
 
 Safari de iOS solo permite notificaciones push si el sitio se
-sirve por HTTPS. Para eso usamos Cloudflare Tunnel (gratis, sin
-cuenta). Con el tunel tambien se puede acceder desde fuera de la
-WiFi del colegio.
+sirve por HTTPS. Para eso tenes dos opciones.
 
-PASOS (cada vez que arrancas la PC, despues de que el server
-esta corriendo en localhost:3000):
+--- OPCION A: URL que cambia cada vez (sin cuenta) ---
 
-  1. Doble click en "iniciar-tunel.bat".
-     * La primera vez descarga cloudflared.exe (~20 MB).
-     * Despues queda abierto mostrando la URL publica.
-  2. Mira la linea que diga
-        https://XXXXXXXX.trycloudflare.com
-     Esa es la URL que les tenes que pasar a los profes.
-     OJO: cambia cada vez que reinicias el tunel.
-  3. En los celulares de los profes:
-        * Abren esa URL agregandole /client al final, en
-          Safari (iPhone/iPad) o Chrome (Android).
-          Ejemplo:  https://XXXX.trycloudflare.com/client
-        * En iPhone/iPad: Compartir -> Agregar a pantalla de
-          inicio (con "Abrir como app web" en ON).
-        * Abren la app desde el icono del home.
-        * Tocan "Activar notificaciones".
-  4. NO CIERRES la ventana del tunel mientras quieras que sigan
-     llegando las notificaciones. Podes minimizarla.
+Usa "iniciar-tunel.bat" (Cloudflare, gratis, sin registro).
+La URL es tipo https://XXXX.trycloudflare.com y cambia cada vez
+que reinicias el tunel.
+
+--- OPCION B: URL FIJA (recomendado, 10 min de setup) ---
+
+Usa "iniciar-tunel-fijo.bat" (ngrok, cuenta gratis). La URL
+queda fija, tipo https://tu-nombre.ngrok-free.app, y no cambia
+aunque reinicies la PC. Es lo que te conviene pasar a los
+profes una sola vez.
+
+Setup (una vez, ~10 minutos):
+
+  1. Entra a https://dashboard.ngrok.com/signup y crea una cuenta
+     gratis (email + contrasena).
+  2. Confirma tu email desde el link que te mandan.
+  3. Ya dentro del dashboard, copia tu Authtoken de
+     https://dashboard.ngrok.com/get-started/your-authtoken
+     (es una linea larga, tipo 2abc...xyz).
+  4. Anda a https://dashboard.ngrok.com/domains y toca
+     "+ New Domain" o "Create Domain" -> te da un subdominio
+     gratis tipo "alguna-cosa.ngrok-free.app" (podes editarlo
+     una vez para que diga "tu-colegio.ngrok-free.app" o similar).
+  5. Abri "ngrok-config.txt" (esta en esta misma carpeta) con
+     el Bloc de Notas y pega:
+        authtoken=EL_AUTHTOKEN_QUE_COPIASTE
+        url=tu-colegio.ngrok-free.app
+     (la URL va sin el "https://" al principio). Guarda.
+  6. Doble click en "iniciar-tunel-fijo.bat".
+     * La primera vez descarga ngrok.exe (~15 MB).
+     * Despues queda abierto con el tunel andando.
+  7. Listo. La URL publica es la que pusiste en el paso 5.
+     A los profes les pasas:
+        https://tu-colegio.ngrok-free.app/client
+
+Cada vez que prendas la PC (si no pusiste autoarranque para el
+tunel), solo hace falta doble click en "iniciar-tunel-fijo.bat".
+La URL queda siempre igual.
+
+
+--- PARA LOS PROFES (iPhone, iPad, Android) ---
+
+  1. Abren en Safari (iPhone/iPad) o Chrome (Android) la URL con
+     "/client" al final, por ejemplo:
+        https://tu-colegio.ngrok-free.app/client
+  2. En iPhone/iPad: Compartir -> Agregar a pantalla de inicio
+     (con "Abrir como app web" en ON).
+     En Android: mejor instalar el APK que les mandes.
+  3. Abren la app desde el icono del home.
+  4. Tocan "Activar notificaciones".
 
 
 TIPS
 ====
   * Combinalo con los comandos de "no suspender" (en el chat te
     los paso) para que la PC quede 24/7 escuchando.
-  * Con el tunel Cloudflare no importa la IP local ni si cambia:
-    los profes siempre usan la misma URL publica (mientras no
-    reinicies el tunel).
+  * Con el tunel fijo (opcion B) la URL no cambia, asi que si se
+    suma un profe nuevo solo le pasas la URL y listo.
+  * El tunel fijo gratis de ngrok tiene limite de 20.000 pedidos
+    por mes. Para alertas esporadicas es mas que suficiente.
