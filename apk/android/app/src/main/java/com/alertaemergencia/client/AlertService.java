@@ -329,9 +329,12 @@ public class AlertService extends Service {
     private void startAlertMedia(String type, String label,
                                  String sirenUrl, boolean skipVoice) {
         if (alertActive) {
-            // Ya estábamos con una alerta; sólo refrescamos la notif.
-            showAlertNotification(type, label);
-            return;
+            // Reemplazo de alerta en curso (ej. del host llegó un nuevo
+            // `alert:start` sin que se haya emitido `alert:stop` antes). Hay
+            // que parar sirena/voz/flash/vibración/activity actuales para que
+            // los nuevos params (sirena custom, voz del nuevo tipo, label)
+            // tomen efecto. Si no, el servicio queda con la alerta vieja.
+            stopAlertMedia("replaced-by-new-alert");
         }
         alertActive = true;
         acquireWakeLock();

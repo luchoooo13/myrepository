@@ -523,11 +523,14 @@
   alertCloseBtn.addEventListener("click", dismissLocally);
 
   // --- Activar audio ---------------------------------------------------
+  // Esto "desbloquea" el audio del navegador: hay que llamar a play() dentro
+  // del click del usuario al menos una vez para que después podamos
+  // reproducir sin interacción. Lo hacemos en mute y pausamos enseguida.
+  // Devuelve una promise que resuelve cuando el warm-up terminó, para que el
+  // caller no arranque audio real encima del mute y se pise.
   function warmUpAudio(audio) {
-    if (!audio) return;
-    try {
-      audio.muted = true;
-      const warm = audio.play();
+    if (!audio) return Promise.resolve();
+    return new Promise((resolve) => {
       const finish = () => {
         try {
           audio.pause();
@@ -536,17 +539,24 @@
           /* ignore */
         }
         audio.muted = false;
+        resolve();
       };
-      if (warm && typeof warm.then === "function") {
-        warm.then(finish).catch(() => {
-          audio.muted = false;
-        });
-      } else {
-        finish();
+      try {
+        audio.muted = true;
+        const warm = audio.play();
+        if (warm && typeof warm.then === "function") {
+          warm.then(finish).catch(() => {
+            audio.muted = false;
+            resolve();
+          });
+        } else {
+          finish();
+        }
+      } catch {
+        audio.muted = false;
+        resolve();
       }
-    } catch {
-      /* ignore */
-    }
+    });
   }
 
   function markEnabled() {
@@ -560,13 +570,25 @@
   }
 
   enableBtn.addEventListener("click", () => {
-    warmUpAudio(ensureSirenAudio());
-    warmUpAudio(ensureVoiceAudio(VOICE_BASE + "simulacro.mp3"));
+    // Capturamos la alerta activa ahora: si el warm-up tarda y la alerta
+    // termina mientras tanto, no queremos arrancar una sirena "huérfana".
+    const pending = currentAlert;
     markEnabled();
-    if (currentAlert) {
-      startSiren();
-      startSpeakingLoop(currentAlert);
-    }
+    // Si ya hay una alerta activa con sirena custom (ej. simulacro usa
+    // /sounds/siren-simulacro.mp3), tenemos que calentar ESE audio y no el
+    // default — si no, pisaríamos el audio actual con el default.
+    const warmSirenSrc = pending && pending.sirenUrl ? pending.sirenUrl : null;
+    Promise.all([
+      warmUpAudio(ensureSirenAudio(warmSirenSrc)),
+      warmUpAudio(ensureVoiceAudio(VOICE_BASE + "simulacro.mp3")),
+    ]).then(() => {
+      // Después del warm-up, recién ahí arrancamos la sirena real — así no
+      // se pisa con el audio.pause() del finish() del warm-up.
+      if (pending && currentAlert === pending) {
+        startSiren(pending.sirenUrl || null);
+        startSpeakingLoop(pending);
+      }
+    });
   });
 
   // --- Tabs ------------------------------------------------------------

@@ -81,7 +81,11 @@ public class FlashController {
         public void run() {
             if (!blinking) return;
             setTorch(!currentlyOn);
-            handler.postDelayed(this, BLINK_MS);
+            // Leemos `handler` a un local primero: `stopBlinking()` corre en
+            // otro thread y lo puede nullear justo después del check de
+            // `blinking`. Sin este snapshot, postDelayed podría NPE'ar.
+            Handler h = handler;
+            if (h != null) h.postDelayed(this, BLINK_MS);
         }
     };
 
