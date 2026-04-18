@@ -42,7 +42,12 @@
   let voiceTimer = null;
   let vibrationTimer = null;
   let enabled = false;
-  let locallyDismissed = false;
+  // startedAt de la alerta que el usuario descartó con la X en ESTE equipo.
+  // Lo guardamos por separado de currentAlert porque hideAlert() deja
+  // currentAlert = null, y el server re-emite `alert:start` al reconectar
+  // el socket (o al abrir una nueva pestaña), por lo que necesitamos
+  // recordar qué alerta ya fue cerrada acá para ignorar esos replays.
+  let dismissedStartedAt = 0;
   let currentVoiceObjectUrl = null;
 
   const SIREN_SRC = "/sounds/siren.mp3";
@@ -461,14 +466,16 @@
 
   // --- Overlay ---------------------------------------------------------
   function showAlert(alert) {
+    // Si el usuario ya descartó esta misma alerta en este equipo, ignoramos
+    // los replays del server (al reconectar socket, al abrir otra pestaña,
+    // etc.). Comparamos startedAt, que es único por alerta.
     if (
-      locallyDismissed &&
-      currentAlert &&
-      currentAlert.startedAt === alert.startedAt
+      alert &&
+      alert.startedAt &&
+      alert.startedAt === dismissedStartedAt
     ) {
       return;
     }
-    locallyDismissed = false;
     currentAlert = alert;
     currentAlertIsTest = !!alert.__test;
     const label = alert.label || alert.type;
@@ -512,7 +519,6 @@
   function hideAlert() {
     currentAlert = null;
     currentAlertIsTest = false;
-    locallyDismissed = false;
     if (tickTimer) {
       clearInterval(tickTimer);
       tickTimer = null;
@@ -526,7 +532,11 @@
 
   function dismissLocally() {
     if (!currentAlert) return;
-    locallyDismissed = true;
+    // Recordamos el startedAt ANTES de llamar a hideAlert() (que limpia
+    // currentAlert), así sobrevive al re-envio de alert:start del server.
+    if (currentAlert.startedAt) {
+      dismissedStartedAt = currentAlert.startedAt;
+    }
     hideAlert();
   }
 
@@ -755,6 +765,10 @@
     showAlert(alert);
   });
   socket.on("alert:stop", () => {
+    // Cuando la alerta realmente termina en el server, reseteamos el
+    // guardián para que la próxima alerta (aunque sea del mismo tipo)
+    // sí se muestre.
+    dismissedStartedAt = 0;
     hideAlert();
   });
 
