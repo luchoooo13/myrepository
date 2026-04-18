@@ -52,6 +52,8 @@ public class AlertService extends Service {
     public static final String ACTION_STOP = "com.alertaemergencia.client.STOP";
     public static final String ACTION_DISMISS_ALERT =
             "com.alertaemergencia.client.DISMISS";
+    public static final String ACTION_TEST_ALERT =
+            "com.alertaemergencia.client.TEST_ALERT";
 
     public static final String EXTRA_SERVER_URL = "server_url";
 
@@ -116,6 +118,19 @@ public class AlertService extends Service {
         }
         if (ACTION_DISMISS_ALERT.equals(action)) {
             stopAlertMedia("dismiss-from-user");
+            return START_STICKY;
+        }
+        if (ACTION_TEST_ALERT.equals(action)) {
+            // Alerta de prueba de 5 segundos sin pasar por el server.
+            // Sirena + voz + flash + vibración en modo simulacro.
+            startForeground(NOTIF_ONGOING,
+                    buildOngoingNotification("Prueba de alerta (5 seg)"));
+            main.post(() -> {
+                if (!alertActive) {
+                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false);
+                }
+                main.postDelayed(() -> stopAlertMedia("test-timeout"), 5000);
+            });
             return START_STICKY;
         }
 

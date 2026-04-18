@@ -2,10 +2,12 @@ package com.alertaemergencia.client;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
@@ -15,6 +17,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -254,6 +257,16 @@ public class MainActivity extends AppCompatActivity {
         }
         webView.setBackgroundColor(0xFF000000);
 
+        // Puente JS → nativo para que la pestaña "Ajustes" pueda:
+        //  - probar la alerta localmente (AlertBridge.testAlert)
+        //  - cambiar el volumen del stream de alarma (AlertBridge.setAlarmVolume)
+        // El JS del cliente detecta si `window.AlertBridge` existe y, si sí,
+        // delega en él; si no, cae a la simulación vieja dentro del webview.
+        try {
+            webView.addJavascriptInterface(new AlertBridge(), "AlertBridge");
+        } catch (Exception ignored) {
+        }
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onReceivedError(WebView view, int errorCode,
@@ -323,5 +336,54 @@ public class MainActivity extends AppCompatActivity {
     private int dp(int v) {
         float d = getResources().getDisplayMetrics().density;
         return (int) (v * d + 0.5f);
+    }
+
+    /**
+     * Puente JavaScript ↔ Java expuesto al webview del cliente. Los métodos
+     * marcados con @JavascriptInterface corren en un hilo binder, no el hilo
+     * de UI; para tocar cosas de UI las posteamos al main thread.
+     */
+    private class AlertBridge {
+        /**
+         * Ajusta el volumen del stream de alarma (el que usa el servicio
+         * nativo para la sirena) a un porcentaje 0..100.
+         */
+        @JavascriptInterface
+        public void setAlarmVolume(int percent) {
+            final int clamped = Math.max(0, Math.min(100, percent));
+            runOnUiThread(() -> {
+                try {
+                    AudioManager am = (AudioManager)
+                            getSystemService(Context.AUDIO_SERVICE);
+                    if (am == null) return;
+                    int max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+                    int target = Math.round((clamped / 100f) * max);
+                    am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
+                } catch (Exception ignored) {
+                }
+            });
+        }
+
+        /**
+         * Dispara una alerta de prueba local de 5 segundos en el servicio
+         * nativo — reproduce sirena + voz + flash + vibración sin pasar por
+         * el server, así el usuario puede validar que todo funciona.
+         */
+        @JavascriptInterface
+        public void testAlert() {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(
+                            MainActivity.this, AlertService.class);
+                    i.setAction(AlertService.ACTION_TEST_ALERT);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(i);
+                    } else {
+                        startService(i);
+                    }
+                } catch (Exception ignored) {
+                }
+            });
+        }
     }
 }

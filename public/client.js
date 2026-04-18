@@ -452,8 +452,11 @@
 
     // Dentro del APK, el servicio Android se encarga de la sirena, la voz
     // y la vibración — no las duplicamos en la WebView para evitar solapes.
-    if (!IS_APK) {
-      if (enabled) {
+    // Excepción: cuando se prueba la alerta desde "Ajustes" con __runLocally
+    // (fallback si el puente nativo no está), reproducimos todo en el webview
+    // para que el usuario escuche algo aunque no haya servicio disponible.
+    if (!IS_APK || alert.__runLocally) {
+      if (enabled || alert.__runLocally) {
         startSiren(alert.sirenUrl || null);
         startSpeakingLoop(alert);
       }
@@ -579,6 +582,20 @@
     settings.volume = parseInt(setVolume.value, 10) || 0;
     volumeLabel.textContent = settings.volume + " %";
     persistAndApply();
+    // En el APK, el audio lo maneja el servicio Android (stream ALARM). El
+    // slider del webview no puede tocar el volumen de ese stream desde JS,
+    // así que usamos un puente Java expuesto por MainActivity.
+    try {
+      if (
+        IS_APK &&
+        typeof window.AlertBridge !== "undefined" &&
+        typeof window.AlertBridge.setAlarmVolume === "function"
+      ) {
+        window.AlertBridge.setAlarmVolume(settings.volume);
+      }
+    } catch (err) {
+      console.warn("AlertBridge.setAlarmVolume falló:", err);
+    }
   });
 
   clearHistoryBtn.addEventListener("click", () => {
@@ -590,7 +607,22 @@
 
   testAlertBtn.addEventListener("click", () => {
     if (currentAlert) return;
-    if (!enabled) {
+    // En el APK, pedimos al servicio Android que dispare una alerta de
+    // prueba (5 seg) con sirena + voz + flash + vibración nativos. Si no
+    // está disponible el puente, caemos a una simulación dentro del webview.
+    if (
+      IS_APK &&
+      typeof window.AlertBridge !== "undefined" &&
+      typeof window.AlertBridge.testAlert === "function"
+    ) {
+      try {
+        window.AlertBridge.testAlert();
+        return;
+      } catch (err) {
+        console.warn("AlertBridge.testAlert falló:", err);
+      }
+    }
+    if (!enabled && !IS_APK) {
       alert(
         'Primero tocá "Activar sonido y voz" en la pestaña Inicio para que se escuche la sirena.',
       );
@@ -602,6 +634,7 @@
       startedAt: Date.now(),
       endsAt: Date.now() + 5000,
       __test: true,
+      __runLocally: true,
     };
     showAlert(fake);
     setTimeout(() => {
@@ -659,12 +692,12 @@
         "</div>";
       enableCard.classList.add("is-done");
     }
-    // El "Probar alerta" del APK no tiene sentido (el servicio no se entera).
+    // "Probar alerta": en el APK lo deriva al servicio nativo vía el puente
+    // AlertBridge.testAlert(). Si el puente no está (APK viejo contra este
+    // JS nuevo) el click cae a una simulación dentro del webview.
     if (testAlertBtn) {
-      testAlertBtn.disabled = true;
-      testAlertBtn.style.opacity = "0.5";
       testAlertBtn.title =
-        "En la app, las alertas reales ya incluyen flash y sirena nativos.";
+        "Dispara una alerta local de 5 segundos con sirena, flash y vibración para verificar que todo funciona.";
     }
   }
 
