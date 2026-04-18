@@ -65,6 +65,12 @@ public class AlertService extends Service {
     // cerró la app del multitarea).
     public static final String PREFS = "alerta_config";
     public static final String KEY_SERVER_URL = "server_url";
+    // Ajustes editables desde la pestaña "Ajustes" del webview a través de
+    // AlertBridge. Si no están seteados, default = true / 100.
+    public static final String KEY_SET_VIBRATION = "set_vibration";
+    public static final String KEY_SET_STROBE = "set_strobe";
+    public static final String KEY_SET_VOICE = "set_voice";
+    public static final String KEY_SET_VOLUME = "set_volume";
 
     private static final int NOTIF_ONGOING = 101;
     private static final int NOTIF_ALERT = 102;
@@ -329,12 +335,17 @@ public class AlertService extends Service {
         }
         alertActive = true;
         acquireWakeLock();
+        // Leemos los toggles del usuario (pestaña Ajustes del cliente web).
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        boolean wantVibration = sp.getBoolean(KEY_SET_VIBRATION, true);
+        boolean wantStrobe = sp.getBoolean(KEY_SET_STROBE, true);
+        boolean wantVoice = sp.getBoolean(KEY_SET_VOICE, true);
         startSiren(sirenUrl);
-        if (!skipVoice) {
+        if (!skipVoice && wantVoice) {
             startVoiceLoop(type, label);
         }
-        startVibrationLoop();
-        if (flash != null) flash.startBlinking();
+        if (wantVibration) startVibrationLoop();
+        if (wantStrobe && flash != null) flash.startBlinking();
         showAlertNotification(type, label);
         launchAlertActivity(type, label);
     }

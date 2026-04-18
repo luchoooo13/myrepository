@@ -370,9 +370,16 @@ public class MainActivity extends AppCompatActivity {
      * de UI; para tocar cosas de UI las posteamos al main thread.
      */
     private class AlertBridge {
+        private SharedPreferences prefs() {
+            return getSharedPreferences(
+                    AlertService.PREFS, Context.MODE_PRIVATE);
+        }
+
         /**
          * Ajusta el volumen del stream de alarma (el que usa el servicio
-         * nativo para la sirena) a un porcentaje 0..100.
+         * nativo para la sirena) a un porcentaje 0..100. Persistimos para
+         * que el servicio también lo aplique cuando dispare una alerta
+         * (en startSiren) aunque la UI no esté abierta.
          */
         @JavascriptInterface
         public void setAlarmVolume(int percent) {
@@ -387,7 +394,41 @@ public class MainActivity extends AppCompatActivity {
                     am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
                 } catch (Exception ignored) {
                 }
+                prefs().edit()
+                        .putInt(AlertService.KEY_SET_VOLUME, clamped)
+                        .apply();
             });
+        }
+
+        /**
+         * Guarda si el usuario quiere vibración durante la alerta. El
+         * servicio nativo lo lee antes de llamar a startVibrationLoop.
+         */
+        @JavascriptInterface
+        public void setVibrationEnabled(boolean enabled) {
+            prefs().edit()
+                    .putBoolean(AlertService.KEY_SET_VIBRATION, enabled)
+                    .apply();
+        }
+
+        /**
+         * Guarda si el usuario quiere flash de cámara durante la alerta.
+         */
+        @JavascriptInterface
+        public void setStrobeEnabled(boolean enabled) {
+            prefs().edit()
+                    .putBoolean(AlertService.KEY_SET_STROBE, enabled)
+                    .apply();
+        }
+
+        /**
+         * Guarda si el usuario quiere voz durante la alerta.
+         */
+        @JavascriptInterface
+        public void setVoiceEnabled(boolean enabled) {
+            prefs().edit()
+                    .putBoolean(AlertService.KEY_SET_VOICE, enabled)
+                    .apply();
         }
 
         /**

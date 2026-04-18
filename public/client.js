@@ -89,6 +89,39 @@
     volumeLabel.textContent = Math.round(settings.volume) + " %";
     applyVolumeToAudio();
     applyStrobeClass();
+    pushSettingsToBridge();
+  }
+
+  // En el APK, el servicio Android (AlertService) no conoce los toggles que
+  // el usuario guarda en localStorage — corren en mundos distintos. Los
+  // empujamos vía AlertBridge para que el servicio los persista en sus
+  // SharedPreferences y los respete cuando dispare la alerta.
+  function bridgeAvailable() {
+    return (
+      IS_APK &&
+      typeof window.AlertBridge !== "undefined" &&
+      window.AlertBridge !== null
+    );
+  }
+
+  function pushSettingsToBridge() {
+    if (!bridgeAvailable()) return;
+    try {
+      if (typeof window.AlertBridge.setVibrationEnabled === "function") {
+        window.AlertBridge.setVibrationEnabled(!!settings.vibration);
+      }
+      if (typeof window.AlertBridge.setStrobeEnabled === "function") {
+        window.AlertBridge.setStrobeEnabled(!!settings.strobe);
+      }
+      if (typeof window.AlertBridge.setVoiceEnabled === "function") {
+        window.AlertBridge.setVoiceEnabled(!!settings.voice);
+      }
+      if (typeof window.AlertBridge.setAlarmVolume === "function") {
+        window.AlertBridge.setAlarmVolume(parseInt(settings.volume, 10) || 0);
+      }
+    } catch (err) {
+      console.warn("pushSettingsToBridge falló:", err);
+    }
   }
 
   function applyVolumeToAudio() {
@@ -562,6 +595,14 @@
   setVibration.addEventListener("change", () => {
     settings.vibration = setVibration.checked;
     persistAndApply();
+    if (bridgeAvailable() &&
+        typeof window.AlertBridge.setVibrationEnabled === "function") {
+      try {
+        window.AlertBridge.setVibrationEnabled(!!settings.vibration);
+      } catch (err) {
+        console.warn("AlertBridge.setVibrationEnabled falló:", err);
+      }
+    }
     if (!settings.vibration) stopVibration();
     else if (currentAlert) startVibration();
   });
@@ -569,11 +610,27 @@
   setStrobe.addEventListener("change", () => {
     settings.strobe = setStrobe.checked;
     persistAndApply();
+    if (bridgeAvailable() &&
+        typeof window.AlertBridge.setStrobeEnabled === "function") {
+      try {
+        window.AlertBridge.setStrobeEnabled(!!settings.strobe);
+      } catch (err) {
+        console.warn("AlertBridge.setStrobeEnabled falló:", err);
+      }
+    }
   });
 
   setVoice.addEventListener("change", () => {
     settings.voice = setVoice.checked;
     persistAndApply();
+    if (bridgeAvailable() &&
+        typeof window.AlertBridge.setVoiceEnabled === "function") {
+      try {
+        window.AlertBridge.setVoiceEnabled(!!settings.voice);
+      } catch (err) {
+        console.warn("AlertBridge.setVoiceEnabled falló:", err);
+      }
+    }
     if (!settings.voice) stopSpeakingLoop();
     else if (currentAlert) startSpeakingLoop(currentAlert);
   });
@@ -585,16 +642,13 @@
     // En el APK, el audio lo maneja el servicio Android (stream ALARM). El
     // slider del webview no puede tocar el volumen de ese stream desde JS,
     // así que usamos un puente Java expuesto por MainActivity.
-    try {
-      if (
-        IS_APK &&
-        typeof window.AlertBridge !== "undefined" &&
-        typeof window.AlertBridge.setAlarmVolume === "function"
-      ) {
+    if (bridgeAvailable() &&
+        typeof window.AlertBridge.setAlarmVolume === "function") {
+      try {
         window.AlertBridge.setAlarmVolume(settings.volume);
+      } catch (err) {
+        console.warn("AlertBridge.setAlarmVolume falló:", err);
       }
-    } catch (err) {
-      console.warn("AlertBridge.setAlarmVolume falló:", err);
     }
   });
 
@@ -652,7 +706,7 @@
     localStorage.removeItem(HISTORY_KEY);
     localStorage.removeItem(SETTINGS_KEY);
     settings = loadSettings();
-    applySettingsToUI();
+    applySettingsToUI(); // ya empuja los defaults al AlertBridge
     renderHistory();
     updateLastAlert();
   });
