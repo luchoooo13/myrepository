@@ -264,15 +264,28 @@ function stopAlert(reason = "manual") {
   io.emit("alert:stop", { reason, at: Date.now() });
 }
 
+// Overrides por tipo de alerta: algunos tipos traen una sirena propia que
+// ya incluye la locución grabada; para esos skipVoice = true así el cliente
+// no superpone la voz de Google TTS sobre la locución de la sirena.
+const ALERT_OVERRIDES = {
+  simulacro: {
+    sirenUrl: "/sounds/siren-simulacro.mp3",
+    skipVoice: true,
+  },
+};
+
 function startAlert(payload) {
   clearAlertTimer();
   const now = Date.now();
+  const override = ALERT_OVERRIDES[payload.type] || {};
   currentAlert = {
     type: payload.type,
     label: payload.label,
     startedAt: now,
     endsAt: now + ALERT_DURATION_MS,
     durationMs: ALERT_DURATION_MS,
+    sirenUrl: override.sirenUrl || null,
+    skipVoice: !!override.skipVoice,
   };
   io.emit("alert:start", currentAlert);
   alertTimer = setTimeout(() => {

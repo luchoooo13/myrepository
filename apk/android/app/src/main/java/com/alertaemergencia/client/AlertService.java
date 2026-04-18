@@ -255,13 +255,34 @@ public class AlertService extends Service {
         JSONObject alert = (JSONObject) args[0];
         String type = alert.optString("type", "alerta");
         String label = alert.optString("label", type);
-        main.post(() -> startAlertMedia(type, label));
+        // Overrides opcionales: el server puede pedir una sirena custom
+        // (ej. simulacro) y/o que no reproduzcamos la voz aparte porque el
+        // mp3 de la sirena ya incluye la locución.
+        String sirenUrlRaw = alert.optString("sirenUrl", "");
+        boolean skipVoice = alert.optBoolean("skipVoice", false);
+        final String sirenUrl = (sirenUrlRaw == null || sirenUrlRaw.isEmpty())
+                ? null
+                : absolutizeUrl(sirenUrlRaw);
+        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice));
     };
+
+    /**
+     * Convierte una URL relativa recibida del server (ej. "/sounds/x.mp3") a
+     * absoluta usando serverOrigin. Si ya viene con http(s) la devuelve tal cual.
+     */
+    private String absolutizeUrl(String s) {
+        if (s == null || s.isEmpty()) return null;
+        if (s.startsWith("http://") || s.startsWith("https://")) return s;
+        if (serverOrigin == null) return null;
+        if (s.startsWith("/")) return serverOrigin + s;
+        return serverOrigin + "/" + s;
+    }
 
     // ------------------------------------------------------------------
     //  Alerta
     // ------------------------------------------------------------------
-    private void startAlertMedia(String type, String label) {
+    private void startAlertMedia(String type, String label,
+                                 String sirenUrl, boolean skipVoice) {
         if (alertActive) {
             // Ya estábamos con una alerta; sólo refrescamos la notif.
             showAlertNotification(type, label);
@@ -269,8 +290,10 @@ public class AlertService extends Service {
         }
         alertActive = true;
         acquireWakeLock();
-        startSiren();
-        startVoiceLoop(type, label);
+        startSiren(sirenUrl);
+        if (!skipVoice) {
+            startVoiceLoop(type, label);
+        }
         startVibrationLoop();
         if (flash != null) flash.startBlinking();
         showAlertNotification(type, label);
@@ -292,19 +315,37 @@ public class AlertService extends Service {
         releaseWakeLock();
     }
 
-    private void startSiren() {
+    private void startSiren(String customUrl) {
         stopSiren();
         try {
             sirenPlayer = new MediaPlayer();
-            AssetFileDescriptor afd = getAssets().openFd("siren.mp3");
-            sirenPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
-            afd.close();
+            boolean usedRemote = false;
+            if (customUrl != null && !customUrl.isEmpty()) {
+                // Sirena remota (ej. /sounds/siren-simulacro.mp3). Si falla
+                // el prepareAsync, caemos al asset bundleado como fallback.
+                try {
+                    sirenPlayer.setDataSource(customUrl);
+                    usedRemote = true;
+                } catch (Exception ex) {
+                    Log.w(TAG, "setDataSource custom falló: " + ex.getMessage());
+                    try {
+                        sirenPlayer.reset();
+                    } catch (Exception ignored) {
+                    }
+                    usedRemote = false;
+                }
+            }
+            if (!usedRemote) {
+                AssetFileDescriptor afd = getAssets().openFd("siren.mp3");
+                sirenPlayer.setDataSource(afd.getFileDescriptor(),
+                        afd.getStartOffset(), afd.getLength());
+                afd.close();
+            }
             sirenPlayer.setAudioAttributes(new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build());
             sirenPlayer.setLooping(true);
-            sirenPlayer.prepare();
             // Subimos el volumen de alarma al máximo (el usuario lo puede bajar
             // desde el volumen físico del dispositivo).
             AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -312,7 +353,28 @@ public class AlertService extends Service {
                 int max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
                 am.setStreamVolume(AudioManager.STREAM_ALARM, max, 0);
             }
-            sirenPlayer.start();
+            if (usedRemote) {
+                // Para URLs remotas usamos prepareAsync para no bloquear el hilo.
+                sirenPlayer.setOnPreparedListener(mp -> {
+                    try {
+                        if (alertActive) mp.start();
+                    } catch (IllegalStateException ignored) {
+                    }
+                });
+                sirenPlayer.setOnErrorListener((mp, what, extra) -> {
+                    Log.w(TAG, "sirenPlayer remoto error " + what + "/" + extra
+                            + ", cayendo a sirena local");
+                    // En error, intentamos arrancar la sirena local bundleada.
+                    main.post(() -> {
+                        if (alertActive) startSiren(null);
+                    });
+                    return true;
+                });
+                sirenPlayer.prepareAsync();
+            } else {
+                sirenPlayer.prepare();
+                sirenPlayer.start();
+            }
         } catch (Exception e) {
             Log.e(TAG, "No se pudo iniciar la sirena", e);
             stopSiren();

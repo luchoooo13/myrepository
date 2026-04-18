@@ -241,18 +241,30 @@
   }
 
   // --- Sirena ----------------------------------------------------------
-  function ensureSirenAudio() {
-    if (!sirenAudio) {
-      sirenAudio = new Audio(SIREN_SRC);
+  // Permitimos que el server mande una sirena custom por tipo de alerta
+  // (ej. simulacro trae una sirena con voz incluida). Si el alert.sirenUrl
+  // es distinto al actual, recreamos el Audio para no mezclar.
+  function ensureSirenAudio(src) {
+    const wanted = src || SIREN_SRC;
+    if (!sirenAudio || (sirenAudio.__src || "") !== wanted) {
+      if (sirenAudio) {
+        try {
+          sirenAudio.pause();
+        } catch {
+          /* ignore */
+        }
+      }
+      sirenAudio = new Audio(wanted);
       sirenAudio.loop = true;
       sirenAudio.preload = "auto";
+      sirenAudio.__src = wanted;
     }
     applyVolumeToAudio();
     return sirenAudio;
   }
 
-  function startSiren() {
-    const audio = ensureSirenAudio();
+  function startSiren(src) {
+    const audio = ensureSirenAudio(src);
     try {
       audio.currentTime = 0;
     } catch {
@@ -331,6 +343,10 @@
   function startSpeakingLoop(alertObj) {
     stopSpeakingLoop();
     if (!settings.voice) return;
+    // Algunas alertas (ej. simulacro) traen la voz incluida en el propio
+    // mp3 de la sirena — en ese caso el server manda skipVoice=true y no
+    // superponemos la voz de Google.
+    if (alertObj && alertObj.skipVoice) return;
     const myAlert = alertObj;
     resolveVoiceSrc(alertObj)
       .then((src) => {
@@ -438,7 +454,7 @@
     // y la vibración — no las duplicamos en la WebView para evitar solapes.
     if (!IS_APK) {
       if (enabled) {
-        startSiren();
+        startSiren(alert.sirenUrl || null);
         startSpeakingLoop(alert);
       }
       startVibration();
