@@ -6,7 +6,7 @@ const { Server } = require("socket.io");
 const googleTTS = require("google-tts-api");
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
-const ALERT_DURATION_MS = 90 * 1000; // 1 minuto 30 segundos
+const ALERT_DURATION_MS = 60 * 1000; // 1 minuto
 
 const app = express();
 const server = http.createServer(app);
