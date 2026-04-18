@@ -17,16 +17,49 @@ LISTO. La proxima vez que prendas / reinicies la compu:
   * Va a correr "npm install" si es la primera vez, y despues
     "npm start".
   * Mira la linea "LAN: http://192.168.X.X:3000/" - esa es la URL
-    que tenes que poner en los celulares (en el APK, el boton del
-    engranaje abajo a la derecha).
+    que tenes que poner en los celulares Android (en el APK, el
+    boton del engranaje abajo a la derecha).
   * NO CIERRES esa ventana mientras quieras recibir alertas. Podes
     minimizarla sin problema.
 
 SI QUERES DESINSTALARLO:
   Doble click en "quitar-autoarranque.bat".
 
-TIPS:
-  * Combinalo con los comandos de "no suspender" (en el chat te los
-    paso) para que la PC quede 24/7 escuchando.
-  * Si cambia la IP de la PC (DHCP), los celulares necesitan la IP
-    nueva - volve a configurarla en cada APK desde el engranaje.
+
+TUNEL HTTPS PARA iPHONE / iPAD (notificaciones push)
+=====================================================
+
+Safari de iOS solo permite notificaciones push si el sitio se
+sirve por HTTPS. Para eso usamos Cloudflare Tunnel (gratis, sin
+cuenta). Con el tunel tambien se puede acceder desde fuera de la
+WiFi del colegio.
+
+PASOS (cada vez que arrancas la PC, despues de que el server
+esta corriendo en localhost:3000):
+
+  1. Doble click en "iniciar-tunel.bat".
+     * La primera vez descarga cloudflared.exe (~20 MB).
+     * Despues queda abierto mostrando la URL publica.
+  2. Mira la linea que diga
+        https://XXXXXXXX.trycloudflare.com
+     Esa es la URL que les tenes que pasar a los profes.
+     OJO: cambia cada vez que reinicias el tunel.
+  3. En los celulares de los profes:
+        * Abren esa URL agregandole /client al final, en
+          Safari (iPhone/iPad) o Chrome (Android).
+          Ejemplo:  https://XXXX.trycloudflare.com/client
+        * En iPhone/iPad: Compartir -> Agregar a pantalla de
+          inicio (con "Abrir como app web" en ON).
+        * Abren la app desde el icono del home.
+        * Tocan "Activar notificaciones".
+  4. NO CIERRES la ventana del tunel mientras quieras que sigan
+     llegando las notificaciones. Podes minimizarla.
+
+
+TIPS
+====
+  * Combinalo con los comandos de "no suspender" (en el chat te
+    los paso) para que la PC quede 24/7 escuchando.
+  * Con el tunel Cloudflare no importa la IP local ni si cambia:
+    los profes siempre usan la misma URL publica (mientras no
+    reinicies el tunel).
