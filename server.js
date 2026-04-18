@@ -15,7 +15,18 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(express.json({ limit: "200kb" }));
-app.use(express.static(path.join(__dirname, "public")));
+// Servimos los archivos del cliente sin caché en el navegador para que los
+// profes no queden atascados con una versión vieja del HTML/JS después de un
+// update. Los mp3 / png sí se pueden cachear (no cambian seguido).
+app.use(
+  express.static(path.join(__dirname, "public"), {
+    setHeaders: (res, filePath) => {
+      if (/\.(html|js|json|css)$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    },
+  }),
+);
 
 // --- Web Push (VAPID) --------------------------------------------------
 // Genera las claves VAPID la primera vez que se arranca el server y las
