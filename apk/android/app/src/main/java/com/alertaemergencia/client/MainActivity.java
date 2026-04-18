@@ -113,35 +113,34 @@ public class MainActivity extends AppCompatActivity {
     private void showConfigScreen(String errorMsg) {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFF0B1220);
+        root.setBackgroundColor(0xFF000000);
         int pad = dp(24);
         root.setPadding(pad, dp(64), pad, pad);
 
         TextView title = new TextView(this);
         title.setText("Alertas de Emergencia");
-        title.setTextColor(0xFFF8FAFC);
-        title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
+        title.setTextColor(0xFFFFFFFF);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
         root.addView(title);
 
         TextView subtitle = new TextView(this);
         subtitle.setText("Conectate al servidor de la PC que está en la misma WiFi.");
-        subtitle.setTextColor(0xFF94A3B8);
+        subtitle.setTextColor(0xFFA3A3A3);
         subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         subtitle.setPadding(0, dp(8), 0, dp(24));
         root.addView(subtitle);
 
         TextView label = new TextView(this);
         label.setText("Dirección del servidor");
-        label.setTextColor(0xFFE2E8F0);
+        label.setTextColor(0xFFFFFFFF);
         label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         root.addView(label);
 
         final EditText input = new EditText(this);
         input.setHint("192.168.1.39   (o 192.168.1.39:3000)");
-        input.setHintTextColor(0xFF64748B);
-        input.setTextColor(0xFFF8FAFC);
-        input.setBackgroundColor(0xFF111827);
+        input.setHintTextColor(0xFF6E6E6E);
+        input.setTextColor(0xFFFFFFFF);
+        input.setBackgroundColor(0xFF0A0A0A);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         input.setSingleLine(true);
         input.setPadding(dp(12), dp(12), dp(12), dp(12));
@@ -158,7 +157,7 @@ public class MainActivity extends AppCompatActivity {
 
         TextView hint = new TextView(this);
         hint.setText("Ejemplos válidos:\n• 192.168.1.39\n• 192.168.1.39:3000\n• http://192.168.1.39:3000/client");
-        hint.setTextColor(0xFF64748B);
+        hint.setTextColor(0xFF6E6E6E);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         hint.setPadding(0, dp(8), 0, dp(24));
         root.addView(hint);
@@ -178,8 +177,8 @@ public class MainActivity extends AppCompatActivity {
         connect.setText("Conectar");
         connect.setAllCaps(false);
         connect.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        connect.setBackgroundColor(0xFF0EA5E9);
-        connect.setTextColor(0xFFFFFFFF);
+        connect.setBackgroundColor(0xFFFFFFFF);
+        connect.setTextColor(0xFF000000);
         connect.setPadding(dp(12), dp(14), dp(12), dp(14));
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -236,7 +235,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void showWebView(String url) {
         FrameLayout container = new FrameLayout(this);
-        container.setBackgroundColor(0xFF0B1220);
+        container.setBackgroundColor(0xFF000000);
 
         webView = new WebView(this);
         WebSettings s = webView.getSettings();
@@ -253,7 +252,7 @@ public class MainActivity extends AppCompatActivity {
             s.setUserAgentString(s.getUserAgentString() + " AlertaClienteAPK/2.0");
         } catch (Exception ignored) {
         }
-        webView.setBackgroundColor(0xFF0B1220);
+        webView.setBackgroundColor(0xFF000000);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
