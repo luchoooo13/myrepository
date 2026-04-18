@@ -275,21 +275,31 @@
 
   // --- Sirena ----------------------------------------------------------
   // Permitimos que el server mande una sirena custom por tipo de alerta
-  // (ej. simulacro trae una sirena con voz incluida). Si el alert.sirenUrl
-  // es distinto al actual, recreamos el Audio para no mezclar.
+  // (ej. simulacro trae una sirena con voz incluida). Reutilizamos SIEMPRE
+  // el mismo objeto Audio — Safari en iOS sólo "desbloquea" el elemento en
+  // el que se llamó play() dentro del gesto del usuario. Si creáramos uno
+  // nuevo al cambiar de sirena, ese nuevo elemento quedaría bloqueado y no
+  // sonaría (exactamente el síntoma del iPhone: la voz se oye pero el mp3
+  // de la sirena no). Por eso sólo cambiamos .src sobre el mismo Audio.
   function ensureSirenAudio(src) {
     const wanted = src || SIREN_SRC;
-    if (!sirenAudio || (sirenAudio.__src || "") !== wanted) {
-      if (sirenAudio) {
-        try {
-          sirenAudio.pause();
-        } catch {
-          /* ignore */
-        }
-      }
+    if (!sirenAudio) {
       sirenAudio = new Audio(wanted);
       sirenAudio.loop = true;
       sirenAudio.preload = "auto";
+      sirenAudio.__src = wanted;
+    } else if ((sirenAudio.__src || "") !== wanted) {
+      try {
+        sirenAudio.pause();
+      } catch {
+        /* ignore */
+      }
+      try {
+        sirenAudio.src = wanted;
+        sirenAudio.load();
+      } catch {
+        /* ignore */
+      }
       sirenAudio.__src = wanted;
     }
     applyVolumeToAudio();
