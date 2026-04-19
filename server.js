@@ -132,6 +132,14 @@ app.get("/host-login", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "host-login.html"));
 });
 
+// /host.html pedido directo → mandamos al login. Esto tiene que ir ANTES
+// del middleware express.static de abajo, porque static sirve host.html
+// literal sin auth (index:false no afecta archivos con nombre específico,
+// sólo el índice de directorios).
+app.get("/host.html", (_req, res) => {
+  res.redirect("/host");
+});
+
 // /host: inyectamos el rol + token en meta tags para que host.js los lea.
 // Si no hay sesión válida, redirigimos al login.
 app.get("/host", (req, res) => {
@@ -177,12 +185,6 @@ app.use(
   }),
 );
 
-// Si alguien pide /host.html directo, también lo mandamos al login (sin
-// auth). Express.static ya no lo va a servir porque pusimos index:false y
-// host.html no es index — pero por si acaso, este catch explícito.
-app.get("/host.html", (_req, res) => {
-  res.redirect("/host");
-});
 
 // --- Web Push (VAPID) --------------------------------------------------
 // Genera las claves VAPID la primera vez que se arranca el server y las
@@ -331,10 +333,8 @@ async function sendPushToAll(payload) {
   }
 }
 
-// Rutas amigables (sin extensión) para usar desde los otros dispositivos
-app.get("/host", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "host.html"));
-});
+// Rutas amigables (sin extensión) para usar desde los otros dispositivos.
+// /host está definido arriba (con auth); acá sólo el /client.
 app.get("/client", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "client.html"));
 });
