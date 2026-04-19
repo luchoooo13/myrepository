@@ -5,10 +5,23 @@ plugins {
 // Signing de release. El keystore NO está en el repo (gitignored). Si lo
 // perdés no podés publicar updates — hay que desinstalar e instalar de cero.
 // Guardalo en un lugar seguro (Drive, USB, etc.).
+//
+// Las credenciales se leen de apk/android/local.properties (gitignored).
+// Si el archivo no existe o no tiene las claves se usan los defaults de
+// abajo — así sigue andando "fuera de la caja" para clonar y probar,
+// pero no queda nada sensible en el repo.
 def releaseKeystore = file('schoolalerts-release.keystore')
-def releaseStorePassword = 'schoolalerts2026'
-def releaseKeyAlias = 'schoolalerts'
-def releaseKeyPassword = 'schoolalerts2026'
+def _signProps = new Properties()
+def _signPropsFile = rootProject.file('local.properties')
+if (_signPropsFile.exists()) {
+    _signPropsFile.withInputStream { _signProps.load(it) }
+}
+def releaseStorePassword = _signProps.getProperty('RELEASE_STORE_PASSWORD',
+        System.getenv('RELEASE_STORE_PASSWORD') ?: 'schoolalerts2026')
+def releaseKeyAlias = _signProps.getProperty('RELEASE_KEY_ALIAS',
+        System.getenv('RELEASE_KEY_ALIAS') ?: 'schoolalerts')
+def releaseKeyPassword = _signProps.getProperty('RELEASE_KEY_PASSWORD',
+        System.getenv('RELEASE_KEY_PASSWORD') ?: 'schoolalerts2026')
 
 android {
     namespace 'com.alertaemergencia.client'
