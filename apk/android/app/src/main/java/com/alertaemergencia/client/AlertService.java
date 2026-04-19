@@ -174,7 +174,15 @@ public class AlertService extends Service {
         if (ACTION_REFRESH_PAUSE.equals(action)) {
             // Actualiza el texto de la notificación persistente para que el
             // profe vea a simple vista si sus alertas están pausadas.
-            updateOngoing(describeConnectionState());
+            //
+            // Importante: MainActivity nos llega acá vía startForegroundService(),
+            // así que Android 8+ exige que llamemos startForeground() antes de
+            // 5s o tira ForegroundServiceDidNotStartInTimeException. Si el
+            // servicio ya estaba en foreground simplemente actualiza la notif;
+            // si estaba muerto, lo promueve a foreground con el texto correcto.
+            startForeground(NOTIF_ONGOING,
+                    buildOngoingNotification(
+                            decorateWithPause(describeConnectionState())));
             return START_STICKY;
         }
         if (ACTION_TEST_ALERT.equals(action)) {
