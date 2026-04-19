@@ -2,6 +2,14 @@ plugins {
     id 'com.android.application'
 }
 
+// Signing de release. El keystore NO está en el repo (gitignored). Si lo
+// perdés no podés publicar updates — hay que desinstalar e instalar de cero.
+// Guardalo en un lugar seguro (Drive, USB, etc.).
+def releaseKeystore = file('schoolalerts-release.keystore')
+def releaseStorePassword = 'schoolalerts2026'
+def releaseKeyAlias = 'schoolalerts'
+def releaseKeyPassword = 'schoolalerts2026'
+
 android {
     namespace 'com.alertaemergencia.client'
     compileSdk 34
@@ -10,13 +18,30 @@ android {
         applicationId "com.alertaemergencia.client"
         minSdk 23
         targetSdk 34
-        versionCode 3
-        versionName "2.1"
+        versionCode 4
+        versionName "2.2"
+    }
+
+    signingConfigs {
+        release {
+            if (releaseKeystore.exists()) {
+                storeFile releaseKeystore
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            // Sólo firmamos release con la clave real si el keystore está
+            // presente. Si alguien cloneó el repo sin el archivo, el build
+            // de release va a caer (como debe ser).
+            if (releaseKeystore.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 

@@ -21,3 +21,10 @@ push-subs.json
 # Contraseñas del /host. Se auto-crean con valores por defecto al primer
 # arranque del server; el admin las edita a mano. No van al repo.
 host-passwords.json
+
+# Keystore de firma release del APK. Si se pierde no se pueden publicar
+# updates (hay que desinstalar + reinstalar en cada celu). Guardalo en un
+# lugar seguro (Drive / USB / password manager).
+apk/android/app/schoolalerts-release.keystore
+apk/android/app/*.keystore
+apk/android/app/*.jks
