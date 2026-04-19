@@ -711,7 +711,7 @@ public class AlertService extends Service {
 
         return new NotificationCompat.Builder(this, CHANNEL_ONGOING)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("SchoolAlerts " + MainActivity.BUILD_TAG)
+                .setContentTitle("SchoolAlerts")
                 .setContentText(text)
                 .setOngoing(true)
                 .setShowWhen(false)

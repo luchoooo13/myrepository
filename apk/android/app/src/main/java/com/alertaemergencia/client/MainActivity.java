@@ -65,17 +65,6 @@ public class MainActivity extends AppCompatActivity {
         // Pantalla siempre prendida (útil para recibir alertas en cualquier momento).
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        // Toast visible apenas arranca la app. Sirve para confirmar qué versión
-        // del APK quedó instalada (crítico cuando el instalador silencia
-        // errores o el usuario cree que actualizó pero no).
-        try {
-            Toast.makeText(
-                    getApplicationContext(),
-                    "SchoolAlerts " + BUILD_TAG,
-                    Toast.LENGTH_SHORT).show();
-        } catch (Exception ignored) {
-        }
-
         requestRuntimePermissions();
 
         String url = getSavedUrl();
