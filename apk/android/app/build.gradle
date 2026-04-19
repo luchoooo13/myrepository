@@ -18,8 +18,8 @@ android {
         applicationId "com.alertaemergencia.client"
         minSdk 23
         targetSdk 34
-        versionCode 4
-        versionName "2.2"
+        versionCode 5
+        versionName "2.3"
     }
 
     signingConfigs {
@@ -29,16 +29,27 @@ android {
                 storePassword releaseStorePassword
                 keyAlias releaseKeyAlias
                 keyPassword releaseKeyPassword
+                // Firmamos con los 4 esquemas. Play Protect y algunos OEM
+                // miran sólo v3/v4 para apps en Android 9+. Sin v3 toman
+                // el APK como "firma vieja" y suben la heurística de riesgo.
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
             }
         }
     }
 
     buildTypes {
         release {
-            minifyEnabled false
-            // Sólo firmamos release con la clave real si el keystore está
-            // presente. Si alguien cloneó el repo sin el archivo, el build
-            // de release va a caer (como debe ser).
+            // R8 activado para eliminar código muerto (clases de depuración,
+            // dependencias que no usamos). Un APK "liviano y limpio" levanta
+            // menos alarmas en Play Protect que uno con toda la ceremonia de
+            // debug adentro.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
             if (releaseKeystore.exists()) {
                 signingConfig signingConfigs.release
             }
