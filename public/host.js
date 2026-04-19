@@ -105,6 +105,19 @@
     scheduleTypeEl.value = "simulacro";
   }
 
+  // Escapamos HTML antes de interpolar contenido controlado por el usuario
+  // en template strings que van a innerHTML. Evita que un admin con mala
+  // intención (o un bug) inyecte <script>/<img onerror=...> vía schedule:add
+  // y lo ejecute en la sesión de otros hosts cuando reciben schedule:list.
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function formatFireAt(fireAt) {
     try {
       const fmt = new Intl.DateTimeFormat("es-AR", {
@@ -142,10 +155,10 @@
         ? '<em class="host__scheduler-badge">diaria</em>'
         : "";
       info.innerHTML = `
-        <strong>${hhmm}</strong>
-        <span>${s.label}</span>
+        <strong>${escapeHtml(hhmm)}</strong>
+        <span>${escapeHtml(s.label)}</span>
         ${recBadge}
-        <small>${formatFireAt(s.fireAt)}</small>
+        <small>${escapeHtml(formatFireAt(s.fireAt))}</small>
       `;
       const cancel = document.createElement("button");
       cancel.type = "button";
