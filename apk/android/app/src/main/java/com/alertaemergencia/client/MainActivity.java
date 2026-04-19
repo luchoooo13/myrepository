@@ -466,6 +466,21 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /**
+         * Guarda el timestamp (ms) hasta el que el usuario pausó las
+         * notificaciones en este dispositivo. El servicio nativo lo lee en
+         * onAlertStart y descarta las alertas mientras la pausa siga
+         * vigente. 0 = no pausado. Number.MAX_SAFE_INTEGER = indefinido.
+         */
+        @JavascriptInterface
+        public void setPausedUntil(double ms) {
+            long value = (long) ms;
+            if (value < 0) value = 0;
+            prefs().edit()
+                    .putLong(AlertService.KEY_PAUSED_UNTIL, value)
+                    .apply();
+        }
+
+        /**
          * Dispara una alerta de prueba local de 5 segundos en el servicio
          * nativo — reproduce sirena + voz + flash + vibración sin pasar por
          * el server, así el usuario puede validar que todo funciona.

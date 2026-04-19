@@ -223,6 +223,25 @@
     }
   }
 
+  // En el APK, el servicio nativo Android (AlertService) abre su propio
+  // socket al server y reproduce sirena/voz/flash aunque la WebView no
+  // esté abierta. No alcanza con bloquearlo del lado JS: hay que decirle
+  // al servicio (via AlertBridge.setPausedUntil) que está pausado así
+  // también ignora los alert:start que le llegan por su cuenta.
+  function pushPausedUntilToBridge() {
+    try {
+      if (
+        typeof window.AlertBridge !== "undefined" &&
+        window.AlertBridge !== null &&
+        typeof window.AlertBridge.setPausedUntil === "function"
+      ) {
+        window.AlertBridge.setPausedUntil(settings.pausedUntil || 0);
+      }
+    } catch (err) {
+      console.warn("AlertBridge.setPausedUntil falló:", err);
+    }
+  }
+
   if (pauseSelect) {
     pauseSelect.addEventListener("change", () => {
       const opt = pauseSelect.value;
@@ -230,6 +249,7 @@
       saveSettings(settings);
       renderPauseUI();
       syncPauseWithServer();
+      pushPausedUntilToBridge();
     });
   }
 
@@ -269,6 +289,9 @@
       }
       if (typeof window.AlertBridge.setAlarmVolume === "function") {
         window.AlertBridge.setAlarmVolume(parseInt(settings.volume, 10) || 0);
+      }
+      if (typeof window.AlertBridge.setPausedUntil === "function") {
+        window.AlertBridge.setPausedUntil(settings.pausedUntil || 0);
       }
     } catch (err) {
       console.warn("pushSettingsToBridge falló:", err);

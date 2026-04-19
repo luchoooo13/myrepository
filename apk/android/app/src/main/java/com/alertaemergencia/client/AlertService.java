@@ -71,6 +71,12 @@ public class AlertService extends Service {
     public static final String KEY_SET_STROBE = "set_strobe";
     public static final String KEY_SET_VOICE = "set_voice";
     public static final String KEY_SET_VOLUME = "set_volume";
+    // Timestamp (ms) hasta el que el usuario pausó las notificaciones en
+    // este dispositivo. Mientras esté en el futuro, el servicio ignora los
+    // alert:start del server (no suena sirena, no vibra, no flash, no voz,
+    // no notificación). 0 = no pausado. Number.MAX_SAFE_INTEGER = pausa
+    // indefinida (hasta que el usuario la desactive).
+    public static final String KEY_PAUSED_UNTIL = "paused_until";
     // Persistimos el startedAt de la última alerta descartada con la X. Si
     // el servicio muere (OOM / Doze / RestartReceiver) pierde el valor en
     // memoria y al reconectar el socket volvía a disparar la alerta. Con esto
@@ -336,6 +342,21 @@ public class AlertService extends Service {
         // alerta sigue activa en el server).
         if (startedAt > 0 && startedAt == dismissedStartedAt) {
             return;
+        }
+        // Pausa manual de notificaciones (toggle en la pestaña Ajustes del
+        // cliente web). Se persiste en SharedPreferences desde
+        // AlertBridge.setPausedUntil. Si todavía no venció, tiramos la
+        // alerta a la basura — el server igual respeta la pausa a nivel
+        // push, pero chequeamos acá también por si llega por socket antes
+        // (o si este APK no tiene push suscrito).
+        try {
+            SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+            long pausedUntil = sp.getLong(KEY_PAUSED_UNTIL, 0);
+            if (pausedUntil > System.currentTimeMillis()) {
+                Log.d(TAG, "Alerta ignorada (pausada hasta " + pausedUntil + ")");
+                return;
+            }
+        } catch (Exception ignored) {
         }
         // Overrides opcionales: el server puede pedir una sirena custom
         // (ej. simulacro) y/o que no reproduzcamos la voz aparte porque el
