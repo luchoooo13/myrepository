@@ -15,10 +15,21 @@
       icon: "✏️",
       className: "custom",
       customPrompt: true,
+      adminOnly: true,
     },
   ];
 
-  const socket = io();
+  // El server nos inyecta rol ("admin"/"operator") y token en meta tags de
+  // <head>. Usamos el rol para esconder secciones avanzadas al operador, y
+  // el token para autenticar el socket (el middleware del server valida el
+  // token contra las sesiones en memoria y sólo el admin puede programar).
+  const roleMeta = document.querySelector('meta[name="host-role"]');
+  const tokenMeta = document.querySelector('meta[name="host-token"]');
+  const hostRole = roleMeta ? roleMeta.content : "";
+  const hostToken = tokenMeta ? tokenMeta.content : "";
+  const isAdmin = hostRole === "admin";
+
+  const socket = io({ auth: { token: hostToken } });
   const statusEl = document.getElementById("status");
   const grid = document.getElementById("buttons");
   const currentBox = document.getElementById("current");
@@ -31,6 +42,9 @@
   const scheduleRecurringEl = document.getElementById("scheduleRecurring");
   const scheduleListEl = document.getElementById("scheduleList");
   const clientsCountEl = document.getElementById("clientsCount");
+  const roleBadgeEl = document.getElementById("roleBadge");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const schedulerSection = document.querySelector(".host__scheduler");
 
   let currentAlert = null;
   let tickTimer = null;
@@ -165,6 +179,8 @@
   function renderButtons() {
     grid.innerHTML = "";
     for (const alert of ALERTS) {
+      // El operator no ve alertas "adminOnly" (ej. mensaje personalizado).
+      if (alert.adminOnly && !isAdmin) continue;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = `alert-btn alert-btn--${alert.className}`;
@@ -217,8 +233,32 @@
     clientsCountEl.textContent = String(n);
   });
 
+  // --- Logout y UI por rol -------------------------------------------
+  if (roleBadgeEl) {
+    roleBadgeEl.textContent = isAdmin
+      ? "admin"
+      : hostRole === "operator"
+        ? "preceptor"
+        : "—";
+  }
+  if (!isAdmin && schedulerSection) {
+    // El operator no tiene acceso al scheduler — lo escondemos del DOM
+    // (el server igual rechaza los eventos si alguien intenta forzarlo).
+    schedulerSection.hidden = true;
+  }
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", async () => {
+      try {
+        await fetch("/host-logout", { method: "POST" });
+      } catch {
+        /* ignore */
+      }
+      window.location.href = "/host-login";
+    });
+  }
+
   renderButtons();
-  renderScheduleOptions();
+  if (isAdmin) renderScheduleOptions();
   renderSchedules([]);
   setStatus("Conectando…");
 })();

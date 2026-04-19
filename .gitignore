@@ -17,3 +17,7 @@ vapid-keys.json
 # Suscripciones web-push de los navegadores registrados.
 # Son datos de runtime, no código.
 push-subs.json
+
+# Contraseñas del /host. Se auto-crean con valores por defecto al primer
+# arranque del server; el admin las edita a mano. No van al repo.
+host-passwords.json

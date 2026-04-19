@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SchoolAlerts · Acceso</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="host-login">
+    <main class="host-login__card">
+      <h1 class="host-login__title">SchoolAlerts</h1>
+      <p class="host-login__subtitle">
+        Ingresá la contraseña para acceder al panel.
+      </p>
+      <form class="host-login__form" id="loginForm" autocomplete="off">
+        <label class="host-login__field">
+          <span>Contraseña</span>
+          <input
+            type="password"
+            id="pwd"
+            name="password"
+            required
+            autofocus
+            autocomplete="current-password"
+          />
+        </label>
+        <button class="btn btn--primary" type="submit">Ingresar</button>
+        <p class="host-login__error" id="err" hidden></p>
+      </form>
+    </main>
+    <script>
+      const form = document.getElementById("loginForm");
+      const pwd = document.getElementById("pwd");
+      const err = document.getElementById("err");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        err.hidden = true;
+        try {
+          const r = await fetch("/host-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pwd.value }),
+          });
+          if (r.ok) {
+            window.location.href = "/host";
+          } else {
+            const data = await r.json().catch(() => ({}));
+            err.textContent = data.error || "Contraseña incorrecta";
+            err.hidden = false;
+            pwd.select();
+          }
+        } catch (e2) {
+          err.textContent = "No se pudo conectar al servidor";
+          err.hidden = false;
+        }
+      });
+    </script>
+  </body>
+</html>

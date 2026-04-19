@@ -1,6 +1,7 @@
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const crypto = require("crypto");
 const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
@@ -15,9 +16,156 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(express.json({ limit: "200kb" }));
+
+// --- Auth del /host ---------------------------------------------------
+// El /host (panel que dispara alertas) está protegido por contraseña. Hay
+// dos roles: "admin" (ve todo: scheduler, mensajes personalizados, etc.)
+// y "operator" (solo los botones básicos de alerta, para preceptor/director).
+// Las contraseñas viven en host-passwords.json (gitignored); si no existe
+// al arrancar, lo generamos con valores por defecto para que el admin los
+// edite a mano. Las sesiones son un Map en memoria: token -> { role }.
+// Si se reinicia el server los tokens caducan, no es problema — son pocos
+// usuarios y cada uno vuelve a ingresar la password.
+const HOST_PASSWORDS_FILE = path.join(__dirname, "host-passwords.json");
+const DEFAULT_HOST_PASSWORDS = {
+  admin: "cambiame-admin",
+  operator: "cambiame-preceptor",
+};
+let hostPasswords;
+try {
+  hostPasswords = JSON.parse(fs.readFileSync(HOST_PASSWORDS_FILE, "utf8"));
+} catch {
+  hostPasswords = { ...DEFAULT_HOST_PASSWORDS };
+  try {
+    fs.writeFileSync(
+      HOST_PASSWORDS_FILE,
+      JSON.stringify(hostPasswords, null, 2),
+    );
+    console.log(
+      "[auth] host-passwords.json creado con contraseñas por defecto.",
+    );
+    console.log(
+      "[auth]   admin    = " + hostPasswords.admin,
+    );
+    console.log(
+      "[auth]   operator = " + hostPasswords.operator,
+    );
+    console.log(
+      "[auth] Editá host-passwords.json y reiniciá el server antes de usarlo en producción.",
+    );
+  } catch (err) {
+    console.warn(
+      "[auth] no se pudo guardar host-passwords.json:",
+      err.message,
+    );
+  }
+}
+
+const hostSessions = new Map(); // token -> { role, createdAt }
+const HOST_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
+
+function makeToken() {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+function parseCookies(req) {
+  const header = req.headers.cookie;
+  const out = {};
+  if (!header) return out;
+  for (const piece of header.split(";")) {
+    const i = piece.indexOf("=");
+    if (i === -1) continue;
+    const k = piece.slice(0, i).trim();
+    const v = piece.slice(i + 1).trim();
+    try {
+      out[k] = decodeURIComponent(v);
+    } catch {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function getSessionByToken(token) {
+  if (!token) return null;
+  const sess = hostSessions.get(token);
+  if (!sess) return null;
+  if (Date.now() - sess.createdAt > HOST_SESSION_TTL_MS) {
+    hostSessions.delete(token);
+    return null;
+  }
+  return sess;
+}
+
+app.post("/host-login", (req, res) => {
+  const pwd =
+    req.body && typeof req.body.password === "string" ? req.body.password : "";
+  let role = null;
+  if (pwd && pwd === hostPasswords.admin) role = "admin";
+  else if (pwd && pwd === hostPasswords.operator) role = "operator";
+  if (!role) {
+    res.status(401).json({ error: "Contraseña incorrecta" });
+    return;
+  }
+  const token = makeToken();
+  hostSessions.set(token, { role, createdAt: Date.now() });
+  const maxAgeSec = Math.floor(HOST_SESSION_TTL_MS / 1000);
+  res.setHeader(
+    "Set-Cookie",
+    `hostToken=${encodeURIComponent(token)}; Path=/; HttpOnly; Max-Age=${maxAgeSec}; SameSite=Lax`,
+  );
+  res.json({ ok: true, role });
+});
+
+app.post("/host-logout", (req, res) => {
+  const cookies = parseCookies(req);
+  if (cookies.hostToken) hostSessions.delete(cookies.hostToken);
+  res.setHeader(
+    "Set-Cookie",
+    "hostToken=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax",
+  );
+  res.json({ ok: true });
+});
+
+app.get("/host-login", (_req, res) => {
+  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.sendFile(path.join(__dirname, "public", "host-login.html"));
+});
+
+// /host: inyectamos el rol + token en meta tags para que host.js los lea.
+// Si no hay sesión válida, redirigimos al login.
+app.get("/host", (req, res) => {
+  const cookies = parseCookies(req);
+  const sess = getSessionByToken(cookies.hostToken);
+  if (!sess) {
+    res.redirect("/host-login");
+    return;
+  }
+  let html;
+  try {
+    html = fs.readFileSync(
+      path.join(__dirname, "public", "host.html"),
+      "utf8",
+    );
+  } catch (err) {
+    res.status(500).send("No se pudo leer host.html");
+    return;
+  }
+  const metaTags =
+    `<meta name="host-role" content="${sess.role}" />\n` +
+    `    <meta name="host-token" content="${cookies.hostToken}" />`;
+  const withMeta = html.replace("</head>", `    ${metaTags}\n  </head>`);
+  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.set("Content-Type", "text/html; charset=utf-8");
+  res.send(withMeta);
+});
+
 // Servimos los archivos del cliente sin caché en el navegador para que los
 // profes no queden atascados con una versión vieja del HTML/JS después de un
 // update. Los mp3 / png sí se pueden cachear (no cambian seguido).
+// Cuidado: este middleware se registra DESPUÉS de las rutas /host* para que
+// /host no caiga en host.html directo (queremos que pase por el handler de
+// auth de arriba).
 app.use(
   express.static(path.join(__dirname, "public"), {
     setHeaders: (res, filePath) => {
@@ -25,8 +173,16 @@ app.use(
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       }
     },
+    index: false,
   }),
 );
+
+// Si alguien pide /host.html directo, también lo mandamos al login (sin
+// auth). Express.static ya no lo va a servir porque pusimos index:false y
+// host.html no es index — pero por si acaso, este catch explícito.
+app.get("/host.html", (_req, res) => {
+  res.redirect("/host");
+});
 
 // --- Web Push (VAPID) --------------------------------------------------
 // Genera las claves VAPID la primera vez que se arranca el server y las
@@ -475,6 +631,27 @@ function broadcastClientCount() {
   io.emit("clients:count", { count: clientSockets.size });
 }
 
+// Socket.io middleware: si el handshake trae un token de host (lo inyecta
+// host.js desde la meta tag server-rendered), lo validamos contra las
+// sesiones en memoria y adjuntamos el rol al socket. Los sockets de /client
+// no mandan token y caen como role=null — pueden recibir alertas pero no
+// pueden disparar/programar.
+io.use((socket, next) => {
+  const token =
+    socket.handshake &&
+    socket.handshake.auth &&
+    typeof socket.handshake.auth.token === "string"
+      ? socket.handshake.auth.token
+      : null;
+  const sess = getSessionByToken(token);
+  socket.data.role = sess ? sess.role : null;
+  next();
+});
+
+function isHost(socket) {
+  return socket.data.role === "admin" || socket.data.role === "operator";
+}
+
 io.on("connection", (socket) => {
   // Al conectarse, sincronizar con la alerta activa si existe.
   // Comparamos contra realNow() para ser consistentes con startAlert().
@@ -499,7 +676,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("alert:trigger", (payload) => {
+    // Sólo admin y operator pueden disparar alertas. Operator además no
+    // puede disparar mensajes personalizados — eso es sólo de admin.
+    if (!isHost(socket)) return;
     if (!payload || typeof payload.type !== "string") return;
+    if (socket.data.role === "operator" && payload.type === "custom") return;
     const label =
       typeof payload.label === "string" && payload.label.trim().length > 0
         ? payload.label.trim()
@@ -508,10 +689,13 @@ io.on("connection", (socket) => {
   });
 
   socket.on("alert:stop", () => {
+    if (!isHost(socket)) return;
     stopAlert("manual");
   });
 
   socket.on("schedule:add", (payload) => {
+    // Scheduler es sólo para admin.
+    if (socket.data.role !== "admin") return;
     if (!payload || typeof payload.type !== "string") return;
     const hour = Number(payload.hour);
     const minute = Number(payload.minute);
@@ -539,6 +723,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("schedule:remove", (payload) => {
+    if (socket.data.role !== "admin") return;
     const id = payload && Number(payload.id);
     if (!Number.isInteger(id)) return;
     removeSchedule(id);
