@@ -16,7 +16,12 @@ import android.util.Log;
 public class FlashController {
 
     private static final String TAG = "FlashController";
-    private static final long BLINK_MS = 250;
+    // Efecto estrobo: prende muy poquito tiempo y queda apagado un rato más
+    // largo. Se percibe como un flash de emergencia (policial / ambulancia),
+    // mucho más llamativo que un 50/50. El ciclo total (ON+OFF) es parecido
+    // al anterior (~250ms), sólo que ahora el ON es muy corto.
+    private static final long ON_MS = 40;
+    private static final long OFF_MS = 210;
 
     private final CameraManager cm;
     private final String cameraId; // null si no hay cámara con flash
@@ -80,12 +85,17 @@ public class FlashController {
         @Override
         public void run() {
             if (!blinking) return;
-            setTorch(!currentlyOn);
+            boolean nextOn = !currentlyOn;
+            setTorch(nextOn);
             // Leemos `handler` a un local primero: `stopBlinking()` corre en
             // otro thread y lo puede nullear justo después del check de
             // `blinking`. Sin este snapshot, postDelayed podría NPE'ar.
             Handler h = handler;
-            if (h != null) h.postDelayed(this, BLINK_MS);
+            // Estrobo asimétrico: poco tiempo prendido (ON_MS), mucho más
+            // apagado (OFF_MS). El delay hasta el próximo toggle depende
+            // del estado al que acabamos de cambiar.
+            long delay = nextOn ? ON_MS : OFF_MS;
+            if (h != null) h.postDelayed(this, delay);
         }
     };
 
