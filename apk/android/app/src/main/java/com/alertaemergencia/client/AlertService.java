@@ -54,6 +54,11 @@ public class AlertService extends Service {
             "com.alertaemergencia.client.DISMISS";
     public static final String ACTION_TEST_ALERT =
             "com.alertaemergencia.client.TEST_ALERT";
+    // Lo manda MainActivity/AlertBridge cuando el usuario cambia la pausa.
+    // Sólo refresca el texto de la notificación persistente (no reconecta
+    // sockets, no cancela alertas en curso).
+    public static final String ACTION_REFRESH_PAUSE =
+            "com.alertaemergencia.client.REFRESH_PAUSE";
 
     public static final String EXTRA_SERVER_URL = "server_url";
 
@@ -164,6 +169,12 @@ public class AlertService extends Service {
                 }
             }
             stopAlertMedia("dismiss-from-user");
+            return START_STICKY;
+        }
+        if (ACTION_REFRESH_PAUSE.equals(action)) {
+            // Actualiza el texto de la notificación persistente para que el
+            // profe vea a simple vista si sus alertas están pausadas.
+            updateOngoing(describeConnectionState());
             return START_STICKY;
         }
         if (ACTION_TEST_ALERT.equals(action)) {
@@ -715,8 +726,48 @@ public class AlertService extends Service {
         NotificationManager nm =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) {
-            nm.notify(NOTIF_ONGOING, buildOngoingNotification(text));
+            nm.notify(NOTIF_ONGOING, buildOngoingNotification(decorateWithPause(text)));
         }
+    }
+
+    /**
+     * Si hay una pausa activa en SharedPreferences, antepone "⏸ Pausado" al
+     * texto de la notificación persistente. Sirve como indicador visible
+     * para el profe (sin tener que abrir la app) de que efectivamente
+     * no va a recibir alertas.
+     */
+    private String decorateWithPause(String baseText) {
+        try {
+            SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+            long pausedUntil = sp.getLong(KEY_PAUSED_UNTIL, 0);
+            long now = System.currentTimeMillis();
+            if (pausedUntil > now) {
+                if (pausedUntil >= Long.MAX_VALUE / 2) {
+                    return "⏸ Pausado (indefinido) · " + baseText;
+                }
+                long mins = Math.max(1, (pausedUntil - now) / 60000);
+                if (mins >= 60) {
+                    long hours = mins / 60;
+                    return "⏸ Pausado ~" + hours + "h · " + baseText;
+                }
+                return "⏸ Pausado ~" + mins + "min · " + baseText;
+            }
+        } catch (Exception ignored) {
+        }
+        return baseText;
+    }
+
+    /**
+     * Describe el estado actual del socket para usar como texto base de la
+     * notificación persistente. No sabemos el estado exacto desde acá sin
+     * exponerlo — asumimos "Conectado" porque si el servicio está vivo y
+     * no hubo error reciente, lo más probable es que esté escuchando.
+     */
+    private String describeConnectionState() {
+        if (socket != null && socket.connected()) {
+            return "Conectado · esperando alertas";
+        }
+        return "Esperando conexión…";
     }
 
     private void showAlertNotification(String type, String label) {

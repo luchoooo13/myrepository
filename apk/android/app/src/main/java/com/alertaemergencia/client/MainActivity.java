@@ -33,6 +33,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -473,11 +474,51 @@ public class MainActivity extends AppCompatActivity {
          */
         @JavascriptInterface
         public void setPausedUntil(double ms) {
-            long value = (long) ms;
-            if (value < 0) value = 0;
+            final long value = ms < 0 ? 0L : (long) ms;
             prefs().edit()
                     .putLong(AlertService.KEY_PAUSED_UNTIL, value)
                     .apply();
+            // Feedback visual: si el usuario activó/desactivó una pausa,
+            // mostramos un toast en el UI thread. Sirve también como
+            // confirmación de que el APK nuevo (con este bridge) está
+            // instalado y que el JS llegó al nativo.
+            runOnUiThread(() -> {
+                try {
+                    long now = System.currentTimeMillis();
+                    String msg;
+                    if (value > now) {
+                        if (value >= Long.MAX_VALUE / 2) {
+                            msg = "Notificaciones pausadas (indefinido)";
+                        } else {
+                            long mins = Math.max(1, (value - now) / 60000);
+                            if (mins >= 60) {
+                                long hours = mins / 60;
+                                msg = "Notificaciones pausadas por ~" + hours + " h";
+                            } else {
+                                msg = "Notificaciones pausadas por ~" + mins + " min";
+                            }
+                        }
+                    } else {
+                        msg = "Notificaciones reactivadas";
+                    }
+                    Toast.makeText(
+                            getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
+                } catch (Exception ignored) {
+                }
+            });
+            // Avisamos al servicio para que refresque la notificación
+            // persistente ("Conectado · esperando alertas" → "⏸ Pausado…").
+            try {
+                Intent i = new Intent(
+                        MainActivity.this, AlertService.class);
+                i.setAction(AlertService.ACTION_REFRESH_PAUSE);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(i);
+                } else {
+                    startService(i);
+                }
+            } catch (Exception ignored) {
+            }
         }
 
         /**
