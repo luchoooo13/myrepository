@@ -28,7 +28,12 @@ public class FlashController {
     private HandlerThread thread;
     private Handler handler;
     private volatile boolean blinking = false;
-    private boolean currentlyOn = false;
+    // volatile: lo escribe `setTorch()` (thread del HandlerThread durante el
+    // loop, o thread principal cuando `stopBlinking()` apaga la linterna) y
+    // lo lee `blinkLoop` antes de decidir el próximo toggle. Sin volatile un
+    // stale read podía mandar setTorch(true) justo después del stopBlinking
+    // y dejar la linterna prendida para siempre.
+    private volatile boolean currentlyOn = false;
 
     public FlashController(Context ctx) {
         CameraManager mgr = null;
@@ -87,6 +92,16 @@ public class FlashController {
             if (!blinking) return;
             boolean nextOn = !currentlyOn;
             setTorch(nextOn);
+            // Race fix: si stopBlinking() corrió MIENTRAS estábamos haciendo
+            // setTorch(nextOn) (pasó el check de `blinking` pero todavía no
+            // llamó setTorch), el main thread ya hizo setTorch(false) y
+            // después nosotros lo sobre-escribimos con setTorch(true) →
+            // linterna prendida para siempre. Re-chequeamos `blinking` después
+            // del toggle y si pasó a false, forzamos apagado y cortamos.
+            if (!blinking) {
+                setTorch(false);
+                return;
+            }
             // Leemos `handler` a un local primero: `stopBlinking()` corre en
             // otro thread y lo puede nullear justo después del check de
             // `blinking`. Sin este snapshot, postDelayed podría NPE'ar.
