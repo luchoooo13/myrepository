@@ -289,6 +289,15 @@ public class MainActivity extends AppCompatActivity {
         container.setBackgroundColor(0xFF000000);
 
         webView = new WebView(this);
+        // Forzamos que cada arranque baje los archivos frescos del server.
+        // Sin esto el WebView cachea agresivamente el client.js y se queda
+        // con la versión vieja aunque el server ya sirva una nueva (por ej.
+        // no tiene pushPausedUntilToBridge y entonces la pausa en APK no
+        // llega al servicio nativo).
+        try {
+            webView.clearCache(true);
+        } catch (Exception ignored) {
+        }
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -296,6 +305,7 @@ public class MainActivity extends AppCompatActivity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(false);
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
         // User-Agent custom (sin Mozilla/Chrome) por dos motivos:
         //  1. Marcamos que corre dentro del APK para que el JS del /client
         //     desactive sirena/flash/vibración en la web (lo hace el servicio
