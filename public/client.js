@@ -6,7 +6,16 @@
   // el overlay a pantalla completa (AlertActivity) aunque la app esté en
   // background o el celu bloqueado. Para no duplicar sirena/voz/flash, el JS
   // web sólo actualiza UI + historial.
-  const IS_APK = /AlertaClienteAPK/i.test(navigator.userAgent || "");
+  // Chequeamos tres cosas (cualquiera alcanza, para ser tolerantes a cambios
+  // de User-Agent entre versiones del APK):
+  //  - window.AlertBridge: el puente nativo inyectado por el APK (lo más
+  //    confiable, no se puede spoofear desde el navegador).
+  //  - User-Agent que contenga SchoolAlertsAPK (nuevo, >=2026) o
+  //    AlertaClienteAPK (legacy, <=2025).
+  const IS_APK =
+    typeof window !== "undefined" &&
+      typeof window.AlertBridge !== "undefined"
+    || /SchoolAlertsAPK|AlertaClienteAPK/i.test(navigator.userAgent || "");
 
   // --- DOM -------------------------------------------------------------
   const app = document.getElementById("app");
