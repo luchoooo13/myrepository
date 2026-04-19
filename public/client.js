@@ -31,6 +31,7 @@
   const alertTypeEl = document.getElementById("alertType");
   const alertTimeEl = document.getElementById("alertTime");
   const alertCloseBtn = document.getElementById("alertCloseBtn");
+  const alertUnlockHint = document.getElementById("alertUnlockHint");
 
   const historyListEl = document.getElementById("historyList");
   const clearHistoryBtn = document.getElementById("clearHistoryBtn");
@@ -691,7 +692,24 @@
       startVibration();
     }
 
+    refreshAlertUnlockHint();
+
     if (!currentAlertIsTest) addHistoryEntry(alert);
+  }
+
+  // Muestra/oculta el hint "Tocá la pantalla para escuchar la sirena"
+  // arriba del overlay. Aparece SOLO cuando hay una alerta activa que tiene
+  // que sonar en esta WebView (fuera del APK o en un test local) y el
+  // usuario todavía no desbloqueó el audio. En iOS via PWA es el caso más
+  // común — el usuario llega a la app por una notificación push y el audio
+  // está bloqueado hasta que haga un tap dentro del documento.
+  function refreshAlertUnlockHint() {
+    if (!alertUnlockHint) return;
+    const needsWebAudio =
+      currentAlert &&
+      (!IS_APK || currentAlert.__runLocally) &&
+      !enabled;
+    alertUnlockHint.hidden = !needsWebAudio;
   }
 
   function hideAlert() {
@@ -706,6 +724,7 @@
     stopSiren();
     stopSpeakingLoop();
     stopVibration();
+    refreshAlertUnlockHint();
   }
 
   function dismissLocally() {
@@ -765,28 +784,78 @@
     audioStatusText.textContent = "Activo";
     audioStatusText.classList.add("is-positive");
     if (enableCard) enableCard.classList.add("is-done");
+    refreshAlertUnlockHint();
   }
 
-  enableBtn.addEventListener("click", () => {
+  // Desbloquea el audio del navegador y, si hay una alerta activa que
+  // necesita sirena/voz en la WebView, la arranca. Es idempotente: se
+  // puede llamar desde cualquier user-gesture (el botón "Activar sonido
+  // y voz", un click en el overlay de alerta, o el primer tap en
+  // cualquier lado). Devuelve la promise del warm-up por si el caller
+  // quiere encadenar algo.
+  function unlockAudioAndPlayCurrent() {
     // Capturamos la alerta activa ahora: si el warm-up tarda y la alerta
     // termina mientras tanto, no queremos arrancar una sirena "huérfana".
     const pending = currentAlert;
+    const wasEnabled = enabled;
     markEnabled();
     // Si ya hay una alerta activa con sirena custom (ej. simulacro usa
     // /sounds/siren-simulacro.mp3), tenemos que calentar ESE audio y no el
     // default — si no, pisaríamos el audio actual con el default.
     const warmSirenSrc = pending && pending.sirenUrl ? pending.sirenUrl : null;
-    Promise.all([
+    return Promise.all([
       warmUpAudio(ensureSirenAudio(warmSirenSrc)),
       warmUpAudio(ensureVoiceAudio(VOICE_BASE + "simulacro.mp3")),
     ]).then(() => {
       // Después del warm-up, recién ahí arrancamos la sirena real — así no
-      // se pisa con el audio.pause() del finish() del warm-up.
-      if (pending && currentAlert === pending) {
-        startSiren(pending.sirenUrl || null);
-        startSpeakingLoop(pending);
+      // se pisa con el audio.pause() del finish() del warm-up. Solo
+      // arrancamos si hay alerta viva y estábamos desbloqueando por una
+      // alerta activa (no si el user clickeó el botón "Activar" sin alerta
+      // en curso — ese caso ya estaba cubierto por el flujo viejo).
+      if (pending && currentAlert === pending && !wasEnabled) {
+        if (!IS_APK || pending.__runLocally) {
+          startSiren(pending.sirenUrl || null);
+          startSpeakingLoop(pending);
+        }
       }
     });
+  }
+
+  enableBtn.addEventListener("click", () => {
+    unlockAudioAndPlayCurrent();
+  });
+
+  // Tap en el overlay de alerta: si el audio está bloqueado, lo
+  // desbloqueamos y arrancamos la sirena. Esto resuelve el caso tipico
+  // de iPad/iPhone: usuario recibe push, toca la notificacion, la PWA
+  // abre con la alerta pero iOS Safari no deja que suene la sirena hasta
+  // un user-gesture dentro del documento. Con este listener, basta con
+  // tocar cualquier parte del overlay rojo para que arranque el sonido.
+  // Excluimos el boton X (cierre) para que un tap accidental ahi no
+  // arranque la sirena cuando el usuario quiso cerrar.
+  overlay.addEventListener("click", (ev) => {
+    if (enabled) return;
+    if (!currentAlert) return;
+    if (IS_APK && !currentAlert.__runLocally) return;
+    if (alertCloseBtn && alertCloseBtn.contains(ev.target)) return;
+    unlockAudioAndPlayCurrent();
+  });
+
+  // Ultimo recurso: cualquier user-gesture dentro de la pagina desbloquea
+  // el audio silenciosamente. Util si el usuario entra a la app antes de
+  // recibir la alerta (pasa a una pestaña, toca un boton, etc.) — queda
+  // desbloqueado y cuando llegue una alerta, suena sin que tenga que
+  // volver a tocar nada. Listener 'once' se remueve solo despues del
+  // primer disparo.
+  function silentWarmup() {
+    warmUpAudio(ensureSirenAudio(null));
+    warmUpAudio(ensureVoiceAudio(VOICE_BASE + "simulacro.mp3"));
+    markEnabled();
+  }
+  document.addEventListener("pointerdown", silentWarmup, { once: true });
+  document.addEventListener("touchstart", silentWarmup, {
+    once: true,
+    passive: true,
   });
 
   // --- Tabs ------------------------------------------------------------

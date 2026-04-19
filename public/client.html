@@ -350,6 +350,19 @@
         <div class="alert__type" id="alertType">—</div>
         <div class="alert__time" id="alertTime">1:00</div>
       </div>
+      <!-- Hint de desbloqueo de audio: aparece cuando llega una alerta pero
+           el audio del navegador todavia no esta "desbloqueado" (tipico en
+           iPhone/iPad cuando entras via push notification). iOS Safari
+           obliga a que la primera reproduccion venga de un user gesture
+           dentro del documento, asi que ofrecemos tocar la pantalla para
+           arrancar la sirena. El click en cualquier parte del overlay
+           (excepto la X) dispara unlockAudioAndPlayCurrent(). -->
+      <div class="alert__unlock" id="alertUnlockHint" hidden>
+        <span class="alert__unlock-icon" aria-hidden="true">🔊</span>
+        <span class="alert__unlock-text">
+          Tocá la pantalla para escuchar la sirena
+        </span>
+      </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
