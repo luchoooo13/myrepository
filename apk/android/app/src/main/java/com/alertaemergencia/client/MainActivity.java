@@ -52,12 +52,29 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
 
+    // Identificador de build visible en pantalla / notificación para que el
+    // usuario pueda confirmar de un vistazo que está corriendo el APK nuevo.
+    // Subir este valor cuando cambiamos algo importante del nativo para que
+    // sea obvio si el APK viejo quedó instalado por algún motivo.
+    public static final String BUILD_TAG = "v3-pausa";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         // Pantalla siempre prendida (útil para recibir alertas en cualquier momento).
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // Toast visible apenas arranca la app. Sirve para confirmar qué versión
+        // del APK quedó instalada (crítico cuando el instalador silencia
+        // errores o el usuario cree que actualizó pero no).
+        try {
+            Toast.makeText(
+                    getApplicationContext(),
+                    "SchoolAlerts " + BUILD_TAG,
+                    Toast.LENGTH_SHORT).show();
+        } catch (Exception ignored) {
+        }
 
         requestRuntimePermissions();
 
