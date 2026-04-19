@@ -24,6 +24,7 @@ import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -32,6 +33,9 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -274,11 +278,15 @@ public class MainActivity extends AppCompatActivity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(false);
-        // Marcamos el User-Agent para que el JS del /client detecte que corre
-        // dentro del APK y desactive sirena/flash/vibración en la web (lo hace
-        // el servicio nativo para que funcione también en background).
+        // User-Agent custom (sin Mozilla/Chrome) por dos motivos:
+        //  1. Marcamos que corre dentro del APK para que el JS del /client
+        //     desactive sirena/flash/vibración en la web (lo hace el servicio
+        //     nativo para que funcione también en background).
+        //  2. ngrok muestra una página intersticial de "visit site" a cualquier
+        //     request cuyo User-Agent parezca un navegador. Usando un UA custom
+        //     ngrok no lo marca como browser y salteamos el warning.
         try {
-            s.setUserAgentString(s.getUserAgentString() + " AlertaClienteAPK/2.0");
+            s.setUserAgentString("SchoolAlertsAPK/2.0 (Android)");
         } catch (Exception ignored) {
         }
         webView.setBackgroundColor(0xFF000000);
@@ -301,6 +309,23 @@ public class MainActivity extends AppCompatActivity {
                         + "\n\n(" + description + ")\n\n"
                         + "Revisá que el servidor esté corriendo y que estés en la misma WiFi.");
             }
+
+            // Si la URL es de ngrok y el usuario toca "Visit Site" en la
+            // página intersticial (o si por alguna razón aparece), le
+            // agregamos el header ngrok-skip-browser-warning a la recarga
+            // para que ngrok no la vuelva a mostrar.
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view,
+                                                     WebResourceRequest request) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
+                String u = request.getUrl() != null
+                        ? request.getUrl().toString() : "";
+                if (u.contains("ngrok") || u.contains("trycloudflare")) {
+                    view.loadUrl(u, ngrokHeaders());
+                    return true;
+                }
+                return false;
+            }
         });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -310,7 +335,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        webView.loadUrl(url);
+        // Cargamos la URL con el header ngrok-skip-browser-warning para evitar
+        // que ngrok muestre la página intersticial de "abuse warning".
+        webView.loadUrl(url, ngrokHeaders());
 
         container.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -362,6 +389,13 @@ public class MainActivity extends AppCompatActivity {
     private int dp(int v) {
         float d = getResources().getDisplayMetrics().density;
         return (int) (v * d + 0.5f);
+    }
+
+    private static Map<String, String> ngrokHeaders() {
+        Map<String, String> h = new HashMap<>();
+        // Cualquier valor alcanza; ngrok solo chequea que el header exista.
+        h.put("ngrok-skip-browser-warning", "true");
+        return h;
     }
 
     /**
