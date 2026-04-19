@@ -117,7 +117,12 @@ public class AlertService extends Service {
     // restart, red que vuelve, etc.) el server re-emite `alert:start` de la
     // alerta en curso. Si el usuario ya la descartó en este equipo, no la
     // volvemos a disparar.
-    private long dismissedStartedAt = 0;
+    //
+    // volatile: se escribe en main (onStartCommand / ACTION_DISMISS) y se lee
+    // en el thread de Socket.IO (onAlertStart). Sin volatile, el thread de
+    // Socket.IO podía ver un valor viejo (= 0) y re-disparar la alerta que
+    // el usuario acababa de descartar.
+    private volatile long dismissedStartedAt = 0;
 
     // ------------------------------------------------------------------
     //  Lifecycle
