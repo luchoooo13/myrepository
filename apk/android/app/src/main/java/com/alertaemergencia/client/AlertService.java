@@ -107,6 +107,11 @@ public class AlertService extends Service {
     private String currentVoiceUrl;
     // startedAt (timestamp del server) de la alerta actualmente mostrada.
     private long currentAlertStartedAt = 0;
+    // Runnable del timeout del test alert (5s). Lo guardamos para poder
+    // cancelarlo si entra una alerta real en esos 5s — si no lo cancelamos
+    // el callback del timeout iba a ejecutar stopAlertMedia y matar la
+    // alerta real que ya estaba sonando en su lugar.
+    private Runnable pendingTestStop;
     // startedAt de la última alerta que el usuario descartó con la X. Sirve
     // para ignorar replays: cuando el servicio reconecta el socket (heartbeat
     // restart, red que vuelve, etc.) el server re-emite `alert:start` de la
@@ -195,7 +200,18 @@ public class AlertService extends Service {
                 // (ni programamos el stop de 5s) para no interrumpirla.
                 if (!alertActive) {
                     startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0);
-                    main.postDelayed(() -> stopAlertMedia("test-timeout"), 5000);
+                    // Guardamos el Runnable para poder cancelarlo si una
+                    // alerta real reemplaza al test antes de los 5s. Si el
+                    // test sigue corriendo cuando llega el timeout, el check
+                    // extra `currentAlertStartedAt == 0` evita apagar una
+                    // alerta real que haya tomado su lugar por otra vía.
+                    pendingTestStop = () -> {
+                        pendingTestStop = null;
+                        if (alertActive && currentAlertStartedAt == 0) {
+                            stopAlertMedia("test-timeout");
+                        }
+                    };
+                    main.postDelayed(pendingTestStop, 5000);
                 }
             });
             return START_STICKY;
@@ -412,6 +428,13 @@ public class AlertService extends Service {
     private void startAlertMedia(String type, String label,
                                  String sirenUrl, boolean skipVoice,
                                  long startedAt) {
+        // Si había un test alert con timeout programado a 5s y ahora entra
+        // una alerta (sea real o otro test), cancelamos el timeout para que
+        // no mate la nueva alerta cuando expire.
+        if (pendingTestStop != null) {
+            main.removeCallbacks(pendingTestStop);
+            pendingTestStop = null;
+        }
         if (alertActive) {
             // Si nos reenvían la MISMA alerta que ya estamos mostrando
             // (replay del server al reconectar socket), no hacemos nada
