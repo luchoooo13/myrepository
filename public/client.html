@@ -225,6 +225,26 @@
         <section class="tab" data-tab="settings" hidden>
           <h2 class="tab__title">Ajustes</h2>
 
+          <div class="card" id="pauseCard">
+            <div class="card__title">Pausar notificaciones</div>
+            <div class="card__body">
+              <p class="card__text">
+                No vas a recibir alertas (ni sirena ni notificaciones push) hasta
+                que termine la pausa. Se reactiva solo.
+              </p>
+              <div class="setting setting--column">
+                <select id="pauseSelect" class="range" style="padding: 8px;">
+                  <option value="0">No pausar — recibir alertas normalmente</option>
+                  <option value="4h">Por 4 horas</option>
+                  <option value="12h">Por 12 horas</option>
+                  <option value="tomorrow6">Hasta mañana 6:00 AM</option>
+                  <option value="forever">Indefinido (hasta que desactive)</option>
+                </select>
+              </div>
+              <p class="card__text" id="pauseStatus" hidden></p>
+            </div>
+          </div>
+
           <div class="setting">
             <div class="setting__label">
               <span class="setting__label-title">Vibración</span>

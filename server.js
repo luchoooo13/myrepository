@@ -108,12 +108,38 @@ app.post("/push/unsubscribe", (req, res) => {
   res.json({ ok: true });
 });
 
+// Pausar / despausar notificaciones push para una suscripción puntual.
+// El cliente manda { endpoint, pausedUntil } donde pausedUntil es un
+// timestamp ms (0 = no pausada, Number.MAX_SAFE_INTEGER = pausa indefinida).
+// Mientras pausedUntil > Date.now(), sendPushToAll salta esta suscripción.
+app.post("/push/pause", (req, res) => {
+  const endpoint = req.body && req.body.endpoint;
+  const pausedUntil = req.body && Number(req.body.pausedUntil);
+  if (!endpoint) {
+    res.status(400).json({ error: "missing endpoint" });
+    return;
+  }
+  const sub = pushSubs.find((s) => s.endpoint === endpoint);
+  if (!sub) {
+    res.status(404).json({ error: "endpoint not found" });
+    return;
+  }
+  sub.pausedUntil = Number.isFinite(pausedUntil) ? pausedUntil : 0;
+  savePushSubs();
+  res.json({ ok: true, pausedUntil: sub.pausedUntil });
+});
+
 async function sendPushToAll(payload) {
   if (pushSubs.length === 0) return;
   const body = JSON.stringify(payload);
   const dead = [];
+  const now = Date.now();
   await Promise.all(
     pushSubs.map(async (sub) => {
+      // Respetar la pausa del usuario (toggle "Pausar notificaciones" del
+      // cliente). Si todavía no venció, no mandamos la push a esta
+      // suscripción. La pausa se acuerda via POST /push/pause.
+      if (sub.pausedUntil && sub.pausedUntil > now) return;
       try {
         await webpush.sendNotification(sub, body);
       } catch (err) {

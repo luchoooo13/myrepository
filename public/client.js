@@ -38,6 +38,8 @@
   const pushEnableBtn = document.getElementById("pushEnableBtn");
   const pushHelp = document.getElementById("pushHelp");
   const pushStatus = document.getElementById("pushStatus");
+  const pauseSelect = document.getElementById("pauseSelect");
+  const pauseStatus = document.getElementById("pauseStatus");
   const setVibration = document.getElementById("setVibration");
   const setStrobe = document.getElementById("setStrobe");
   const setVoice = document.getElementById("setVoice");
@@ -76,6 +78,9 @@
     strobe: true,
     voice: true,
     volume: 100,
+    // pausedUntil: ms timestamp. 0 = no pausado. Number.MAX_SAFE_INTEGER = pausa
+    // indefinida (hasta que el usuario la desactive manualmente).
+    pausedUntil: 0,
   };
 
   function loadSettings() {
@@ -108,7 +113,135 @@
     applyVolumeToAudio();
     applyStrobeClass();
     pushSettingsToBridge();
+    renderPauseUI();
   }
+
+  // --- Pausa de notificaciones ------------------------------------------
+  function isPaused() {
+    return settings.pausedUntil && settings.pausedUntil > Date.now();
+  }
+
+  function formatPausedUntil(ms) {
+    if (ms >= Number.MAX_SAFE_INTEGER / 2) return "hasta que la desactives";
+    try {
+      return "hasta " +
+        new Intl.DateTimeFormat("es-AR", {
+          timeZone: "America/Argentina/Buenos_Aires",
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(ms));
+    } catch {
+      return "hasta " + new Date(ms).toLocaleString("es-AR");
+    }
+  }
+
+  function renderPauseUI() {
+    if (!pauseSelect || !pauseStatus) return;
+    if (isPaused()) {
+      pauseStatus.hidden = false;
+      pauseStatus.textContent =
+        "⏸ Pausado " + formatPausedUntil(settings.pausedUntil);
+      pauseStatus.style.color = "#f59e0b";
+    } else {
+      pauseStatus.hidden = true;
+      pauseStatus.textContent = "";
+      // Si expiró, reseteamos el select al default.
+      if (settings.pausedUntil && settings.pausedUntil <= Date.now()) {
+        settings.pausedUntil = 0;
+        saveSettings(settings);
+        syncPauseWithServer();
+      }
+      pauseSelect.value = "0";
+    }
+  }
+
+  function computePausedUntil(option) {
+    const now = Date.now();
+    switch (option) {
+      case "4h":
+        return now + 4 * 60 * 60 * 1000;
+      case "12h":
+        return now + 12 * 60 * 60 * 1000;
+      case "tomorrow6": {
+        // Mañana 6:00 AM hora Buenos Aires. Usamos el mismo truco que en el
+        // server: formateamos el "hoy" de BA y sumamos 1 día.
+        try {
+          const fmt = new Intl.DateTimeFormat("en-US", {
+            timeZone: "America/Argentina/Buenos_Aires",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          });
+          const parts = {};
+          for (const p of fmt.formatToParts(new Date(now))) {
+            if (p.type !== "literal") parts[p.type] = p.value;
+          }
+          const d = new Date(Date.UTC(
+            Number(parts.year),
+            Number(parts.month) - 1,
+            Number(parts.day),
+          ));
+          d.setUTCDate(d.getUTCDate() + 1);
+          const iso =
+            d.getUTCFullYear() +
+            "-" + String(d.getUTCMonth() + 1).padStart(2, "0") +
+            "-" + String(d.getUTCDate()).padStart(2, "0") +
+            "T06:00:00-03:00";
+          return new Date(iso).getTime();
+        } catch {
+          return now + 12 * 60 * 60 * 1000;
+        }
+      }
+      case "forever":
+        return Number.MAX_SAFE_INTEGER;
+      default:
+        return 0;
+    }
+  }
+
+  // Avisa al server del cambio de pausa para que no envíe push notifs a
+  // esta suscripción. Si no hay suscripción push, es no-op.
+  async function syncPauseWithServer() {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) return;
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) return;
+      await fetch("/push/pause", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: sub.endpoint,
+          pausedUntil: settings.pausedUntil || 0,
+        }),
+      });
+    } catch (err) {
+      console.warn("syncPauseWithServer falló:", err);
+    }
+  }
+
+  if (pauseSelect) {
+    pauseSelect.addEventListener("change", () => {
+      const opt = pauseSelect.value;
+      settings.pausedUntil = computePausedUntil(opt);
+      saveSettings(settings);
+      renderPauseUI();
+      syncPauseWithServer();
+    });
+  }
+
+  // Chequea cada minuto si la pausa expiró (para refrescar la UI sin
+  // depender de que el usuario recargue la página).
+  setInterval(() => {
+    if (settings.pausedUntil &&
+        settings.pausedUntil < Number.MAX_SAFE_INTEGER / 2 &&
+        settings.pausedUntil <= Date.now()) {
+      renderPauseUI();
+    }
+  }, 60 * 1000);
 
   // En el APK, el servicio Android (AlertService) no conoce los toggles que
   // el usuario guarda en localStorage — corren en mundos distintos. Los
@@ -784,6 +917,17 @@
   socket.on("connect_error", () => setStatus("Error de conexión", "offline"));
 
   socket.on("alert:start", (alert) => {
+    // Si el usuario pausó las notificaciones en este dispositivo, ignoramos
+    // la alerta del server (no hay overlay, ni sirena, ni voz). El server
+    // igual respeta la pausa a nivel de push notifs (via /push/pause), pero
+    // chequeamos acá también por si la alerta llega por socket antes de que
+    // el server haya registrado la pausa o si no hay suscripción push.
+    if (isPaused()) {
+      // Igual guardamos el historial para que si después despausa, tenga
+      // registro de lo que pasó mientras no estaba recibiendo.
+      if (!alert.__test) addHistoryEntry(alert);
+      return;
+    }
     showAlert(alert);
   });
   socket.on("alert:stop", () => {
