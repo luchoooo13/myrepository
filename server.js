@@ -593,11 +593,15 @@ const ALERT_OVERRIDES = {
 
 function startAlert(payload) {
   clearAlertTimer();
-  // Usamos realNow() (no Date.now()) así startedAt/endsAt están en la
-  // misma escala que el reloj de los clientes; si el reloj de la PC
-  // server está corrido varios segundos, el cliente igual ve el
-  // countdown correcto.
-  const now = realNow();
+  // Usamos Date.now() (no realNow()) para startedAt/endsAt porque el
+  // countdown del cliente se calcula con `alert.endsAt - Date.now()` en
+  // su propio reloj local, y el setTimeout de abajo que cierra la alerta
+  // también corre contra Date.now() del server. Si usáramos realNow()
+  // (= Date.now() + timeOffsetMs), el setTimeout dispararía a
+  // `ALERT_DURATION_MS` pero endsAt quedaría corrido en timeOffsetMs,
+  // cortando la alerta antes o tarde. realNow() se sigue usando para
+  // programaciones (fire a las 10:00 BA reales), no para medir duración.
+  const now = Date.now();
   const override = ALERT_OVERRIDES[payload.type] || {};
   currentAlert = {
     type: payload.type,
@@ -654,8 +658,9 @@ function isHost(socket) {
 
 io.on("connection", (socket) => {
   // Al conectarse, sincronizar con la alerta activa si existe.
-  // Comparamos contra realNow() para ser consistentes con startAlert().
-  if (currentAlert && realNow() < currentAlert.endsAt) {
+  // startAlert() graba endsAt en la escala de Date.now(), asi que
+  // comparamos contra Date.now() también (no realNow()).
+  if (currentAlert && Date.now() < currentAlert.endsAt) {
     socket.emit("alert:start", currentAlert);
   }
   // Sincronizar lista de programaciones
