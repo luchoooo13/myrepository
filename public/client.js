@@ -41,6 +41,11 @@
   const pushStatus = document.getElementById("pushStatus");
   const pauseSelect = document.getElementById("pauseSelect");
   const pauseStatus = document.getElementById("pauseStatus");
+  const quietEnabled = document.getElementById("quietEnabled");
+  const quietFrom = document.getElementById("quietFrom");
+  const quietTo = document.getElementById("quietTo");
+  const quietDaily = document.getElementById("quietDaily");
+  const quietStatus = document.getElementById("quietStatus");
   const setVibration = document.getElementById("setVibration");
   const setStrobe = document.getElementById("setStrobe");
   const setVoice = document.getElementById("setVoice");
@@ -82,6 +87,19 @@
     // pausedUntil: ms timestamp. 0 = no pausado. Number.MAX_SAFE_INTEGER = pausa
     // indefinida (hasta que el usuario la desactive manualmente).
     pausedUntil: 0,
+    // Silencio programado: franja horaria fija (ej. 22:00 a 06:00) en hora
+    // de Buenos Aires durante la cual no queremos recibir alertas. Se
+    // aplica a este dispositivo, es independiente del pause manual.
+    // Si daily=false, se silencia sólo la próxima ocurrencia de la ventana
+    // y después se auto-desactiva (usamos oneShotEndTs internamente para
+    // saber cuándo fue la última ventana que aplicamos).
+    quietHours: {
+      enabled: false,
+      from: "22:00",
+      to: "06:00",
+      daily: true,
+      oneShotEndTs: 0,
+    },
   };
 
   function loadSettings() {
@@ -89,7 +107,15 @@
       const raw = localStorage.getItem(SETTINGS_KEY);
       if (!raw) return { ...defaultSettings };
       const parsed = JSON.parse(raw);
-      return { ...defaultSettings, ...parsed };
+      // Mergeamos shallow, pero quietHours es un objeto — si existe en
+      // parsed usamos el parseado, si no el default. Si parsed.quietHours
+      // existe pero le faltan campos (versión vieja), mergeamos con los
+      // defaults para que no falle por campos undefined.
+      const qh =
+        parsed && typeof parsed.quietHours === "object" && parsed.quietHours
+          ? { ...defaultSettings.quietHours, ...parsed.quietHours }
+          : { ...defaultSettings.quietHours };
+      return { ...defaultSettings, ...parsed, quietHours: qh };
     } catch {
       return { ...defaultSettings };
     }
@@ -115,6 +141,7 @@
     applyStrobeClass();
     pushSettingsToBridge();
     renderPauseUI();
+    renderQuietHoursUI();
   }
 
   // --- Pausa de notificaciones ------------------------------------------
@@ -262,7 +289,268 @@
         settings.pausedUntil <= Date.now()) {
       renderPauseUI();
     }
+    // Lo mismo con silencio programado: si el one-shot venció, desarmar.
+    tickQuietHours();
   }, 60 * 1000);
+
+  // --- Silencio programado ---------------------------------------------
+  // Franja horaria fija (ej. 22:00 a 06:00) durante la cual ignoramos
+  // alertas en este dispositivo. Se evalúa en hora de Buenos Aires (igual
+  // que el server, así coinciden). La lógica está duplicada intencionalmente
+  // server-side (en /push/quiet-hours) porque las PWAs pueden estar
+  // cerradas y sólo reciben alertas por push — el server tiene que saber
+  // por sí mismo si silenciar.
+  function parseHHMM(hhmm) {
+    const m = /^(\d{2}):(\d{2})$/.exec(hhmm || "");
+    if (!m) return null;
+    const h = Number(m[1]);
+    const mm = Number(m[2]);
+    if (!Number.isFinite(h) || !Number.isFinite(mm)) return null;
+    if (h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+    return h * 60 + mm;
+  }
+
+  function getBANowParts(atMs) {
+    try {
+      const fmt = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        hour12: false,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const parts = {};
+      for (const p of fmt.formatToParts(new Date(atMs || Date.now()))) {
+        if (p.type !== "literal") parts[p.type] = p.value;
+      }
+      const h = Number(parts.hour);
+      const mi = Number(parts.minute);
+      return {
+        y: Number(parts.year),
+        mo: Number(parts.month),
+        d: Number(parts.day),
+        h: h === 24 ? 0 : h,
+        mi,
+        minutesOfDay: (h === 24 ? 0 : h) * 60 + mi,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Construye un timestamp ms para "hoy (o hoy+dayOffset) en BA a las
+  // minutesOfDay minutos". Argentina = UTC-03:00 fijo (no tiene DST).
+  function timestampAtBAMinutes(minutesOfDay, dayOffset) {
+    const now = getBANowParts();
+    if (!now) return 0;
+    const d = new Date(Date.UTC(now.y, now.mo - 1, now.d));
+    d.setUTCDate(d.getUTCDate() + (dayOffset || 0));
+    const h = Math.floor(minutesOfDay / 60);
+    const mi = minutesOfDay % 60;
+    const iso =
+      d.getUTCFullYear() +
+      "-" + String(d.getUTCMonth() + 1).padStart(2, "0") +
+      "-" + String(d.getUTCDate()).padStart(2, "0") +
+      "T" + String(h).padStart(2, "0") +
+      ":" + String(mi).padStart(2, "0") +
+      ":00-03:00";
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  // True si ahora mismo estamos dentro de la ventana configurada.
+  function isInQuietHours() {
+    const q = settings.quietHours;
+    if (!q || !q.enabled) return false;
+    if (!q.daily && q.oneShotEndTs && Date.now() > q.oneShotEndTs) return false;
+    const fromMin = parseHHMM(q.from);
+    const toMin = parseHHMM(q.to);
+    if (fromMin == null || toMin == null || fromMin === toMin) return false;
+    const nowParts = getBANowParts();
+    if (!nowParts) return false;
+    const nowMin = nowParts.minutesOfDay;
+    if (fromMin < toMin) {
+      return nowMin >= fromMin && nowMin < toMin;
+    }
+    return nowMin >= fromMin || nowMin < toMin;
+  }
+
+  // Calcula cuándo termina la próxima ocurrencia (o la actual si estamos
+  // adentro) de la ventana. Devuelve un timestamp ms. Se usa para el modo
+  // one-shot (daily=false): una vez que Date.now() supera este valor, el
+  // silencio se auto-desactiva.
+  function computeOneShotEndTs(fromStr, toStr) {
+    const fromMin = parseHHMM(fromStr);
+    const toMin = parseHHMM(toStr);
+    if (fromMin == null || toMin == null || fromMin === toMin) return 0;
+    const durationMin = ((toMin - fromMin) + 24 * 60) % (24 * 60);
+    const nowParts = getBANowParts();
+    if (!nowParts) return 0;
+    const nowMin = nowParts.minutesOfDay;
+    const insideIntraday = fromMin < toMin
+      ? (nowMin >= fromMin && nowMin < toMin)
+      : false;
+    const insideCrossing = fromMin > toMin
+      ? (nowMin >= fromMin || nowMin < toMin)
+      : false;
+    let startDayOffset = 0;
+    if (insideIntraday) {
+      // Ventana actual arrancó hoy.
+      startDayOffset = 0;
+    } else if (insideCrossing) {
+      // Si nowMin < toMin, la ventana arrancó ayer. Si no, arrancó hoy.
+      startDayOffset = nowMin < toMin ? -1 : 0;
+    } else {
+      // Afuera de la ventana. Próxima ocurrencia: hoy si from todavía no
+      // pasó, si no mañana.
+      startDayOffset = nowMin < fromMin ? 0 : 1;
+    }
+    const startTs = timestampAtBAMinutes(fromMin, startDayOffset);
+    if (!startTs) return 0;
+    return startTs + durationMin * 60 * 1000;
+  }
+
+  function formatClockBA(ms) {
+    try {
+      return new Intl.DateTimeFormat("es-AR", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(ms));
+    } catch {
+      return new Date(ms).toLocaleTimeString("es-AR");
+    }
+  }
+
+  function renderQuietHoursUI() {
+    if (!quietEnabled || !quietFrom || !quietTo || !quietDaily) return;
+    const q = settings.quietHours || {};
+    quietEnabled.checked = !!q.enabled;
+    quietFrom.value = /^\d{2}:\d{2}$/.test(q.from) ? q.from : "22:00";
+    quietTo.value = /^\d{2}:\d{2}$/.test(q.to) ? q.to : "06:00";
+    quietDaily.checked = q.daily !== false; // default true
+    if (!quietStatus) return;
+    if (!q.enabled) {
+      quietStatus.hidden = true;
+      quietStatus.textContent = "";
+      return;
+    }
+    if (isInQuietHours()) {
+      quietStatus.hidden = false;
+      quietStatus.style.color = "#f59e0b";
+      quietStatus.textContent =
+        "⏸ Silenciado ahora (ventana " + q.from + "–" + q.to + ")";
+    } else if (!q.daily && q.oneShotEndTs && Date.now() > q.oneShotEndTs) {
+      // Expiró el one-shot: la UI real lo reseteará en el próximo tick.
+      quietStatus.hidden = true;
+      quietStatus.textContent = "";
+    } else {
+      quietStatus.hidden = false;
+      quietStatus.style.color = "#64748b";
+      const endTs = computeOneShotEndTs(q.from, q.to);
+      const label = q.daily
+        ? "Se silenciará todos los días " + q.from + " a " + q.to + " (hora AR)"
+        : "Próxima ventana silenciada: "
+          + q.from + " a " + q.to
+          + (endTs ? " (termina " + formatClockBA(endTs) + ")" : "");
+      quietStatus.textContent = label;
+    }
+  }
+
+  async function syncQuietHoursWithServer() {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) return;
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) return;
+      const q = settings.quietHours || {};
+      await fetch("/push/quiet-hours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: sub.endpoint,
+          quietHours: q.enabled
+            ? {
+                enabled: true,
+                from: q.from,
+                to: q.to,
+                daily: !!q.daily,
+                oneShotEndTs: q.oneShotEndTs || 0,
+              }
+            : null,
+        }),
+      });
+    } catch (err) {
+      console.warn("syncQuietHoursWithServer falló:", err);
+    }
+  }
+
+  function pushQuietHoursToBridge() {
+    try {
+      if (
+        typeof window.AlertBridge !== "undefined" &&
+        window.AlertBridge !== null &&
+        typeof window.AlertBridge.setQuietHours === "function"
+      ) {
+        const q = settings.quietHours || {};
+        window.AlertBridge.setQuietHours(
+          !!q.enabled,
+          q.from || "",
+          q.to || "",
+          !!q.daily,
+          q.oneShotEndTs || 0,
+        );
+      }
+    } catch (err) {
+      console.warn("AlertBridge.setQuietHours falló:", err);
+    }
+  }
+
+  function onQuietHoursChanged() {
+    const enabled = !!quietEnabled.checked;
+    const from = /^\d{2}:\d{2}$/.test(quietFrom.value) ? quietFrom.value : "22:00";
+    const to = /^\d{2}:\d{2}$/.test(quietTo.value) ? quietTo.value : "06:00";
+    const daily = !!quietDaily.checked;
+    const prev = settings.quietHours || {};
+    const oneShotEndTs =
+      enabled && !daily
+        ? computeOneShotEndTs(from, to)
+        : 0;
+    settings.quietHours = { enabled, from, to, daily, oneShotEndTs };
+    // Si el usuario tocó algo mientras había un one-shot activo, lo
+    // recomputamos para la ventana nueva (no arrastramos un oneShotEndTs
+    // viejo con los valores viejos).
+    void prev;
+    saveSettings(settings);
+    renderQuietHoursUI();
+    syncQuietHoursWithServer();
+    pushQuietHoursToBridge();
+  }
+
+  if (quietEnabled) quietEnabled.addEventListener("change", onQuietHoursChanged);
+  if (quietFrom) quietFrom.addEventListener("change", onQuietHoursChanged);
+  if (quietTo) quietTo.addEventListener("change", onQuietHoursChanged);
+  if (quietDaily) quietDaily.addEventListener("change", onQuietHoursChanged);
+
+  function tickQuietHours() {
+    const q = settings.quietHours;
+    if (!q || !q.enabled) return;
+    if (!q.daily && q.oneShotEndTs && Date.now() > q.oneShotEndTs) {
+      // One-shot expiró: auto-desactivamos.
+      settings.quietHours = { ...q, enabled: false, oneShotEndTs: 0 };
+      saveSettings(settings);
+      renderQuietHoursUI();
+      syncQuietHoursWithServer();
+      pushQuietHoursToBridge();
+      return;
+    }
+    // Refresh UI para que el estado "silenciado ahora" se actualice al
+    // entrar / salir de la ventana sin esperar que el usuario recargue.
+    renderQuietHoursUI();
+  }
 
   // En el APK, el servicio Android (AlertService) no conoce los toggles que
   // el usuario guarda en localStorage — corren en mundos distintos. Los
@@ -293,6 +581,16 @@
       }
       if (typeof window.AlertBridge.setPausedUntil === "function") {
         window.AlertBridge.setPausedUntil(settings.pausedUntil || 0);
+      }
+      if (typeof window.AlertBridge.setQuietHours === "function") {
+        const q = settings.quietHours || {};
+        window.AlertBridge.setQuietHours(
+          !!q.enabled,
+          q.from || "",
+          q.to || "",
+          !!q.daily,
+          q.oneShotEndTs || 0,
+        );
       }
     } catch (err) {
       console.warn("pushSettingsToBridge falló:", err);
@@ -1017,6 +1315,13 @@
     if (isPaused()) {
       // Igual guardamos el historial para que si después despausa, tenga
       // registro de lo que pasó mientras no estaba recibiendo.
+      if (!alert.__test) addHistoryEntry(alert);
+      return;
+    }
+    // Silencio programado: misma idea que la pausa manual, pero en una
+    // franja horaria fija (ej. 22:00 a 06:00). El server también chequea
+    // esto a nivel push, pero acá lo reforzamos por si llega por socket.
+    if (isInQuietHours()) {
       if (!alert.__test) addHistoryEntry(alert);
       return;
     }
