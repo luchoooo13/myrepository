@@ -245,6 +245,65 @@
             </div>
           </div>
 
+          <div class="card" id="quietHoursCard">
+            <div class="card__title">Silencio programado</div>
+            <div class="card__body">
+              <p class="card__text">
+                Silenciá las alertas en una franja horaria fija (ej. 22:00 a
+                06:00). Durante la ventana no suena sirena, no vibra, ni se
+                muestra la notificación push. Se aplica solo a este
+                dispositivo.
+              </p>
+              <div class="setting">
+                <div class="setting__label">
+                  <span class="setting__label-title">Activar silencio programado</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="quietEnabled" />
+                  <span class="switch__slider" aria-hidden="true"></span>
+                </label>
+              </div>
+              <div class="setting">
+                <div class="setting__label">
+                  <span class="setting__label-title">Desde</span>
+                </div>
+                <input
+                  type="time"
+                  id="quietFrom"
+                  class="range"
+                  value="22:00"
+                  style="padding: 8px; min-width: 120px"
+                />
+              </div>
+              <div class="setting">
+                <div class="setting__label">
+                  <span class="setting__label-title">Hasta</span>
+                </div>
+                <input
+                  type="time"
+                  id="quietTo"
+                  class="range"
+                  value="06:00"
+                  style="padding: 8px; min-width: 120px"
+                />
+              </div>
+              <div class="setting">
+                <div class="setting__label">
+                  <span class="setting__label-title">Repetir todos los días</span>
+                  <span class="setting__label-hint">
+                    Si está apagado, se aplica sólo una vez (la próxima
+                    ocurrencia de la ventana) y después se desactiva solo.
+                  </span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="quietDaily" checked />
+                  <span class="switch__slider" aria-hidden="true"></span>
+                </label>
+              </div>
+              <p class="card__text" id="quietStatus" hidden></p>
+            </div>
+          </div>
+
           <div class="setting">
             <div class="setting__label">
               <span class="setting__label-title">Vibración</span>

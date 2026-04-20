@@ -82,6 +82,20 @@ public class AlertService extends Service {
     // no notificación). 0 = no pausado. Number.MAX_SAFE_INTEGER = pausa
     // indefinida (hasta que el usuario la desactive).
     public static final String KEY_PAUSED_UNTIL = "paused_until";
+    // Silencio programado (ver docs en /push/quiet-hours del server y
+    // quietHours en client.js). Cuando quiet_enabled=true y la hora actual
+    // cae dentro de la franja [quiet_from, quiet_to] en hora de Buenos
+    // Aires, se ignora la alerta (no suena, no vibra, no notifica).
+    // - quiet_from / quiet_to: "HH:MM" (24h).
+    // - quiet_daily: true = repetir todos los días. false = una sola vez
+    //   (hasta que Date.now() > quiet_one_shot_end_ts, después se trata
+    //   como desactivado aunque enabled siga en true).
+    // - quiet_one_shot_end_ts: timestamp ms de cuándo expira el one-shot.
+    public static final String KEY_QUIET_ENABLED = "quiet_enabled";
+    public static final String KEY_QUIET_FROM = "quiet_from";
+    public static final String KEY_QUIET_TO = "quiet_to";
+    public static final String KEY_QUIET_DAILY = "quiet_daily";
+    public static final String KEY_QUIET_ONE_SHOT_END = "quiet_one_shot_end_ts";
     // Persistimos el startedAt de la última alerta descartada con la X. Si
     // el servicio muere (OOM / Doze / RestartReceiver) pierde el valor en
     // memoria y al reconectar el socket volvía a disparar la alerta. Con esto
@@ -394,6 +408,13 @@ public class AlertService extends Service {
             long pausedUntil = sp.getLong(KEY_PAUSED_UNTIL, 0);
             if (pausedUntil > System.currentTimeMillis()) {
                 Log.d(TAG, "Alerta ignorada (pausada hasta " + pausedUntil + ")");
+                return;
+            }
+            // Silencio programado: franja horaria fija (ej. 22:00 a 06:00)
+            // en hora de Buenos Aires. Misma idea que la pausa manual pero
+            // recurrente/diaria.
+            if (isInQuietHoursNow(sp)) {
+                Log.d(TAG, "Alerta ignorada (silencio programado activo)");
                 return;
             }
         } catch (Exception ignored) {
@@ -770,7 +791,8 @@ public class AlertService extends Service {
      * Si hay una pausa activa en SharedPreferences, antepone "⏸ Pausado" al
      * texto de la notificación persistente. Sirve como indicador visible
      * para el profe (sin tener que abrir la app) de que efectivamente
-     * no va a recibir alertas.
+     * no va a recibir alertas. Si además (o en lugar) hay silencio
+     * programado activo, también lo indicamos.
      */
     private String decorateWithPause(String baseText) {
         try {
@@ -788,9 +810,73 @@ public class AlertService extends Service {
                 }
                 return "⏸ Pausado ~" + mins + "min · " + baseText;
             }
+            if (isInQuietHoursNow(sp)) {
+                String from = sp.getString(KEY_QUIET_FROM, "");
+                String to = sp.getString(KEY_QUIET_TO, "");
+                return "⏸ Silencio " + from + "–" + to + " · " + baseText;
+            }
         } catch (Exception ignored) {
         }
         return baseText;
+    }
+
+    /**
+     * Evalúa si ahora mismo (hora de Buenos Aires) estamos dentro de la
+     * ventana de silencio programado guardada en SharedPreferences.
+     * Duplica la lógica de server.js/isSubInQuietHours y client.js/
+     * isInQuietHours — tienen que coincidir para que las 3 vías (socket,
+     * push, servicio nativo) respeten el mismo silencio.
+     */
+    private boolean isInQuietHoursNow(SharedPreferences sp) {
+        try {
+            if (!sp.getBoolean(KEY_QUIET_ENABLED, false)) return false;
+            boolean daily = sp.getBoolean(KEY_QUIET_DAILY, true);
+            long oneShotEnd = sp.getLong(KEY_QUIET_ONE_SHOT_END, 0);
+            long now = System.currentTimeMillis();
+            if (!daily && oneShotEnd > 0 && now > oneShotEnd) return false;
+            int fromMin = parseHHMMMinutes(sp.getString(KEY_QUIET_FROM, ""));
+            int toMin = parseHHMMMinutes(sp.getString(KEY_QUIET_TO, ""));
+            if (fromMin < 0 || toMin < 0 || fromMin == toMin) return false;
+            int nowMin = currentBAMinutesOfDay();
+            if (nowMin < 0) return false;
+            if (fromMin < toMin) {
+                return nowMin >= fromMin && nowMin < toMin;
+            }
+            // from > to → la ventana cruza medianoche.
+            return nowMin >= fromMin || nowMin < toMin;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static int parseHHMMMinutes(String hhmm) {
+        if (hhmm == null || hhmm.length() != 5 || hhmm.charAt(2) != ':') return -1;
+        try {
+            int h = Integer.parseInt(hhmm.substring(0, 2));
+            int m = Integer.parseInt(hhmm.substring(3, 5));
+            if (h < 0 || h > 23 || m < 0 || m > 59) return -1;
+            return h * 60 + m;
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Devuelve los minutos-del-día (0..1439) usando la zona horaria de
+     * Buenos Aires. Argentina no observa DST (UTC-03:00 todo el año) así
+     * que es seguro usar TimeZone.getTimeZone("America/Argentina/Buenos_Aires").
+     */
+    private static int currentBAMinutesOfDay() {
+        try {
+            java.util.TimeZone tz =
+                    java.util.TimeZone.getTimeZone("America/Argentina/Buenos_Aires");
+            java.util.Calendar cal = java.util.Calendar.getInstance(tz);
+            int h = cal.get(java.util.Calendar.HOUR_OF_DAY);
+            int m = cal.get(java.util.Calendar.MINUTE);
+            return h * 60 + m;
+        } catch (Exception e) {
+            return -1;
+        }
     }
 
     /**

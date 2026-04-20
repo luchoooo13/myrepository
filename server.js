@@ -287,17 +287,128 @@ app.post("/push/pause", (req, res) => {
   res.json({ ok: true, pausedUntil: sub.pausedUntil });
 });
 
+// Configurar la ventana de silencio programado per-suscripción. Complementa
+// a /push/pause: mientras /push/pause es una pausa "por N horas" que el
+// usuario arma a mano, quiet-hours es una franja fija (ej. 22:00 a 06:00)
+// que se repite todos los días (daily=true) o aplica una sola vez (daily=
+// false, y la siguiente ocurrencia de la ventana se silencia, después se
+// auto-desactiva).
+//
+// Payload: { endpoint, quietHours: { enabled, from, to, daily, oneShotEndTs } }
+// - enabled: bool master on/off.
+// - from/to: "HH:MM" (24h) en hora de Buenos Aires.
+// - daily: si true, la ventana se aplica cada día (maneja cruces de
+//   medianoche — de 22:00 a 06:00 silencia toda la noche).
+// - oneShotEndTs (ms): sólo se usa si daily=false. Al pasar este ts el
+//   server deja de aplicar el silencio.
+//
+// Para remover la config: mandar quietHours: null (o enabled:false).
+app.post("/push/quiet-hours", (req, res) => {
+  const endpoint = req.body && req.body.endpoint;
+  if (!endpoint) {
+    res.status(400).json({ error: "missing endpoint" });
+    return;
+  }
+  const sub = pushSubs.find((s) => s.endpoint === endpoint);
+  if (!sub) {
+    res.status(404).json({ error: "endpoint not found" });
+    return;
+  }
+  sub.quietHours = sanitizeQuietHours(req.body && req.body.quietHours);
+  savePushSubs();
+  res.json({ ok: true, quietHours: sub.quietHours });
+});
+
+// Devuelve el payload saneado o null si es inválido / está apagado.
+function sanitizeQuietHours(q) {
+  if (!q || typeof q !== "object") return null;
+  if (!q.enabled) return null;
+  const from = typeof q.from === "string" ? q.from.slice(0, 5) : "";
+  const to = typeof q.to === "string" ? q.to.slice(0, 5) : "";
+  if (!/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to)) return null;
+  if (from === to) return null;
+  const daily = !!q.daily;
+  const oneShotEndTsRaw = Number(q.oneShotEndTs);
+  const oneShotEndTs = Number.isFinite(oneShotEndTsRaw) ? oneShotEndTsRaw : 0;
+  return { enabled: true, from, to, daily, oneShotEndTs };
+}
+
+// Devuelve los minutos-del-día (0..1439) para un timestamp ms usando la
+// zona horaria de Buenos Aires. Centralizado acá para no duplicar la
+// lógica de Intl.DateTimeFormat.
+function getBAMinutesOfDay(nowMs) {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const parts = {};
+    for (const p of fmt.formatToParts(new Date(nowMs))) {
+      if (p.type !== "literal") parts[p.type] = p.value;
+    }
+    const h = Number(parts.hour);
+    const m = Number(parts.minute);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    // Algunas implementaciones de Intl devuelven "24" en vez de "00" a
+    // las 00:xx; normalizamos.
+    const hh = h === 24 ? 0 : h;
+    return hh * 60 + m;
+  } catch {
+    return null;
+  }
+}
+
+function parseHHMMToMinutes(hhmm) {
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm || "");
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(mm)) return null;
+  if (h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+  return h * 60 + mm;
+}
+
+// True si ahora mismo la suscripción está dentro de su ventana de silencio
+// programado. La evaluación se hace en hora de Buenos Aires para que los
+// "22:00 a 06:00" del usuario coincidan con la medianoche local aunque el
+// server corra en UTC (caso típico de Fly.io / VPS / cloud).
+function isSubInQuietHours(sub, nowMs) {
+  const q = sub && sub.quietHours;
+  if (!q || !q.enabled) return false;
+  if (!q.daily && q.oneShotEndTs && nowMs > q.oneShotEndTs) return false;
+  const from = parseHHMMToMinutes(q.from);
+  const to = parseHHMMToMinutes(q.to);
+  if (from == null || to == null || from === to) return false;
+  const nowMin = getBAMinutesOfDay(nowMs);
+  if (nowMin == null) return false;
+  if (from < to) {
+    return nowMin >= from && nowMin < to;
+  }
+  // from > to → la ventana cruza medianoche.
+  return nowMin >= from || nowMin < to;
+}
+
 async function sendPushToAll(payload) {
   if (pushSubs.length === 0) return;
   const body = JSON.stringify(payload);
   const dead = [];
   const now = Date.now();
+  // Para silencio programado usamos realNow() (hora "de pared" sincronizada
+  // vía NTP) porque la ventana "22:00 a 06:00" se evalúa en hora de Buenos
+  // Aires. Si el server corre en UTC en cloud y su reloj del sistema
+  // derivó unos segundos, realNow() lo corrige.
+  const wallNow = realNow();
   await Promise.all(
     pushSubs.map(async (sub) => {
       // Respetar la pausa del usuario (toggle "Pausar notificaciones" del
       // cliente). Si todavía no venció, no mandamos la push a esta
       // suscripción. La pausa se acuerda via POST /push/pause.
       if (sub.pausedUntil && sub.pausedUntil > now) return;
+      // Silencio programado (franja fija 22:00-06:00, etc.). Se acuerda
+      // via POST /push/quiet-hours.
+      if (isSubInQuietHours(sub, wallNow)) return;
       try {
         await webpush.sendNotification(sub, body);
       } catch (err) {

@@ -538,6 +538,68 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /**
+         * Guarda la configuración del silencio programado (ventana horaria
+         * fija) en SharedPreferences. El servicio nativo lee esto en
+         * onAlertStart y descarta las alertas que caen dentro de la ventana.
+         *
+         * @param enabled      master on/off.
+         * @param from         "HH:MM" (24h) hora de inicio.
+         * @param to           "HH:MM" (24h) hora de fin.
+         * @param daily        true = repetir todos los días. false = una
+         *                     sola vez (se ignora al pasar oneShotEndTs).
+         * @param oneShotEndTs timestamp ms de cuándo vence el one-shot.
+         */
+        @JavascriptInterface
+        public void setQuietHours(
+                boolean enabled,
+                String from,
+                String to,
+                boolean daily,
+                double oneShotEndTs) {
+            final long endTsLong = oneShotEndTs < 0 ? 0L : (long) oneShotEndTs;
+            final String safeFrom = from != null ? from : "";
+            final String safeTo = to != null ? to : "";
+            prefs().edit()
+                    .putBoolean(AlertService.KEY_QUIET_ENABLED, enabled)
+                    .putString(AlertService.KEY_QUIET_FROM, safeFrom)
+                    .putString(AlertService.KEY_QUIET_TO, safeTo)
+                    .putBoolean(AlertService.KEY_QUIET_DAILY, daily)
+                    .putLong(AlertService.KEY_QUIET_ONE_SHOT_END, endTsLong)
+                    .apply();
+            // Feedback visual breve cuando el usuario activa/desactiva el
+            // silencio. Sirve además como confirmación de que el APK con
+            // este bridge está instalado.
+            runOnUiThread(() -> {
+                try {
+                    String msg;
+                    if (enabled) {
+                        msg = "Silencio programado activado ("
+                                + safeFrom + "–" + safeTo
+                                + (daily ? ", diario)" : ", una vez)");
+                    } else {
+                        msg = "Silencio programado desactivado";
+                    }
+                    Toast.makeText(
+                            getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
+                } catch (Exception ignored) {
+                }
+            });
+            // Refrescar la notificación persistente para mostrar "⏸ Silencio …"
+            // si corresponde.
+            try {
+                Intent i = new Intent(
+                        MainActivity.this, AlertService.class);
+                i.setAction(AlertService.ACTION_REFRESH_PAUSE);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(i);
+                } else {
+                    startService(i);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        /**
          * Dispara una alerta de prueba local de 5 segundos en el servicio
          * nativo — reproduce sirena + voz + flash + vibración sin pasar por
          * el server, así el usuario puede validar que todo funciona.
