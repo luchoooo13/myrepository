@@ -1,4 +1,7 @@
-node_modules/
+node_modules
+windows/cloudflared.exe
+windows/ngrok.exe
+windows/ngrok.zip
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -7,3 +10,21 @@ yarn-error.log*
 .env.local
 .vscode/
 .idea/
+
+# Claves VAPID generadas en el primer arranque del server.
+# Cada deployment tiene las suyas; no se comparten via git.
+vapid-keys.json
+# Suscripciones web-push de los navegadores registrados.
+# Son datos de runtime, no código.
+push-subs.json
+
+# Contraseñas del /host. Se auto-crean con valores por defecto al primer
+# arranque del server; el admin las edita a mano. No van al repo.
+host-passwords.json
+
+# Keystore de firma release del APK. Si se pierde no se pueden publicar
+# updates (hay que desinstalar + reinstalar en cada celu). Guardalo en un
+# lugar seguro (Drive / USB / password manager).
+apk/android/app/schoolalerts-release.keystore
+apk/android/app/*.keystore
+apk/android/app/*.jks

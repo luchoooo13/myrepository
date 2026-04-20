@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>HOST · Panel de Alertas</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="host">
+    <header class="host__header">
+      <h1>Panel de Alertas</h1>
+      <div class="host__header-right">
+        <div class="clock" aria-live="off">
+          <div class="clock__time" data-clock-time>--:--:--</div>
+          <div class="clock__date" data-clock-date>—</div>
+        </div>
+        <div class="host__status" id="status">Conectando…</div>
+        <div class="host__clients" id="clients" title="Dispositivos cliente conectados">
+          <span class="host__clients-icon" aria-hidden="true">📺</span>
+          <span class="host__clients-count" id="clientsCount">0</span>
+          <span class="host__clients-label">clientes</span>
+        </div>
+        <div class="host__user">
+          <span class="host__role" id="roleBadge" title="Rol de la sesión">—</span>
+          <button type="button" class="host__logout" id="logoutBtn" title="Cerrar sesión">
+            Salir
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="host__current" id="current" hidden>
+      <div class="host__current-label">ALERTA ACTIVA</div>
+      <div class="host__current-type" id="currentType">—</div>
+      <div class="host__current-time" id="currentTime">—</div>
+      <button class="btn btn--stop" id="stopBtn">DETENER ALERTA</button>
+    </section>
+
+    <section class="host__grid" id="buttons">
+      <!-- botones inyectados por host.js -->
+    </section>
+
+    <section class="host__scheduler">
+      <h2 class="host__scheduler-title">Programar alerta (hora Buenos Aires)</h2>
+      <form class="host__scheduler-form" id="scheduleForm" autocomplete="off">
+        <label class="host__scheduler-field">
+          <span>Hora</span>
+          <input type="time" id="scheduleTime" required />
+        </label>
+        <label class="host__scheduler-field">
+          <span>Tipo de alerta</span>
+          <select id="scheduleType" required>
+            <!-- opciones inyectadas por host.js -->
+          </select>
+        </label>
+        <label class="host__scheduler-field host__scheduler-field--check">
+          <input type="checkbox" id="scheduleRecurring" />
+          <span>Repetir todos los días</span>
+        </label>
+        <button class="btn btn--schedule" type="submit">Programar</button>
+      </form>
+      <ul class="host__scheduler-list" id="scheduleList">
+        <li class="host__scheduler-empty">No hay alertas programadas.</li>
+      </ul>
+    </section>
+
+    <footer class="host__footer">
+      <p>
+        Al presionar un botón, todos los dispositivos cliente conectados a esta
+        red recibirán la alerta durante 1 minuto.
+      </p>
+    </footer>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/clock.js"></script>
+    <script src="/host.js"></script>
+  </body>
+</html>

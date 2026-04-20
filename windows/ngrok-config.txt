@@ -1,0 +1,10 @@
+# Completa las dos lineas de abajo con los datos de tu cuenta
+# gratuita de ngrok. Pasos detallados en LEEME.txt.
+#
+# authtoken: https://dashboard.ngrok.com/get-started/your-authtoken
+# url:       https://dashboard.ngrok.com/domains  (elegi el que
+#            dice algo como "tu-nombre.ngrok-free.app"; pega SIN
+#            el "https://" al principio).
+
+authtoken=PEGA_TU_AUTHTOKEN_ACA
+url=tu-subdominio.ngrok-free.app
