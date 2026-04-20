@@ -11,6 +11,22 @@ const webpush = require("web-push");
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const ALERT_DURATION_MS = 60 * 1000; // 1 minuto
 
+// Directorio para los archivos JSON persistentes (VAPID keys, suscripciones
+// push, passwords del host). Localmente queda en la raiz del repo como
+// antes. En Fly.io / Oracle Cloud / cualquier VPS con volumen montado se
+// setea DATA_DIR=/data y los JSON viven ahi para sobrevivir redeploys.
+// Creamos el directorio si no existe (fs.mkdir recursive no tira error si
+// ya existe).
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+} catch (err) {
+  console.warn(
+    `[data] no se pudo crear DATA_DIR=${DATA_DIR}:`,
+    err && err.message,
+  );
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -26,7 +42,7 @@ app.use(express.json({ limit: "200kb" }));
 // edite a mano. Las sesiones son un Map en memoria: token -> { role }.
 // Si se reinicia el server los tokens caducan, no es problema — son pocos
 // usuarios y cada uno vuelve a ingresar la password.
-const HOST_PASSWORDS_FILE = path.join(__dirname, "host-passwords.json");
+const HOST_PASSWORDS_FILE = path.join(DATA_DIR, "host-passwords.json");
 const DEFAULT_HOST_PASSWORDS = {
   admin: "cambiame-admin",
   operator: "cambiame-preceptor",
@@ -191,7 +207,7 @@ app.use(
 // guarda en vapid-keys.json (gitignored) para que sean estables entre
 // reinicios. Las suscripciones de los navegadores se guardan en
 // push-subs.json para que sobrevivan reinicios del server.
-const VAPID_FILE = path.join(__dirname, "vapid-keys.json");
+const VAPID_FILE = path.join(DATA_DIR, "vapid-keys.json");
 let vapidKeys;
 try {
   vapidKeys = JSON.parse(fs.readFileSync(VAPID_FILE, "utf8"));
@@ -215,7 +231,7 @@ webpush.setVapidDetails(
   vapidKeys.privateKey,
 );
 
-const SUBS_FILE = path.join(__dirname, "push-subs.json");
+const SUBS_FILE = path.join(DATA_DIR, "push-subs.json");
 let pushSubs = [];
 try {
   const raw = fs.readFileSync(SUBS_FILE, "utf8");

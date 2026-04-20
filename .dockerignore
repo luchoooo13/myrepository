@@ -1,0 +1,58 @@
+# Lo que NO queremos que termine dentro de la imagen Docker (hace la
+# imagen mas chica, build mas rapido, y evita que el APK / keys / windows
+# terminen deployados sin querer).
+
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# APK de Android: cientos de MB, no sirve en el server.
+apk/
+
+# Scripts y binarios solo para Windows.
+windows/
+
+# Archivos de entorno local.
+.env
+.env.local
+.env.*.local
+
+# IDE / OS.
+.DS_Store
+.vscode/
+.idea/
+
+# Git (no sirve para el runtime).
+.git
+.gitignore
+.github
+
+# Archivos de datos que son runtime (se crean en el volume de /data).
+# Si los incluyeramos, cada deploy los pisaria y perderiamos subscripciones
+# / contrasenas / vapid-keys.
+vapid-keys.json
+push-subs.json
+host-passwords.json
+
+# Keystores del APK.
+*.keystore
+*.jks
+
+# Cloudflared / ngrok binarios descargados localmente.
+cloudflared.exe
+ngrok.exe
+ngrok.zip
+
+# Archivos temporales / de documentacion privados.
+*.md.bak
+*.pdf
+*.zip
+
+# El Dockerfile en si (no hace falta dentro de la imagen).
+Dockerfile
+.dockerignore
+
+# Logs locales.
+*.log
+logs/

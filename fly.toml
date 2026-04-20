@@ -1,0 +1,87 @@
+# Configuracion de Fly.io para SchoolAlerts.
+#
+# PARA DEPLOYAR LA PRIMERA VEZ:
+#   1) Instalar flyctl:
+#        Windows PowerShell: iwr https://fly.io/install.ps1 -useb | iex
+#        macOS/Linux:        curl -L https://fly.io/install.sh | sh
+#   2) Crear cuenta y loguearse:  fly auth signup   (o fly auth login)
+#   3) Crear la app:              fly apps create schoolalerts-<tuapodo>
+#        (cambiá "schoolalerts-<tuapodo>" por algo libre; la URL queda
+#         https://schoolalerts-<tuapodo>.fly.dev)
+#   4) Editá la linea "app =" abajo con el nombre que elegiste.
+#   5) Crear el volume persistente para los JSON:
+#        fly volumes create schoolalerts_data --region gru --size 1
+#        (region gru = San Pablo, lo mas cercano a Argentina)
+#   6) (Opcional) setear el contacto VAPID:
+#        fly secrets set VAPID_CONTACT=mailto:tu@email.com
+#   7) Deployar:
+#        fly deploy
+#
+# PARA REDEPLOYAR DESPUES DE CAMBIOS EN EL CODIGO:
+#   fly deploy
+# (tarda ~1-2 min, sin downtime de los clientes conectados gracias al
+#  rolling deploy).
+
+# --- CAMBIAR ESTE NOMBRE ---
+# Tiene que ser unico en todo fly.io. Usá algo como:
+#   schoolalerts-lucho, alertas-colegio-sanpedro, etc.
+app = "schoolalerts-CAMBIAME"
+# ---
+
+# Region primaria: gru = San Pablo (Brasil), ~50ms de latencia desde AR.
+# Alternativa: scl = Santiago de Chile (similar latencia).
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  DATA_DIR = "/data"
+  # VAPID_CONTACT se setea con `fly secrets set` (ver paso 6 arriba).
+
+# Volume persistente: aca viven vapid-keys.json, push-subs.json,
+# host-passwords.json, sessions.json. Sobrevive redeploys y restarts.
+# 1 GB es gratis en el plan free de Fly.
+[[mounts]]
+  source = "schoolalerts_data"
+  destination = "/data"
+
+# HTTP service: Fly nos da HTTPS automatico con cert de Let's Encrypt.
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # auto_stop/start = "off" para que el server este SIEMPRE prendido.
+  # Con "stop" se apaga tras inactividad y hay cold-start al volver, que
+  # rompe las alertas en tiempo real (websocket tarda 2-3s en volver).
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  # Para que websockets (Socket.IO) funcionen bien hace falta esto:
+  # "request" es por-request (ok para REST), pero para websockets
+  # queremos connection-based.
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+  # Health check: chequea que el server responda en /vapid-public-key
+  # (endpoint barato que no hace IO). Si falla N veces, Fly reinicia la VM.
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "get"
+    timeout = "5s"
+    path = "/vapid-public-key"
+
+# Tamano de la VM. shared-cpu-1x con 256MB RAM alcanza de sobra para 30
+# clientes y cae dentro del credito gratis de $5/mes. Si necesitas mas,
+# cambia memory = "512mb" o "1gb".
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1
+  processes = ["app"]
