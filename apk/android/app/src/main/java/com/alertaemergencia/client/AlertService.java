@@ -204,7 +204,7 @@ public class AlertService extends Service {
                 // Si ya hay una alerta real en curso, no corremos el test
                 // (ni programamos el stop de 5s) para no interrumpirla.
                 if (!alertActive) {
-                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0);
+                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0, null);
                     // Guardamos el Runnable para poder cancelarlo si una
                     // alerta real reemplaza al test antes de los 5s. Si el
                     // test sigue corriendo cuando llega el timeout, el check
