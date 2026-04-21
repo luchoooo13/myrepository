@@ -97,6 +97,303 @@ function getSessionByToken(token) {
   return sess;
 }
 
+// --- Recomendaciones editables por el admin ---------------------------
+// Las recomendaciones que se muestran en la pestaña "Guía rápida" del
+// cliente y abajo del cartel negro durante una alerta. Vive en
+// recommendations.json (gitignored), autogenerado la primera vez con los
+// defaults de abajo. El admin las puede editar desde /host — el operator
+// no. Al cambiar, se broadcast a todos los clientes por socket así se
+// refresca la UI en vivo (y en la próxima alert:start el server las
+// adjunta al payload).
+const RECS_FILE = path.join(__dirname, "recommendations.json");
+const DEFAULT_RECOMMENDATIONS = {
+  sismo: {
+    label: "Sismo",
+    icon: "🌐",
+    lines: [
+      "Agachate, cubrite y sostenete. Debajo de una mesa resistente si hay.",
+      "Alejate de ventanas, espejos y objetos que puedan caer.",
+      "En la calle, andá a un espacio abierto lejos de cables y paredes.",
+      "No uses el ascensor. Esperá a que pare el movimiento para evacuar.",
+    ],
+  },
+  incendio: {
+    label: "Incendio",
+    icon: "🔥",
+    lines: [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas.",
+    ],
+  },
+  evacuacion: {
+    label: "Evacuación",
+    icon: "🚪",
+    lines: [
+      "Salí con calma siguiendo las señales de evacuación.",
+      "No vuelvas por objetos personales.",
+      "Ayudá a quienes necesiten asistencia.",
+      "Dirigite al punto de reunión y esperá instrucciones.",
+    ],
+  },
+  medica: {
+    label: "Emergencia médica",
+    icon: "⛑️",
+    lines: [
+      "Llamá al 107 (SAME) o al 911.",
+      "No muevas al paciente si no es imprescindible.",
+      "Si hay un DEA cerca y la persona está inconsciente, usalo.",
+      "Mantené la calma y seguí las instrucciones del operador.",
+    ],
+  },
+  intruso: {
+    label: "Intruso / Amenaza",
+    icon: "🚨",
+    lines: [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad.",
+    ],
+  },
+  gas: {
+    label: "Fuga de gas",
+    icon: "☣️",
+    lines: [
+      "No prendas ni apagues luces ni artefactos eléctricos.",
+      "Abrí puertas y ventanas para ventilar.",
+      "Evacuá el edificio y llamá al 911 desde afuera.",
+      "No uses el ascensor.",
+    ],
+  },
+  bomba: {
+    label: "Amenaza de bomba",
+    icon: "💣",
+    lines: [
+      "No toques objetos sospechosos.",
+      "Evacuá con calma siguiendo indicaciones del personal.",
+      "Una vez afuera, alejate al menos 100 metros del edificio.",
+      "No uses el celular cerca del objeto sospechoso.",
+    ],
+  },
+  tormenta: {
+    label: "Tormenta severa",
+    icon: "⛈️",
+    lines: [
+      "Mantenete adentro, lejos de ventanas.",
+      "Desenchufá equipos eléctricos sensibles.",
+      "No te refugies debajo de árboles ni estructuras metálicas si estás afuera.",
+      "Seguí las indicaciones de Defensa Civil (103).",
+    ],
+  },
+  simulacro: {
+    label: "Simulacro",
+    icon: "🧪",
+    lines: [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado.",
+    ],
+  },
+  custom: {
+    label: "Mensaje personalizado",
+    icon: "✏️",
+    lines: [
+      "Seguí las instrucciones del personal del establecimiento.",
+    ],
+  },
+};
+
+// Clonamos los defaults para no mutarlos si alguien escribe sobre
+// recommendations (paranoia; no pasa en este código, pero asegura que
+// POST /recommendations/reset siempre vuelve al estado original).
+function cloneDefaultRecommendations() {
+  const out = {};
+  for (const key of Object.keys(DEFAULT_RECOMMENDATIONS)) {
+    const src = DEFAULT_RECOMMENDATIONS[key];
+    out[key] = {
+      label: src.label,
+      icon: src.icon,
+      lines: src.lines.slice(),
+    };
+  }
+  return out;
+}
+
+let recommendations = cloneDefaultRecommendations();
+try {
+  const rawRecs = fs.readFileSync(RECS_FILE, "utf8");
+  const parsedRecs = JSON.parse(rawRecs);
+  if (parsedRecs && typeof parsedRecs === "object") {
+    // Merge con defaults: si el admin agregó un tipo custom o dejó
+    // alguno incompleto, no explotamos.
+    for (const key of Object.keys(parsedRecs)) {
+      const src = parsedRecs[key];
+      if (!src || typeof src !== "object") continue;
+      const lines = Array.isArray(src.lines)
+        ? src.lines
+            .map((l) => (typeof l === "string" ? l.trim() : ""))
+            .filter((l) => l.length > 0)
+        : recommendations[key]
+          ? recommendations[key].lines
+          : [];
+      const baseLabel =
+        recommendations[key] && recommendations[key].label
+          ? recommendations[key].label
+          : key;
+      const baseIcon =
+        recommendations[key] && recommendations[key].icon
+          ? recommendations[key].icon
+          : "";
+      recommendations[key] = {
+        label:
+          typeof src.label === "string" && src.label.trim().length > 0
+            ? src.label.trim()
+            : baseLabel,
+        icon:
+          typeof src.icon === "string" && src.icon.trim().length > 0
+            ? src.icon.trim()
+            : baseIcon,
+        lines,
+      };
+    }
+  }
+} catch {
+  // Archivo no existe todavía. Lo creamos con los defaults así el admin
+  // lo puede editar a mano si prefiere tocar el JSON.
+  try {
+    fs.writeFileSync(
+      RECS_FILE,
+      JSON.stringify(recommendations, null, 2),
+    );
+  } catch (err) {
+    console.warn(
+      "[recs] no se pudo guardar recommendations.json:",
+      err.message,
+    );
+  }
+}
+
+function saveRecommendations() {
+  try {
+    fs.writeFileSync(
+      RECS_FILE,
+      JSON.stringify(recommendations, null, 2),
+    );
+  } catch (err) {
+    console.warn(
+      "[recs] no se pudo guardar recommendations.json:",
+      err.message,
+    );
+  }
+}
+
+// Sanea las líneas que manda el admin: recorta, descarta vacías y limita
+// longitud / cantidad para evitar payloads absurdos que rompan la UI.
+function sanitizeRecLines(raw) {
+  if (!Array.isArray(raw)) return null;
+  const out = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    out.push(trimmed.slice(0, 400));
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+function serializeRecommendations() {
+  // Copia superficial para no exponer el objeto interno.
+  const out = {};
+  for (const key of Object.keys(recommendations)) {
+    const r = recommendations[key];
+    out[key] = {
+      label: r.label,
+      icon: r.icon,
+      lines: r.lines.slice(),
+    };
+  }
+  return out;
+}
+
+app.get("/recommendations", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ recommendations: serializeRecommendations() });
+});
+
+// Sólo admin puede editar. No usamos el socket para esto porque el admin
+// podría estar editando desde una tab sin socket conectado, y la cookie
+// ya tenemos la del /host.
+function requireAdmin(req, res) {
+  const cookies = parseCookies(req);
+  const sess = getSessionByToken(cookies.hostToken);
+  if (!sess || sess.role !== "admin") {
+    res.status(403).json({ error: "admin only" });
+    return null;
+  }
+  return sess;
+}
+
+// Editar un tipo de alerta: { type: "incendio", lines: ["...", "..."] }.
+// Creamos el tipo si no existía (no hay ALERT_TYPES hardcodeado — el
+// server acepta cualquier type; el host.js decide qué botones muestra).
+app.post("/recommendations", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const body = req.body || {};
+  const type =
+    typeof body.type === "string" && body.type.trim().length > 0
+      ? body.type.trim().slice(0, 40)
+      : null;
+  const lines = sanitizeRecLines(body.lines);
+  if (!type || lines == null) {
+    res.status(400).json({ error: "type y lines son requeridos" });
+    return;
+  }
+  const base = recommendations[type] || DEFAULT_RECOMMENDATIONS[type] || {};
+  const label =
+    typeof body.label === "string" && body.label.trim().length > 0
+      ? body.label.trim().slice(0, 80)
+      : base.label || type;
+  const icon =
+    typeof body.icon === "string" && body.icon.trim().length > 0
+      ? body.icon.trim().slice(0, 8)
+      : base.icon || "";
+  recommendations[type] = { label, icon, lines };
+  saveRecommendations();
+  io.emit("recommendations:update", {
+    recommendations: serializeRecommendations(),
+  });
+  res.json({ ok: true, recommendations: serializeRecommendations() });
+});
+
+// Restaurar defaults de un tipo (o de todos si no se pasa type).
+app.post("/recommendations/reset", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const body = req.body || {};
+  const type = typeof body.type === "string" ? body.type.trim() : "";
+  if (type) {
+    if (DEFAULT_RECOMMENDATIONS[type]) {
+      const d = DEFAULT_RECOMMENDATIONS[type];
+      recommendations[type] = {
+        label: d.label,
+        icon: d.icon,
+        lines: d.lines.slice(),
+      };
+    } else {
+      delete recommendations[type];
+    }
+  } else {
+    recommendations = cloneDefaultRecommendations();
+  }
+  saveRecommendations();
+  io.emit("recommendations:update", {
+    recommendations: serializeRecommendations(),
+  });
+  res.json({ ok: true, recommendations: serializeRecommendations() });
+});
+
 app.post("/host-login", (req, res) => {
   const pwd =
     req.body && typeof req.body.password === "string" ? req.body.password : "";
@@ -115,6 +412,81 @@ app.post("/host-login", (req, res) => {
     `hostToken=${encodeURIComponent(token)}; Path=/; HttpOnly; Max-Age=${maxAgeSec}; SameSite=Lax`,
   );
   res.json({ ok: true, role });
+});
+
+// Cambio de contraseña desde el panel /host. El usuario logueado puede
+// cambiar la contraseña de SU propio rol (admin cambia la de admin,
+// operator la de operator). Exigimos la contraseña actual para evitar que
+// alguien con la cookie robada cambie la pass sin conocerla. Al cambiar,
+// invalidamos todas las demás sesiones activas del mismo rol para obligar
+// un re-login (la del que cambió la pass se mantiene).
+app.post("/host/change-password", (req, res) => {
+  const cookies = parseCookies(req);
+  const sess = getSessionByToken(cookies.hostToken);
+  if (!sess) {
+    res.status(401).json({ error: "no hay sesión" });
+    return;
+  }
+  const body = req.body || {};
+  const current =
+    typeof body.current === "string" ? body.current : "";
+  const next = typeof body.next === "string" ? body.next : "";
+  if (!current || !next) {
+    res
+      .status(400)
+      .json({ error: "Faltan la contraseña actual o la nueva." });
+    return;
+  }
+  if (next.length < 6) {
+    res
+      .status(400)
+      .json({ error: "La nueva contraseña tiene que tener al menos 6 caracteres." });
+    return;
+  }
+  if (next.length > 120) {
+    res.status(400).json({ error: "La nueva contraseña es demasiado larga." });
+    return;
+  }
+  const expected = hostPasswords[sess.role];
+  if (!expected || current !== expected) {
+    res.status(401).json({ error: "La contraseña actual no es correcta." });
+    return;
+  }
+  if (current === next) {
+    res
+      .status(400)
+      .json({ error: "La nueva contraseña tiene que ser distinta a la actual." });
+    return;
+  }
+  const previous = hostPasswords[sess.role];
+  hostPasswords[sess.role] = next;
+  try {
+    fs.writeFileSync(
+      HOST_PASSWORDS_FILE,
+      JSON.stringify(hostPasswords, null, 2),
+    );
+  } catch (err) {
+    // Revertimos el cambio en memoria así no queda en un estado
+    // inconsistente: el usuario ve error, pero los logins nuevos estarían
+    // usando la pass nueva hasta el próximo restart donde vuelve la vieja.
+    hostPasswords[sess.role] = previous;
+    console.warn(
+      "[auth] no se pudo persistir la nueva contraseña:",
+      err.message,
+    );
+    res
+      .status(500)
+      .json({ error: "No se pudo guardar la nueva contraseña." });
+    return;
+  }
+  // Invalidamos el resto de las sesiones del mismo rol (que ya no saben la
+  // pass nueva). La del usuario que cambió la pass queda viva.
+  for (const [token, s] of hostSessions.entries()) {
+    if (s.role === sess.role && token !== cookies.hostToken) {
+      hostSessions.delete(token);
+    }
+  }
+  res.json({ ok: true });
 });
 
 app.post("/host-logout", (req, res) => {
@@ -599,6 +971,7 @@ function startAlert(payload) {
   // countdown correcto.
   const now = realNow();
   const override = ALERT_OVERRIDES[payload.type] || {};
+  const recForType = recommendations[payload.type] || null;
   currentAlert = {
     type: payload.type,
     label: payload.label,
@@ -607,6 +980,15 @@ function startAlert(payload) {
     durationMs: ALERT_DURATION_MS,
     sirenUrl: override.sirenUrl || null,
     skipVoice: !!override.skipVoice,
+    // Incluimos las recomendaciones vigentes en el mismo payload para que
+    // el cliente las pueda mostrar debajo del cartel negro sin tener que
+    // volver a pegar el GET /recommendations (además así gana el snapshot
+    // exacto al momento del disparo: si después el admin edita mientras
+    // la alerta está activa, la pantalla no cambia de recs a mitad).
+    recommendations:
+      recForType && Array.isArray(recForType.lines)
+        ? recForType.lines.slice()
+        : [],
   };
   io.emit("alert:start", currentAlert);
   // Notificación push a iPhones / Androids con la PWA instalada y

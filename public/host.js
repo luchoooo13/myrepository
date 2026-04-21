@@ -45,9 +45,24 @@
   const roleBadgeEl = document.getElementById("roleBadge");
   const logoutBtn = document.getElementById("logoutBtn");
   const schedulerSection = document.querySelector(".host__scheduler");
+  const recsSection = document.getElementById("recsSection");
+  const recsListEl = document.getElementById("recsList");
+  const recsStatusEl = document.getElementById("recsStatus");
+  const pwdForm = document.getElementById("pwdForm");
+  const pwdCurrentEl = document.getElementById("pwdCurrent");
+  const pwdNextEl = document.getElementById("pwdNext");
+  const pwdConfirmEl = document.getElementById("pwdConfirm");
+  const pwdSubmitEl = document.getElementById("pwdSubmit");
+  const pwdStatusEl = document.getElementById("pwdStatus");
+  const pwdRoleLabelEl = document.getElementById("pwdRoleLabel");
 
   let currentAlert = null;
   let tickTimer = null;
+  // Mapa type -> { label, icon, lines } con lo último que nos confirmó el
+  // server. Se usa para detectar si lo que hay en el textarea es distinto
+  // al estado remoto, para el estado del botón "Guardar" y para
+  // restaurar al cancelar.
+  let recsState = {};
 
   function setStatus(text, state) {
     statusEl.textContent = text;
@@ -245,6 +260,188 @@
     const n = payload && typeof payload.count === "number" ? payload.count : 0;
     clientsCountEl.textContent = String(n);
   });
+  socket.on("recommendations:update", (payload) => {
+    if (!payload || typeof payload.recommendations !== "object") return;
+    recsState = payload.recommendations;
+    renderRecs();
+    showRecsStatus("Recomendaciones actualizadas.", "ok");
+  });
+
+  // --- Editor de recomendaciones (sólo admin) ------------------------
+  // Orden con el que se muestran los tipos en el editor. Coincide con los
+  // botones de arriba (ALERTS). Si el server devuelve un type que no está
+  // acá (ej. un custom nuevo), lo mostramos al final igual.
+  const RECS_ORDER = [
+    "simulacro", "incendio", "sismo", "evacuacion", "intruso",
+    "medica", "gas", "bomba", "tormenta", "custom",
+  ];
+
+  function sortedRecTypes() {
+    const keys = Object.keys(recsState || {});
+    const known = RECS_ORDER.filter((t) => keys.includes(t));
+    const extra = keys.filter((t) => !RECS_ORDER.includes(t)).sort();
+    return known.concat(extra);
+  }
+
+  function showRecsStatus(text, level) {
+    if (!recsStatusEl) return;
+    recsStatusEl.textContent = text;
+    recsStatusEl.dataset.level = level || "info";
+    recsStatusEl.hidden = false;
+    clearTimeout(showRecsStatus._t);
+    showRecsStatus._t = setTimeout(() => {
+      recsStatusEl.hidden = true;
+    }, 4000);
+  }
+
+  function renderRecs() {
+    if (!recsListEl) return;
+    recsListEl.innerHTML = "";
+    const types = sortedRecTypes();
+    if (types.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "host__recs-empty";
+      empty.textContent = "No hay recomendaciones configuradas todavía.";
+      recsListEl.appendChild(empty);
+      return;
+    }
+    for (const type of types) {
+      const r = recsState[type] || { label: type, icon: "", lines: [] };
+      const card = document.createElement("div");
+      card.className = "host__recs-card";
+      card.dataset.type = type;
+
+      const header = document.createElement("div");
+      header.className = "host__recs-card-header";
+      const title = document.createElement("h3");
+      title.className = "host__recs-card-title";
+      title.innerHTML =
+        `<span class="host__recs-card-icon" aria-hidden="true">${escapeHtml(r.icon || "")}</span>` +
+        `<span>${escapeHtml(r.label || type)}</span>`;
+      header.appendChild(title);
+      card.appendChild(header);
+
+      const ta = document.createElement("textarea");
+      ta.className = "host__recs-textarea";
+      ta.rows = Math.max(4, (r.lines || []).length + 1);
+      ta.placeholder = "Una recomendación por línea";
+      ta.value = (r.lines || []).join("\n");
+      card.appendChild(ta);
+
+      const actions = document.createElement("div");
+      actions.className = "host__recs-actions";
+      const saveBtn = document.createElement("button");
+      saveBtn.type = "button";
+      saveBtn.className = "btn btn--save";
+      saveBtn.textContent = "Guardar";
+      saveBtn.addEventListener("click", () => {
+        saveBtn.disabled = true;
+        saveRecsForType(type, ta.value, r.label, r.icon)
+          .catch((err) => {
+            showRecsStatus(
+              "No se pudo guardar: " + (err && err.message ? err.message : err),
+              "err",
+            );
+          })
+          .finally(() => {
+            saveBtn.disabled = false;
+          });
+      });
+      actions.appendChild(saveBtn);
+
+      const resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "btn btn--reset";
+      resetBtn.textContent = "Restaurar default";
+      resetBtn.addEventListener("click", () => {
+        if (!window.confirm(
+          'Volver las recomendaciones de "' + (r.label || type) +
+          '" al texto original?',
+        )) return;
+        resetBtn.disabled = true;
+        resetRecsForType(type)
+          .catch((err) => {
+            showRecsStatus(
+              "No se pudo restaurar: " + (err && err.message ? err.message : err),
+              "err",
+            );
+          })
+          .finally(() => {
+            resetBtn.disabled = false;
+          });
+      });
+      actions.appendChild(resetBtn);
+
+      card.appendChild(actions);
+      recsListEl.appendChild(card);
+    }
+  }
+
+  async function saveRecsForType(type, textareaValue, label, icon) {
+    const lines = String(textareaValue || "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    const res = await fetch("/recommendations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, label, icon, lines }),
+    });
+    if (!res.ok) {
+      let err = res.statusText;
+      try {
+        const j = await res.json();
+        if (j && j.error) err = j.error;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(err);
+    }
+    const j = await res.json();
+    if (j && j.recommendations) {
+      recsState = j.recommendations;
+      renderRecs();
+    }
+    showRecsStatus("Guardado.", "ok");
+  }
+
+  async function resetRecsForType(type) {
+    const res = await fetch("/recommendations/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    });
+    if (!res.ok) {
+      let err = res.statusText;
+      try {
+        const j = await res.json();
+        if (j && j.error) err = j.error;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(err);
+    }
+    const j = await res.json();
+    if (j && j.recommendations) {
+      recsState = j.recommendations;
+      renderRecs();
+    }
+    showRecsStatus("Restaurado al default.", "ok");
+  }
+
+  async function loadRecsInitial() {
+    try {
+      const res = await fetch("/recommendations", { cache: "no-store" });
+      if (!res.ok) return;
+      const j = await res.json();
+      if (j && j.recommendations) {
+        recsState = j.recommendations;
+        renderRecs();
+      }
+    } catch (err) {
+      console.warn("No se pudo cargar /recommendations:", err);
+    }
+  }
 
   // --- Logout y UI por rol -------------------------------------------
   if (roleBadgeEl) {
@@ -259,6 +456,75 @@
     // (el server igual rechaza los eventos si alguien intenta forzarlo).
     schedulerSection.hidden = true;
   }
+  if (isAdmin && recsSection) {
+    recsSection.hidden = false;
+    loadRecsInitial();
+  }
+  // --- Cambio de contraseña -----------------------------------------
+  function showPwdStatus(msg, level) {
+    if (!pwdStatusEl) return;
+    pwdStatusEl.hidden = false;
+    pwdStatusEl.textContent = msg;
+    pwdStatusEl.dataset.level = level || "info";
+  }
+
+  if (pwdRoleLabelEl) {
+    pwdRoleLabelEl.textContent = isAdmin
+      ? "admin"
+      : hostRole === "operator"
+        ? "preceptor"
+        : hostRole || "—";
+  }
+
+  if (pwdForm) {
+    pwdForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const current = pwdCurrentEl.value || "";
+      const next = pwdNextEl.value || "";
+      const confirm = pwdConfirmEl.value || "";
+      if (next.length < 6) {
+        showPwdStatus(
+          "La nueva contraseña tiene que tener al menos 6 caracteres.",
+          "err",
+        );
+        return;
+      }
+      if (next !== confirm) {
+        showPwdStatus("Las dos contraseñas nuevas no coinciden.", "err");
+        return;
+      }
+      if (next === current) {
+        showPwdStatus(
+          "La nueva contraseña tiene que ser distinta a la actual.",
+          "err",
+        );
+        return;
+      }
+      pwdSubmitEl.disabled = true;
+      try {
+        const res = await fetch("/host/change-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current, next }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showPwdStatus(j.error || "No se pudo cambiar la contraseña.", "err");
+          return;
+        }
+        pwdForm.reset();
+        showPwdStatus(
+          "Contraseña actualizada. La próxima vez ingresás con la nueva.",
+          "ok",
+        );
+      } catch (err) {
+        showPwdStatus("Error de red: " + (err && err.message), "err");
+      } finally {
+        pwdSubmitEl.disabled = false;
+      }
+    });
+  }
+
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
       try {
