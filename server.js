@@ -414,6 +414,76 @@ app.post("/host-login", (req, res) => {
   res.json({ ok: true, role });
 });
 
+// Cambio de contraseña desde el panel /host. El usuario logueado puede
+// cambiar la contraseña de SU propio rol (admin cambia la de admin,
+// operator la de operator). Exigimos la contraseña actual para evitar que
+// alguien con la cookie robada cambie la pass sin conocerla. Al cambiar,
+// invalidamos todas las demás sesiones activas del mismo rol para obligar
+// un re-login (la del que cambió la pass se mantiene).
+app.post("/host/change-password", (req, res) => {
+  const cookies = parseCookies(req);
+  const sess = getSessionByToken(cookies.hostToken);
+  if (!sess) {
+    res.status(401).json({ error: "no hay sesión" });
+    return;
+  }
+  const body = req.body || {};
+  const current =
+    typeof body.current === "string" ? body.current : "";
+  const next = typeof body.next === "string" ? body.next : "";
+  if (!current || !next) {
+    res
+      .status(400)
+      .json({ error: "Faltan la contraseña actual o la nueva." });
+    return;
+  }
+  if (next.length < 6) {
+    res
+      .status(400)
+      .json({ error: "La nueva contraseña tiene que tener al menos 6 caracteres." });
+    return;
+  }
+  if (next.length > 120) {
+    res.status(400).json({ error: "La nueva contraseña es demasiado larga." });
+    return;
+  }
+  const expected = hostPasswords[sess.role];
+  if (!expected || current !== expected) {
+    res.status(401).json({ error: "La contraseña actual no es correcta." });
+    return;
+  }
+  if (current === next) {
+    res
+      .status(400)
+      .json({ error: "La nueva contraseña tiene que ser distinta a la actual." });
+    return;
+  }
+  hostPasswords[sess.role] = next;
+  try {
+    fs.writeFileSync(
+      HOST_PASSWORDS_FILE,
+      JSON.stringify(hostPasswords, null, 2),
+    );
+  } catch (err) {
+    console.warn(
+      "[auth] no se pudo persistir la nueva contraseña:",
+      err.message,
+    );
+    res
+      .status(500)
+      .json({ error: "No se pudo guardar la nueva contraseña." });
+    return;
+  }
+  // Invalidamos el resto de las sesiones del mismo rol (que ya no saben la
+  // pass nueva). La del usuario que cambió la pass queda viva.
+  for (const [token, s] of hostSessions.entries()) {
+    if (s.role === sess.role && token !== cookies.hostToken) {
+      hostSessions.delete(token);
+    }
+  }
+  res.json({ ok: true });
+});
+
 app.post("/host-logout", (req, res) => {
   const cookies = parseCookies(req);
   if (cookies.hostToken) hostSessions.delete(cookies.hostToken);

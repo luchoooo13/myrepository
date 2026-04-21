@@ -377,6 +377,11 @@ public class AlertService extends Service {
         String type = alert.optString("type", "alerta");
         String label = alert.optString("label", type);
         final long startedAt = alert.optLong("startedAt", 0);
+        // Recomendaciones del tipo: el server nos las manda en el mismo
+        // payload (snapshot del momento del disparo). Si no vienen o están
+        // vacías, pasamos un array vacío y AlertActivity simplemente no
+        // las muestra.
+        final String[] recommendations = extractStringArray(alert, "recommendations");
         // Si el usuario ya descartó esta misma alerta en este equipo,
         // ignoramos los replays (ej. reconexión del socket mientras la
         // alerta sigue activa en el server).
@@ -412,8 +417,35 @@ public class AlertService extends Service {
                         || "null".equals(sirenUrlRaw))
                         ? null
                         : absolutizeUrl(sirenUrlRaw);
-        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt));
+        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt, recommendations));
     };
+
+    /**
+     * Lee un array JSON de strings del payload de alert:start. Devuelve
+     * un String[] (vacío si no hay o el campo no es array). Trunca cada
+     * línea a 400 chars (mismo límite que el server) y tope de 20
+     * elementos para defender contra payloads absurdamente grandes.
+     */
+    private String[] extractStringArray(JSONObject obj, String key) {
+        try {
+            if (!obj.has(key) || obj.isNull(key)) return new String[0];
+            org.json.JSONArray arr = obj.optJSONArray(key);
+            if (arr == null) return new String[0];
+            int n = Math.min(arr.length(), 20);
+            java.util.ArrayList<String> out = new java.util.ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                String s = arr.optString(i, "");
+                if (s == null) continue;
+                s = s.trim();
+                if (s.isEmpty()) continue;
+                if (s.length() > 400) s = s.substring(0, 400);
+                out.add(s);
+            }
+            return out.toArray(new String[0]);
+        } catch (Exception e) {
+            return new String[0];
+        }
+    }
 
     /**
      * Convierte una URL relativa recibida del server (ej. "/sounds/x.mp3") a
@@ -432,7 +464,7 @@ public class AlertService extends Service {
     // ------------------------------------------------------------------
     private void startAlertMedia(String type, String label,
                                  String sirenUrl, boolean skipVoice,
-                                 long startedAt) {
+                                 long startedAt, String[] recommendations) {
         // Si había un test alert con timeout programado a 5s y ahora entra
         // una alerta (sea real o otro test), cancelamos el timeout para que
         // no mate la nueva alerta cuando expire.
@@ -469,7 +501,7 @@ public class AlertService extends Service {
         if (wantVibration) startVibrationLoop();
         if (wantStrobe && flash != null) flash.startBlinking();
         showAlertNotification(type, label);
-        launchAlertActivity(type, label);
+        launchAlertActivity(type, label, recommendations);
     }
 
     private void stopAlertMedia(String reason) {
@@ -855,10 +887,13 @@ public class AlertService extends Service {
     // ------------------------------------------------------------------
     //  Launch AlertActivity
     // ------------------------------------------------------------------
-    private void launchAlertActivity(String type, String label) {
+    private void launchAlertActivity(String type, String label, String[] recommendations) {
         Intent i = new Intent(this, AlertActivity.class);
         i.putExtra(AlertActivity.EXTRA_TYPE, type);
         i.putExtra(AlertActivity.EXTRA_LABEL, label);
+        if (recommendations != null && recommendations.length > 0) {
+            i.putExtra(AlertActivity.EXTRA_RECOMMENDATIONS, recommendations);
+        }
         i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);

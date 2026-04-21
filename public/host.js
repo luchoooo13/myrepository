@@ -48,6 +48,13 @@
   const recsSection = document.getElementById("recsSection");
   const recsListEl = document.getElementById("recsList");
   const recsStatusEl = document.getElementById("recsStatus");
+  const pwdForm = document.getElementById("pwdForm");
+  const pwdCurrentEl = document.getElementById("pwdCurrent");
+  const pwdNextEl = document.getElementById("pwdNext");
+  const pwdConfirmEl = document.getElementById("pwdConfirm");
+  const pwdSubmitEl = document.getElementById("pwdSubmit");
+  const pwdStatusEl = document.getElementById("pwdStatus");
+  const pwdRoleLabelEl = document.getElementById("pwdRoleLabel");
 
   let currentAlert = null;
   let tickTimer = null;
@@ -453,6 +460,71 @@
     recsSection.hidden = false;
     loadRecsInitial();
   }
+  // --- Cambio de contraseña -----------------------------------------
+  function showPwdStatus(msg, level) {
+    if (!pwdStatusEl) return;
+    pwdStatusEl.hidden = false;
+    pwdStatusEl.textContent = msg;
+    pwdStatusEl.dataset.level = level || "info";
+  }
+
+  if (pwdRoleLabelEl) {
+    pwdRoleLabelEl.textContent = isAdmin
+      ? "admin"
+      : hostRole === "operator"
+        ? "preceptor"
+        : hostRole || "—";
+  }
+
+  if (pwdForm) {
+    pwdForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const current = pwdCurrentEl.value || "";
+      const next = pwdNextEl.value || "";
+      const confirm = pwdConfirmEl.value || "";
+      if (next.length < 6) {
+        showPwdStatus(
+          "La nueva contraseña tiene que tener al menos 6 caracteres.",
+          "err",
+        );
+        return;
+      }
+      if (next !== confirm) {
+        showPwdStatus("Las dos contraseñas nuevas no coinciden.", "err");
+        return;
+      }
+      if (next === current) {
+        showPwdStatus(
+          "La nueva contraseña tiene que ser distinta a la actual.",
+          "err",
+        );
+        return;
+      }
+      pwdSubmitEl.disabled = true;
+      try {
+        const res = await fetch("/host/change-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current, next }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showPwdStatus(j.error || "No se pudo cambiar la contraseña.", "err");
+          return;
+        }
+        pwdForm.reset();
+        showPwdStatus(
+          "Contraseña actualizada. La próxima vez ingresás con la nueva.",
+          "ok",
+        );
+      } catch (err) {
+        showPwdStatus("Error de red: " + (err && err.message), "err");
+      } finally {
+        pwdSubmitEl.disabled = false;
+      }
+    });
+  }
+
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
       try {
