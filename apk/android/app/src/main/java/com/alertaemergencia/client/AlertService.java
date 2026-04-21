@@ -500,7 +500,7 @@ public class AlertService extends Service {
         }
         if (wantVibration) startVibrationLoop();
         if (wantStrobe && flash != null) flash.startBlinking();
-        showAlertNotification(type, label);
+        showAlertNotification(type, label, recommendations);
         launchAlertActivity(type, label, recommendations);
     }
 
@@ -838,7 +838,7 @@ public class AlertService extends Service {
         return "Esperando conexión…";
     }
 
-    private void showAlertNotification(String type, String label) {
+    private void showAlertNotification(String type, String label, String[] recommendations) {
         NotificationManager nm =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
@@ -846,6 +846,13 @@ public class AlertService extends Service {
         Intent open = new Intent(this, AlertActivity.class);
         open.putExtra(AlertActivity.EXTRA_TYPE, type);
         open.putExtra(AlertActivity.EXTRA_LABEL, label);
+        // Incluimos las recomendaciones acá también para que, si el
+        // usuario abre la alerta tocando la notif (o si Android usa el
+        // fullScreenIntent en vez de nuestro startActivity), AlertActivity
+        // reciba el array y muestre la tarjeta "QUÉ HACER".
+        if (recommendations != null && recommendations.length > 0) {
+            open.putExtra(AlertActivity.EXTRA_RECOMMENDATIONS, recommendations);
+        }
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);
