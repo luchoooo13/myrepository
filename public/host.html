@@ -64,6 +64,20 @@
       </ul>
     </section>
 
+    <section class="host__recs" id="recsSection" hidden>
+      <h2 class="host__recs-title">Recomendaciones por tipo de alerta</h2>
+      <p class="host__recs-hint">
+        Las líneas que escribas acá son las que ven los profes en la pestaña
+        "Guía rápida" de la app, y también aparecen debajo del cartel negro
+        cuando suena una alerta de ese tipo. Una línea = una recomendación.
+        Los cambios se sincronizan solos con todos los dispositivos.
+      </p>
+      <div class="host__recs-status" id="recsStatus" hidden></div>
+      <div class="host__recs-list" id="recsList">
+        <!-- inyectado por host.js -->
+      </div>
+    </section>
+
     <footer class="host__footer">
       <p>
         Al presionar un botón, todos los dispositivos cliente conectados a esta

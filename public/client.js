@@ -32,6 +32,9 @@
   const alertTimeEl = document.getElementById("alertTime");
   const alertCloseBtn = document.getElementById("alertCloseBtn");
   const alertUnlockHint = document.getElementById("alertUnlockHint");
+  const alertRecsEl = document.getElementById("alertRecs");
+  const alertRecsListEl = document.getElementById("alertRecsList");
+  const infoRecsListEl = document.getElementById("infoRecsList");
 
   const historyListEl = document.getElementById("historyList");
   const clearHistoryBtn = document.getElementById("clearHistoryBtn");
@@ -65,6 +68,13 @@
   // recordar qué alerta ya fue cerrada acá para ignorar esos replays.
   let dismissedStartedAt = 0;
   let currentVoiceObjectUrl = null;
+  // Recomendaciones globales (type -> { label, icon, lines }). Las levantamos
+  // al arrancar y nos suscribimos a recommendations:update para refrescar
+  // la pestaña "Guía rápida" cuando el admin edita desde /host. Durante una
+  // alerta, las recomendaciones que se muestran en el overlay vienen en el
+  // mismo payload de alert:start (snapshot del momento del disparo), para
+  // no cambiarlas a mitad si el admin las edita mientras suena.
+  let clientRecsState = {};
 
   const SIREN_SRC = "/sounds/siren.mp3";
   const VOICE_BASE = "/sounds/voice/";
@@ -398,6 +408,88 @@
     )}`;
   }
 
+  // --- Recomendaciones (Guía rápida + overlay) -----------------------
+  // Orden de aparición en la pestaña "Guía rápida". Si el admin agrega
+  // tipos nuevos (o alguno del server viene fuera de la lista) los
+  // pegamos al final.
+  const INFO_RECS_ORDER = [
+    "sismo", "incendio", "evacuacion", "medica", "intruso",
+    "gas", "bomba", "tormenta", "simulacro", "custom",
+  ];
+
+  function renderInfoRecs() {
+    if (!infoRecsListEl) return;
+    infoRecsListEl.innerHTML = "";
+    const keys = Object.keys(clientRecsState || {});
+    const ordered = INFO_RECS_ORDER.filter((k) => keys.includes(k)).concat(
+      keys.filter((k) => !INFO_RECS_ORDER.includes(k)).sort(),
+    );
+    if (ordered.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "info-recs-empty";
+      empty.textContent = "No hay recomendaciones cargadas.";
+      infoRecsListEl.appendChild(empty);
+      return;
+    }
+    for (const k of ordered) {
+      const r = clientRecsState[k];
+      if (!r || !Array.isArray(r.lines) || r.lines.length === 0) continue;
+      const details = document.createElement("details");
+      details.className = "info";
+      const summary = document.createElement("summary");
+      summary.className = "info__summary";
+      summary.innerHTML =
+        `<span class="info__icon" aria-hidden="true">${escapeHtml(r.icon || "")}</span>` +
+        `<span>${escapeHtml(r.label || k)}</span>`;
+      details.appendChild(summary);
+      const body = document.createElement("div");
+      body.className = "info__body";
+      const ul = document.createElement("ul");
+      for (const line of r.lines) {
+        const li = document.createElement("li");
+        li.textContent = line;
+        ul.appendChild(li);
+      }
+      body.appendChild(ul);
+      details.appendChild(body);
+      infoRecsListEl.appendChild(details);
+    }
+  }
+
+  // Muestra las recomendaciones abajo del cartel negro durante una alerta.
+  // `lines` viene en el payload de alert:start (snapshot del server). Si
+  // está vacío, ocultamos el bloque (no mostramos "no hay recomendaciones"
+  // en mitad de la alerta — queda más limpio).
+  function renderAlertRecs(lines) {
+    if (!alertRecsEl || !alertRecsListEl) return;
+    alertRecsListEl.innerHTML = "";
+    if (!Array.isArray(lines) || lines.length === 0) {
+      alertRecsEl.hidden = true;
+      return;
+    }
+    for (const line of lines) {
+      if (typeof line !== "string" || !line.trim()) continue;
+      const li = document.createElement("li");
+      li.textContent = line.trim();
+      alertRecsListEl.appendChild(li);
+    }
+    alertRecsEl.hidden = alertRecsListEl.children.length === 0;
+  }
+
+  async function loadRecsInitial() {
+    try {
+      const res = await fetch("/recommendations", { cache: "no-store" });
+      if (!res.ok) return;
+      const j = await res.json();
+      if (j && j.recommendations) {
+        clientRecsState = j.recommendations;
+        renderInfoRecs();
+      }
+    } catch {
+      /* si falla silenciamos, no es crítico — la Guía queda con el placeholder */
+    }
+  }
+
   function iconForType(t) {
     switch ((t || "").toLowerCase()) {
       case "simulacro":
@@ -695,6 +787,19 @@
     refreshAlertUnlockHint();
 
     if (!currentAlertIsTest) addHistoryEntry(alert);
+
+    // Recomendaciones debajo del cartel negro. Si el server incluyó lines
+    // en el payload las usamos tal cual; si no (ej. alerta vieja o test
+    // local que no pasa por server), caemos al estado cacheado del tipo.
+    let recLines =
+      alert && Array.isArray(alert.recommendations)
+        ? alert.recommendations
+        : null;
+    if (!recLines) {
+      const cached = clientRecsState[alert.type];
+      recLines = cached && Array.isArray(cached.lines) ? cached.lines : [];
+    }
+    renderAlertRecs(recLines);
   }
 
   // Muestra/oculta el hint "Tocá la pantalla para escuchar la sirena"
@@ -721,6 +826,7 @@
     }
     overlay.hidden = true;
     if (app) app.removeAttribute("aria-hidden");
+    renderAlertRecs([]);
     stopSiren();
     stopSpeakingLoop();
     stopVibration();
@@ -1022,6 +1128,11 @@
     }
     showAlert(alert);
   });
+  socket.on("recommendations:update", (payload) => {
+    if (!payload || typeof payload.recommendations !== "object") return;
+    clientRecsState = payload.recommendations;
+    renderInfoRecs();
+  });
   socket.on("alert:stop", () => {
     // Cuando la alerta realmente termina en el server, reseteamos el
     // guardián para que la próxima alerta (aunque sea del mismo tipo)
@@ -1241,4 +1352,5 @@
   updateLastAlert();
   setStatus("Conectando…");
   initPushUI();
+  loadRecsInitial();
 })();
