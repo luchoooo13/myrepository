@@ -458,6 +458,7 @@ app.post("/host/change-password", (req, res) => {
       .json({ error: "La nueva contraseña tiene que ser distinta a la actual." });
     return;
   }
+  const previous = hostPasswords[sess.role];
   hostPasswords[sess.role] = next;
   try {
     fs.writeFileSync(
@@ -465,6 +466,10 @@ app.post("/host/change-password", (req, res) => {
       JSON.stringify(hostPasswords, null, 2),
     );
   } catch (err) {
+    // Revertimos el cambio en memoria así no queda en un estado
+    // inconsistente: el usuario ve error, pero los logins nuevos estarían
+    // usando la pass nueva hasta el próximo restart donde vuelve la vieja.
+    hostPasswords[sess.role] = previous;
     console.warn(
       "[auth] no se pudo persistir la nueva contraseña:",
       err.message,
