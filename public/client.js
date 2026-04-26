@@ -1423,6 +1423,11 @@
   clearHistoryBtn.addEventListener("click", () => {
     if (!confirm("¿Seguro que querés borrar el historial local?")) return;
     localStorage.removeItem(HISTORY_KEY);
+    // El historial que se muestra ahora viene del server (preferido sobre
+    // el cache local). Si no vaciamos también la copia en memoria, el
+    // botón parece no hacer nada — la lista se sigue viendo idéntica.
+    // El próximo "alerts:history" del server lo repuebla solo.
+    serverHistory = [];
     renderHistory();
     updateLastAlert();
   });
@@ -1473,6 +1478,9 @@
       return;
     localStorage.removeItem(HISTORY_KEY);
     localStorage.removeItem(SETTINGS_KEY);
+    // Mismo motivo que en clearHistoryBtn: limpiamos también la copia
+    // del historial que vino del server, si no la lista visible no se vacía.
+    serverHistory = [];
     settings = loadSettings();
     applySettingsToUI(); // ya empuja los defaults al AlertBridge
     renderHistory();

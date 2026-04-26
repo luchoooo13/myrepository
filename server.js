@@ -1124,7 +1124,14 @@ const ALERT_OVERRIDES = {
   },
 };
 
-let nextHistoryId = 1;
+// Si veníamos arrastrando historial del JSON, arrancamos el contador
+// arriba del id más alto que haya en disco. Si no, contar desde 1
+// reusaba ids viejos y `findIndex(h.id === ...)` en stopAlert podía
+// pegar contra una entrada vieja.
+let nextHistoryId = alertsHistory.reduce(
+  (max, h) => (h && typeof h.id === "number" && h.id > max ? h.id : max),
+  0,
+) + 1;
 
 function startAlert(payload) {
   clearAlertTimer();
