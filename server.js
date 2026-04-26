@@ -1407,12 +1407,20 @@ io.on("connection", (socket) => {
     // role:client antes de que el webview termine de cargar y pueda
     // pasarle el clientId por el bridge. Más tarde el bridge le dice
     // al servicio "ahora sí tenés clientId, reenviá role:client". Acá
-    // refrescamos info.clientId para no quedarnos con la entrada
-    // anónima vieja, y le mapeamos el nombre auto-asignado al clientId
-    // así sobrevive a la próxima reconexión.
-    if (clientId && !info.clientId) {
+    // refrescamos info.clientId al valor nuevo (incluso si ya teníamos
+    // uno viejo: puede pasar si el webview rotó su CLIENT_ID — distinto
+    // origen, localStorage limpio — pero las prefs del servicio nativo
+    // todavía tenían el clientId anterior). Sin esto, la entrada del
+    // socket nativo y la del webview quedaban con clientIds distintos
+    // y se mostraban como dos dispositivos en el panel.
+    if (clientId && info.clientId !== clientId) {
       info.clientId = clientId;
-      if (!clientNameByClientId.has(clientId)) {
+      if (clientNameByClientId.has(clientId)) {
+        // Ya teníamos un nombre asignado para este clientId (otra
+        // socket del mismo dispositivo, p.ej. el webview): usamos ese
+        // así las dos entradas dedupean limpio en serializeClients().
+        info.name = clientNameByClientId.get(clientId);
+      } else {
         clientNameByClientId.set(clientId, info.name);
       }
     }
@@ -1427,11 +1435,16 @@ io.on("connection", (socket) => {
     const clientId = sanitizeClientId(payload);
     dropStaleEntriesForClientId(clientId, socket.id);
     const info = ensureClientInfo(clientId);
-    // El identify puede traer (o no) un clientId. Si llega ahora por
-    // primera vez (porque role:client se mandó sin él), lo guardamos.
-    if (clientId && !info.clientId) {
+    // El identify puede traer (o no) un clientId. Aceptamos updates
+    // (no sólo el primer set) por la misma razón que en role:client:
+    // si el webview rotó su CLIENT_ID y la entrada vieja ya tenía
+    // otro, lo pisamos con el nuevo así dedupea con los demás sockets
+    // del mismo dispositivo en serializeClients().
+    if (clientId && info.clientId !== clientId) {
       info.clientId = clientId;
-      if (!clientNameByClientId.has(clientId)) {
+      if (clientNameByClientId.has(clientId)) {
+        info.name = clientNameByClientId.get(clientId);
+      } else {
         clientNameByClientId.set(clientId, info.name);
       }
     }
