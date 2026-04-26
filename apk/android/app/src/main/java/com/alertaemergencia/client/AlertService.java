@@ -558,21 +558,24 @@ public class AlertService extends Service {
     }
 
     /**
-     * Multiplicadores de volumen por tipo de alerta. Replicamos lo mismo
-     * que el cliente web (sirenVolumeMultiplier / voiceVolumeMultiplier):
-     *  - intruso: sirena 0.3, voz 0.4 (no alertar al intruso).
-     *  - simulacro: 1.0 / 1.0 (volumen normal de prueba).
-     *  - resto: 1.0 / 1.15 (voz un poco más alta para que se entienda).
+     * Multiplicadores de volumen por tipo de alerta. Replican lo mismo
+     * que el cliente web (sirenVolumeMultiplier / voiceVolumeMultiplier).
+     *  - intruso: sirena MUDA (no queremos avisarle al intruso). Queda
+     *    sólo flash + vibración + voz baja para los que están cerca.
+     *  - simulacro: 1.0 / 1.0 (es prueba, queremos que suene como una
+     *    alerta real).
+     *  - resto: bajamos la sirena a 0.65 para que la voz domine y la
+     *    gente entienda qué está pasando (incendio, sismo, etc).
      */
     private float sirenVolumeMultiplier(String type) {
-        if ("intruso".equalsIgnoreCase(type)) return 0.3f;
-        return 1.0f;
+        if ("intruso".equalsIgnoreCase(type)) return 0f;
+        if ("simulacro".equalsIgnoreCase(type)) return 1.0f;
+        return 0.65f;
     }
 
     private float voiceVolumeMultiplier(String type) {
-        if ("intruso".equalsIgnoreCase(type)) return 0.4f;
-        if ("simulacro".equalsIgnoreCase(type)) return 1.0f;
-        return 1.15f;
+        if ("intruso".equalsIgnoreCase(type)) return 0.45f;
+        return 1.0f;
     }
 
     /** Asegura que el valor entre a MediaPlayer.setVolume() en el rango [0,1]. */

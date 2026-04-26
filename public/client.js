@@ -132,21 +132,21 @@
 
   // Volúmenes por tipo de alerta. El usuario puede bajarlos con el slider
   // global de Ajustes; estos multiplicadores se aplican al final.
-  // - intruso: tiene que ser silencioso para no avisar al intruso de
-  //   que la alerta llegó. Se baja la sirena al 30% (queda audible para
-  //   los que están cerca pero no para alguien lejos).
-  // - simulacro: queda al 100% (es prueba, queremos sonido normal).
-  // - resto: la voz se sube un poquito por encima del slider (115%) para
-  //   asegurar que se entienda bien la indicación, ya que el usuario
-  //   suele tener el volumen del celu bajo.
+  // - intruso: NO tiene que sonar la sirena (alertaría al intruso). Sólo
+  //   queda la voz a volumen bajo + flash + vibración. Visualmente se
+  //   nota igual.
+  // - simulacro: 100% / 100% (es prueba, queremos que se escuche tal
+  //   cual sonaría una alerta real).
+  // - resto: bajamos un poco la sirena para que la voz domine y la gente
+  //   entienda qué está pasando (intruso/incendio/sismo/etc).
   function sirenVolumeMultiplier(type) {
-    if (type === "intruso") return 0.3;
-    return 1;
+    if (type === "intruso") return 0;
+    if (type === "simulacro") return 1;
+    return 0.65;
   }
   function voiceVolumeMultiplier(type) {
-    if (type === "intruso") return 0.4;
-    if (type === "simulacro") return 1;
-    return 1.15;
+    if (type === "intruso") return 0.45;
+    return 1;
   }
 
   // --- Settings --------------------------------------------------------
