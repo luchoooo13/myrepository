@@ -1106,7 +1106,12 @@ function stopAlert(reason = "manual") {
   // por las dudas (el usuario cierra la app antes de que llegue) lo
   // hacemos también del lado del server.
   for (const info of clientsInfo.values()) {
-    if (info.state === "alerting") {
+    // También sacamos del estado "silenced": ese estado se setea
+    // cuando una alerta llegó durante la franja de silencio horario, y
+    // describe el último disparo, no la situación actual del celu. Si
+    // no lo reseteamos acá, el panel del host muestra "🌙 silenciado"
+    // para siempre hasta que el cliente reconecte el socket.
+    if (info.state === "alerting" || info.state === "silenced") {
       info.state = "idle";
       info.lastSeen = Date.now();
     }
