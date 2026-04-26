@@ -1135,6 +1135,23 @@ let nextHistoryId = alertsHistory.reduce(
 
 function startAlert(payload) {
   clearAlertTimer();
+  // Si ya había una alerta en curso (ej. el host dispara otra encima, o
+  // el scheduler arranca una mientras todavía estaba sonando la
+  // anterior), cerramos su entrada del historial antes de pisar
+  // currentAlert. Si no, queda con endedAt/durationMs en null para
+  // siempre y el historial mostraba "en curso" para algo ya terminado.
+  // Lo hacemos inline (no llamamos stopAlert) para no emitir un
+  // alert:stop que haría flickerear los clientes entre dos alertas.
+  if (currentAlert && currentAlert.historyId) {
+    const idx = alertsHistory.findIndex((h) => h.id === currentAlert.historyId);
+    if (idx !== -1) {
+      alertsHistory[idx].endedAt = Date.now();
+      alertsHistory[idx].endedReason = "replaced";
+      alertsHistory[idx].durationMs =
+        alertsHistory[idx].endedAt - alertsHistory[idx].startedAt;
+      saveAlertsHistory();
+    }
+  }
   // Usamos realNow() (no Date.now()) así startedAt/endsAt están en la
   // misma escala que el reloj de los clientes; si el reloj de la PC
   // server está corrido varios segundos, el cliente igual ve el
