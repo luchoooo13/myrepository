@@ -59,6 +59,13 @@ public class AlertService extends Service {
     // sockets, no cancela alertas en curso).
     public static final String ACTION_REFRESH_PAUSE =
             "com.alertaemergencia.client.REFRESH_PAUSE";
+    // Lo manda MainActivity/AlertBridge cuando el webview termina de
+    // calcular su CLIENT_ID y lo persiste en prefs. Acá reenviamos
+    // role:client al server con el clientId nuevo, así el server
+    // refresca la entrada anónima que habíamos creado al conectar y la
+    // mapea con la del webview (mismo dispositivo, no dos entradas).
+    public static final String ACTION_REFRESH_CLIENT_ID =
+            "com.alertaemergencia.client.REFRESH_CLIENT_ID";
 
     public static final String EXTRA_SERVER_URL = "server_url";
 
@@ -217,6 +224,32 @@ public class AlertService extends Service {
             startForeground(NOTIF_ONGOING,
                     buildOngoingNotification(
                             decorateWithPause(describeConnectionState())));
+            return START_STICKY;
+        }
+        if (ACTION_REFRESH_CLIENT_ID.equals(action)) {
+            // El webview acaba de pasarnos su CLIENT_ID por bridge. Si
+            // ya teníamos el socket conectado, reenviamos role:client
+            // ahora con el clientId nuevo así el server actualiza la
+            // entrada anónima que habíamos creado al conectar (antes de
+            // que existiera el clientId). Si el socket todavía no se
+            // armó, no hay nada que hacer — cuando se arme va a leer
+            // el clientId de prefs y lo va a mandar al primer emit.
+            startForeground(NOTIF_ONGOING,
+                    buildOngoingNotification(
+                            decorateWithPause(describeConnectionState())));
+            try {
+                if (socket != null && socket.connected()) {
+                    SharedPreferences sp = getSharedPreferences(
+                            PREFS, MODE_PRIVATE);
+                    String cid = sp.getString(KEY_CLIENT_ID, "");
+                    JSONObject payload = new JSONObject();
+                    if (cid != null && !cid.isEmpty()) {
+                        payload.put("clientId", cid);
+                    }
+                    socket.emit("role:client", payload);
+                }
+            } catch (Exception ignored) {
+            }
             return START_STICKY;
         }
         if (ACTION_TEST_ALERT.equals(action)) {
@@ -564,13 +597,15 @@ public class AlertService extends Service {
      *    sólo flash + vibración + voz baja para los que están cerca.
      *  - simulacro: 1.0 / 1.0 (es prueba, queremos que suene como una
      *    alerta real).
-     *  - resto: bajamos la sirena a 0.65 para que la voz domine y la
-     *    gente entienda qué está pasando (incendio, sismo, etc).
+     *  - resto: la sirena va más baja (0.4) para que la voz se entienda
+     *    por arriba. La voz ya está al máximo permitido por
+     *    MediaPlayer.setVolume() (1.0) — para que "suene más", lo que
+     *    podemos hacer es bajar la sirena.
      */
     private float sirenVolumeMultiplier(String type) {
         if ("intruso".equalsIgnoreCase(type)) return 0f;
         if ("simulacro".equalsIgnoreCase(type)) return 1.0f;
-        return 0.65f;
+        return 0.4f;
     }
 
     private float voiceVolumeMultiplier(String type) {

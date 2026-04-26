@@ -1386,7 +1386,20 @@ io.on("connection", (socket) => {
     // Esto se da, por ejemplo, cuando el APK manda role:client antes
     // que client:identify (que el web sí manda en el mismo momento).
     const created = !clientsInfo.has(socket.id);
-    ensureClientInfo(clientId);
+    const info = ensureClientInfo(clientId);
+    // Caso típico del APK: el AlertService nativo se conecta y emite
+    // role:client antes de que el webview termine de cargar y pueda
+    // pasarle el clientId por el bridge. Más tarde el bridge le dice
+    // al servicio "ahora sí tenés clientId, reenviá role:client". Acá
+    // refrescamos info.clientId para no quedarnos con la entrada
+    // anónima vieja, y le mapeamos el nombre auto-asignado al clientId
+    // así sobrevive a la próxima reconexión.
+    if (clientId && !info.clientId) {
+      info.clientId = clientId;
+      if (!clientNameByClientId.has(clientId)) {
+        clientNameByClientId.set(clientId, info.name);
+      }
+    }
     if (created) broadcastClients();
   });
 

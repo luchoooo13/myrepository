@@ -137,12 +137,15 @@
   //   nota igual.
   // - simulacro: 100% / 100% (es prueba, queremos que se escuche tal
   //   cual sonaría una alerta real).
-  // - resto: bajamos un poco la sirena para que la voz domine y la gente
-  //   entienda qué está pasando (intruso/incendio/sismo/etc).
+  // - resto: la sirena va más baja para que la voz se entienda por
+  //   arriba y la gente sepa qué está pasando (incendio/sismo/etc).
+  //   La voz ya está al máximo (1.0) — el navegador y MediaPlayer no
+  //   nos dejan superar 1.0, así que para que la voz "suene más" hay
+  //   que bajar la sirena (lo hacemos a 0.4).
   function sirenVolumeMultiplier(type) {
     if (type === "intruso") return 0;
     if (type === "simulacro") return 1;
-    return 0.65;
+    return 0.4;
   }
   function voiceVolumeMultiplier(type) {
     if (type === "intruso") return 0.45;

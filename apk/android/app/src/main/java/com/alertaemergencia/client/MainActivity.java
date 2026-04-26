@@ -582,9 +582,32 @@ public class MainActivity extends AppCompatActivity {
         public void setClientId(String id) {
             String safe = id == null ? "" : id.trim();
             if (safe.length() > 64) safe = safe.substring(0, 64);
+            String previous = prefs().getString(
+                    AlertService.KEY_CLIENT_ID, "");
             prefs().edit()
                     .putString(AlertService.KEY_CLIENT_ID, safe)
                     .apply();
+            // Si el clientId cambió (típicamente: webview termina de
+            // levantarse y nos pasa el suyo), avisamos al AlertService
+            // para que reenvíe role:client al server con el clientId
+            // nuevo. Sin esto, la entrada anónima que el servicio creó
+            // al conectar quedaría sin clientId y aparecería como un
+            // "Cliente N" duplicado del webview.
+            if (!safe.isEmpty() && !safe.equals(previous)) {
+                runOnUiThread(() -> {
+                    try {
+                        Intent i = new Intent(
+                                MainActivity.this, AlertService.class);
+                        i.setAction(AlertService.ACTION_REFRESH_CLIENT_ID);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(i);
+                        } else {
+                            startService(i);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                });
+            }
         }
 
         /**
