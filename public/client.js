@@ -1193,7 +1193,7 @@
       const sel = new Set((silentWindow.days || []).map(Number));
       chips.forEach((chip) => {
         const d = parseInt(chip.getAttribute("data-day"), 10);
-        chip.classList.toggle("is-selected", sel.has(d));
+        chip.classList.toggle("is-on", sel.has(d));
       });
     }
     if (silentFields) silentFields.hidden = !silentWindow.enabled;

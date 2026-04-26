@@ -1240,8 +1240,10 @@ io.on("connection", (socket) => {
   socket.emit("clients:count", { count: clientSockets.size });
   if (isHost(socket)) {
     socket.emit("clients:list", { clients: serializeClients() });
-    socket.emit("alerts:history", { history: alertsHistory });
   }
+  // Tanto hosts como clientes reciben el historial al conectar (el cliente
+  // lo usa para llenar la pestaña Historial sin esperar la próxima alerta).
+  socket.emit("alerts:history", { history: alertsHistory });
 
   socket.on("role:client", () => {
     if (!clientSockets.has(socket.id)) {

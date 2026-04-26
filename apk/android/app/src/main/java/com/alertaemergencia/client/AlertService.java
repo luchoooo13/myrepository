@@ -489,31 +489,36 @@ public class AlertService extends Service {
             int fromMin = parseHHMM(from);
             int toMin = parseHHMM(to);
             if (fromMin < 0 || toMin < 0) return false;
+            if (fromMin == toMin) return false;
+            if (daysCsv == null || daysCsv.isEmpty()) return false;
             java.util.Calendar c = java.util.Calendar.getInstance();
             int dow = c.get(java.util.Calendar.DAY_OF_WEEK) - 1; // 0..6
             int nowMin = c.get(java.util.Calendar.HOUR_OF_DAY) * 60
                     + c.get(java.util.Calendar.MINUTE);
-            // Días seleccionados (CSV "0,1,4"). Si está vacío, no aplica.
-            boolean dayMatch = false;
-            if (daysCsv != null && !daysCsv.isEmpty()) {
-                for (String tok : daysCsv.split(",")) {
-                    try {
-                        if (Integer.parseInt(tok.trim()) == dow) {
-                            dayMatch = true;
-                            break;
-                        }
-                    } catch (NumberFormatException ignored) {
+            // Determinamos qué día "cuenta" para el match. Si la ventana cruza
+            // medianoche (ej. 22:00 → 07:00) y estamos del lado post-medianoche
+            // (cur < to), el día relevante es el ANTERIOR (la noche que arrancó
+            // el silencio). Mismo razonamiento que el JS en client.js.
+            int dayToCheck;
+            if (fromMin < toMin) {
+                if (!(nowMin >= fromMin && nowMin < toMin)) return false;
+                dayToCheck = dow;
+            } else if (nowMin >= fromMin) {
+                dayToCheck = dow;
+            } else if (nowMin < toMin) {
+                dayToCheck = (dow + 6) % 7;
+            } else {
+                return false;
+            }
+            for (String tok : daysCsv.split(",")) {
+                try {
+                    if (Integer.parseInt(tok.trim()) == dayToCheck) {
+                        return true;
                     }
+                } catch (NumberFormatException ignored) {
                 }
             }
-            if (!dayMatch) return false;
-            // Rango horario: si from < to, ventana directa; si from >= to,
-            // cruza medianoche (ej. 22:00 → 07:00 = 22..23:59 ó 0..06:59).
-            if (fromMin == toMin) return false;
-            if (fromMin < toMin) {
-                return nowMin >= fromMin && nowMin < toMin;
-            }
-            return nowMin >= fromMin || nowMin < toMin;
+            return false;
         } catch (Exception e) {
             return false;
         }
@@ -549,6 +554,13 @@ public class AlertService extends Service {
         if ("intruso".equalsIgnoreCase(type)) return 0.4f;
         if ("simulacro".equalsIgnoreCase(type)) return 1.0f;
         return 1.15f;
+    }
+
+    /** Asegura que el valor entre a MediaPlayer.setVolume() en el rango [0,1]. */
+    private float clampVol(float v) {
+        if (v < 0f) return 0f;
+        if (v > 1f) return 1f;
+        return v;
     }
 
     /**
@@ -673,9 +685,10 @@ public class AlertService extends Service {
                 am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
             }
             // Multiplicador por tipo de alerta (intruso suena bajo, resto
-            // a 1.0). Se aplica sobre el stream ya configurado.
+            // a 1.0). Se aplica sobre el stream ya configurado. Lo clampeamos
+            // a [0,1] porque MediaPlayer.setVolume() es estricto con el rango.
             try {
-                float mul = sirenVolumeMultiplier(currentAlertType);
+                float mul = clampVol(sirenVolumeMultiplier(currentAlertType));
                 sirenPlayer.setVolume(mul, mul);
             } catch (Exception ignored) {
             }
@@ -755,8 +768,11 @@ public class AlertService extends Service {
             voicePlayer.setOnPreparedListener(mp -> {
                 try {
                     // Multiplicador por tipo (intruso bajo, resto leve
-                    // boost para que se entienda mejor que la sirena).
-                    float mul = voiceVolumeMultiplier(currentAlertType);
+                    // boost para que se entienda mejor que la sirena). Se
+                    // clampea a [0,1] porque MediaPlayer.setVolume() exige
+                    // ese rango (1.15 sería contrato roto, aunque algunos
+                    // dispositivos lo aceptan silenciosamente).
+                    float mul = clampVol(voiceVolumeMultiplier(currentAlertType));
                     try {
                         mp.setVolume(mul, mul);
                     } catch (Exception ignored) {
