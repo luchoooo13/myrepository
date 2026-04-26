@@ -261,7 +261,7 @@ public class AlertService extends Service {
                 // Si ya hay una alerta real en curso, no corremos el test
                 // (ni programamos el stop de 5s) para no interrumpirla.
                 if (!alertActive) {
-                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0, null, false);
+                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0, null);
                     // Guardamos el Runnable para poder cancelarlo si una
                     // alerta real reemplaza al test antes de los 5s. Si el
                     // test sigue corriendo cuando llega el timeout, el check
@@ -495,7 +495,7 @@ public class AlertService extends Service {
                         || "null".equals(sirenUrlRaw))
                         ? null
                         : absolutizeUrl(sirenUrlRaw);
-        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt, recommendations, silentMode));
+        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt, recommendations));
     };
 
     /**
@@ -637,8 +637,7 @@ public class AlertService extends Service {
     // ------------------------------------------------------------------
     private void startAlertMedia(String type, String label,
                                  String sirenUrl, boolean skipVoice,
-                                 long startedAt, String[] recommendations,
-                                 boolean silentMode) {
+                                 long startedAt, String[] recommendations) {
         // Si había un test alert con timeout programado a 5s y ahora entra
         // una alerta (sea real o otro test), cancelamos el timeout para que
         // no mate la nueva alerta cuando expire.
@@ -664,25 +663,19 @@ public class AlertService extends Service {
         currentAlertStartedAt = startedAt;
         currentAlertType = type;
         acquireWakeLock();
-        // En silencio horario salteamos sirena/voz/vibración/flash, pero
-        // mostramos igual la notificación y la AlertActivity (la pantalla
-        // de alerta full-screen que despierta el celu). Eso es lo que el
-        // cliente web hace también — el usuario igual tiene que poder ver
-        // que hubo una alerta cuando el celu estaba bloqueado.
-        if (!silentMode) {
-            // Leemos los toggles del usuario (pestaña Ajustes del cliente
-            // web). Sólo aplican si NO estamos en silencio horario.
-            SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-            boolean wantVibration = sp.getBoolean(KEY_SET_VIBRATION, true);
-            boolean wantStrobe = sp.getBoolean(KEY_SET_STROBE, true);
-            boolean wantVoice = sp.getBoolean(KEY_SET_VOICE, true);
-            startSiren(sirenUrl);
-            if (!skipVoice && wantVoice) {
-                startVoiceLoop(type, label);
-            }
-            if (wantVibration) startVibrationLoop();
-            if (wantStrobe && flash != null) flash.startBlinking();
+        // Toggles del usuario (pestaña Ajustes del cliente web). El
+        // silencio horario ya filtró más arriba con un return temprano,
+        // así que acá sabemos que el dispositivo sí tiene que reaccionar.
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        boolean wantVibration = sp.getBoolean(KEY_SET_VIBRATION, true);
+        boolean wantStrobe = sp.getBoolean(KEY_SET_STROBE, true);
+        boolean wantVoice = sp.getBoolean(KEY_SET_VOICE, true);
+        startSiren(sirenUrl);
+        if (!skipVoice && wantVoice) {
+            startVoiceLoop(type, label);
         }
+        if (wantVibration) startVibrationLoop();
+        if (wantStrobe && flash != null) flash.startBlinking();
         showAlertNotification(type, label, recommendations);
         launchAlertActivity(type, label, recommendations);
     }
