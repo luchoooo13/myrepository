@@ -1129,7 +1129,10 @@ function stopAlert(reason = "manual") {
   if (currentAlert && currentAlert.historyId) {
     const idx = alertsHistory.findIndex((h) => h.id === currentAlert.historyId);
     if (idx !== -1) {
-      alertsHistory[idx].endedAt = Date.now();
+      // Usamos realNow() (no Date.now()) así endedAt está en la misma
+      // escala que startedAt — que también se setea con realNow() — y
+      // durationMs queda bien aunque el reloj de la PC esté corrido.
+      alertsHistory[idx].endedAt = realNow();
       alertsHistory[idx].endedReason = reason;
       alertsHistory[idx].durationMs =
         alertsHistory[idx].endedAt - alertsHistory[idx].startedAt;
@@ -1188,7 +1191,9 @@ function startAlert(payload) {
   if (currentAlert && currentAlert.historyId) {
     const idx = alertsHistory.findIndex((h) => h.id === currentAlert.historyId);
     if (idx !== -1) {
-      alertsHistory[idx].endedAt = Date.now();
+      // Misma razón que en stopAlert: realNow() para que endedAt y
+      // startedAt estén en la misma escala (ambos NTP-corregidos).
+      alertsHistory[idx].endedAt = realNow();
       alertsHistory[idx].endedReason = "replaced";
       alertsHistory[idx].durationMs =
         alertsHistory[idx].endedAt - alertsHistory[idx].startedAt;
