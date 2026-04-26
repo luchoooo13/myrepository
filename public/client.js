@@ -778,6 +778,39 @@
     return Promise.resolve(VOICE_BASE + alertObj.type + ".mp3");
   }
 
+  // Pitch / velocidad de reproducción de la voz. Bajamos un poco la
+  // playbackRate y deshabilitamos preservesPitch para que el tono también
+  // baje — así la voz suena más grave / "autoritaria", no tan parecida al
+  // tono de Google TTS standard. Es lo que el usuario pidió ("que suene
+  // más original al google").
+  const VOICE_PLAYBACK_RATE = 0.9;
+  function applyVoicePitch(audio) {
+    if (!audio) return;
+    try {
+      // No-prefijado (estándar moderno).
+      audio.preservesPitch = false;
+    } catch {
+      /* ignore */
+    }
+    try {
+      // WebKit (Safari iOS / Mac).
+      audio.webkitPreservesPitch = false;
+    } catch {
+      /* ignore */
+    }
+    try {
+      // Mozilla (Firefox antiguos).
+      audio.mozPreservesPitch = false;
+    } catch {
+      /* ignore */
+    }
+    try {
+      audio.playbackRate = VOICE_PLAYBACK_RATE;
+    } catch {
+      /* ignore */
+    }
+  }
+
   function ensureVoiceAudio(src) {
     if (!voiceAudio) {
       voiceAudio = new Audio(src);
@@ -790,6 +823,7 @@
         /* ignore */
       }
     }
+    applyVoicePitch(voiceAudio);
     applyVolumeToAudio();
     return voiceAudio;
   }

@@ -1450,9 +1450,31 @@ io.on("connection", (socket) => {
     }
     if (payload && typeof payload === "object") {
       const name = sanitizeDeviceName(payload.name);
-      if (name) info.name = name;
       const sw = sanitizeSilentWindow(payload.silentWindow);
-      if (sw) info.silentWindow = sw;
+      // Si el dispositivo tiene clientId estable, propagamos el name
+      // y la silentWindow a TODOS los sockets que comparten ese
+      // clientId (en el APK conviven webview + AlertService nativo).
+      // Sin esto, el identify lo manda sólo el webview y la entrada
+      // del AlertService quedaba con el nombre auto-asignado
+      // ("Cliente N") y silentWindow vacía. Cuando el usuario cerraba
+      // el webview, en el panel de host quedaba sólo el AlertService
+      // con esos datos genéricos, perdiendo el nombre que el usuario
+      // había puesto.
+      // También actualizamos el cache clientNameByClientId para que
+      // sobreviva a próximas reconexiones (incluso después de un
+      // restart del cliente, mientras el server siga arriba).
+      if (info.clientId) {
+        for (const other of clientsInfo.values()) {
+          if (other.clientId !== info.clientId) continue;
+          if (name) other.name = name;
+          if (sw) other.silentWindow = sw;
+          other.lastSeen = Date.now();
+        }
+        if (name) clientNameByClientId.set(info.clientId, name);
+      } else {
+        if (name) info.name = name;
+        if (sw) info.silentWindow = sw;
+      }
     }
     info.lastSeen = Date.now();
     broadcastClients();

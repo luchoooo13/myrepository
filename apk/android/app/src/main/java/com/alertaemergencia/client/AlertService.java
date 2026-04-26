@@ -836,6 +836,21 @@ public class AlertService extends Service {
                         mp.setVolume(mul, mul);
                     } catch (Exception ignored) {
                     }
+                    // Bajamos pitch (y un toque la velocidad) para que la
+                    // voz suene más grave y no tan reconociblemente Google
+                    // TTS. Sólo disponible en API 23+ — abajo de eso queda
+                    // con el pitch original. Lo aplicamos antes de start()
+                    // así arranca ya con el tono correcto.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        try {
+                            android.media.PlaybackParams pp =
+                                    new android.media.PlaybackParams();
+                            pp.setPitch(0.9f);
+                            pp.setSpeed(0.95f);
+                            mp.setPlaybackParams(pp);
+                        } catch (Exception ignored) {
+                        }
+                    }
                     if (alertActive) mp.start();
                 } catch (IllegalStateException ignored) {
                 }
