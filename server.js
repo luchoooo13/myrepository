@@ -453,6 +453,84 @@ const clientsInfo = new Map(); // socket.id -> {id, clientId, name, state, silen
 const clientNameByClientId = new Map();
 let nextClientNum = 1;
 
+// --- Registro persistente de dispositivos conocidos -------------------
+// Los celus / PCs que el admin configuró alguna vez (con nombre custom o
+// silent window) los guardamos en disco para que sigan apareciendo en el
+// panel /host como "Offline" cuando cierren la app. Sin esto, en cuanto
+// el último socket del dispositivo se desconectaba (force-close, sin
+// internet, etc.) desaparecía del panel y el admin perdía la
+// trazabilidad del aula.
+// Key: clientId estable. Value: { clientId, name, silentWindow,
+// lastSeen, ip }.
+const KNOWN_DEVICES_FILE = path.join(__dirname, "known-devices.json");
+const knownDevices = new Map();
+try {
+  const raw = fs.readFileSync(KNOWN_DEVICES_FILE, "utf8");
+  const parsed = JSON.parse(raw);
+  if (parsed && typeof parsed === "object" && Array.isArray(parsed.devices)) {
+    for (const d of parsed.devices) {
+      if (!d || typeof d.clientId !== "string" || !d.clientId) continue;
+      knownDevices.set(d.clientId, {
+        clientId: d.clientId,
+        name: typeof d.name === "string" ? d.name : "",
+        silentWindow:
+          sanitizeSilentWindow(d.silentWindow) || {
+            enabled: false,
+            from: "",
+            to: "",
+            days: [],
+          },
+        lastSeen: typeof d.lastSeen === "number" ? d.lastSeen : 0,
+        ip: typeof d.ip === "string" ? d.ip : "",
+      });
+      if (d.name) clientNameByClientId.set(d.clientId, d.name);
+    }
+  }
+} catch {
+  /* primera vez: arrancamos vacío */
+}
+function saveKnownDevices() {
+  try {
+    const out = { devices: Array.from(knownDevices.values()) };
+    fs.writeFileSync(KNOWN_DEVICES_FILE, JSON.stringify(out, null, 2));
+  } catch (err) {
+    console.warn(
+      "[devices] no se pudo guardar known-devices.json:",
+      err && err.message,
+    );
+  }
+}
+function rememberDevice(info) {
+  if (!info || !info.clientId) return;
+  const prev = knownDevices.get(info.clientId) || {};
+  const next = {
+    clientId: info.clientId,
+    name: info.name || prev.name || "",
+    silentWindow:
+      sanitizeSilentWindow(info.silentWindow) ||
+      prev.silentWindow || {
+        enabled: false,
+        from: "",
+        to: "",
+        days: [],
+      },
+    lastSeen: Date.now(),
+    ip: info.ip || prev.ip || "",
+  };
+  knownDevices.set(info.clientId, next);
+  saveKnownDevices();
+}
+function forgetDevice(clientId) {
+  if (!clientId) return false;
+  const had = knownDevices.delete(clientId);
+  // También limpiamos el nombre cacheado para que si el celu vuelve a
+  // conectar, arranque de cero como "Cliente N" en vez de mantener el
+  // nombre viejo (el admin lo borró por algo).
+  clientNameByClientId.delete(clientId);
+  if (had) saveKnownDevices();
+  return had;
+}
+
 function shortenIp(ip) {
   if (!ip) return "";
   if (ip.startsWith("::ffff:")) ip = ip.slice(7);
@@ -513,8 +591,10 @@ function serializeClients() {
   // Para los sockets sin clientId (legacy), usamos socket.id así no se
   // pisan entre ellos.
   const byKey = new Map();
+  const liveClientIds = new Set();
   for (const info of clientsInfo.values()) {
     const key = info.clientId || ("sock:" + info.id);
+    if (info.clientId) liveClientIds.add(info.clientId);
     const prev = byKey.get(key);
     if (!prev) {
       byKey.set(key, info);
@@ -533,6 +613,7 @@ function serializeClients() {
   for (const info of byKey.values()) {
     out.push({
       id: info.id,
+      clientId: info.clientId || null,
       name: info.name,
       state: info.state,
       silentWindow: info.silentWindow,
@@ -540,10 +621,35 @@ function serializeClients() {
       ip: info.ip,
     });
   }
-  // Orden: primero los que están en alerta, después por nombre.
+  // Sumamos los dispositivos conocidos que NO tienen un socket vivo —
+  // esos son los que cerraron la app o están sin internet. Los marcamos
+  // como state="offline" así el panel los muestra en gris pero no
+  // desaparecen. Mantienen el nombre y la silentWindow que quedaron
+  // configurados la última vez.
+  for (const dev of knownDevices.values()) {
+    if (liveClientIds.has(dev.clientId)) continue;
+    out.push({
+      id: "offline:" + dev.clientId,
+      clientId: dev.clientId,
+      name: dev.name || "Cliente",
+      state: "offline",
+      silentWindow: dev.silentWindow || {
+        enabled: false,
+        from: "",
+        to: "",
+        days: [],
+      },
+      lastSeen: dev.lastSeen || 0,
+      ip: dev.ip || "",
+    });
+  }
+  // Orden: primero los que están en alerta, después online por nombre,
+  // y al final los offline (también por nombre).
   out.sort((a, b) => {
     if (a.state === "alerting" && b.state !== "alerting") return -1;
     if (b.state === "alerting" && a.state !== "alerting") return 1;
+    if (a.state === "offline" && b.state !== "offline") return 1;
+    if (b.state === "offline" && a.state !== "offline") return -1;
     return String(a.name).localeCompare(String(b.name));
   });
   return out;
@@ -1498,6 +1604,9 @@ io.on("connection", (socket) => {
       }
     }
     info.lastSeen = Date.now();
+    // Persistimos el dispositivo para que siga apareciendo en /host
+    // cuando cierre la app (state="offline").
+    rememberDevice(info);
     broadcastClients();
   });
 
@@ -1512,7 +1621,14 @@ io.on("connection", (socket) => {
     if (clientSockets.delete(socket.id)) {
       broadcastClientCount();
     }
-    if (clientsInfo.delete(socket.id)) {
+    const info = clientsInfo.get(socket.id);
+    if (info) {
+      // Antes de borrar la entrada en memoria, guardamos un snapshot
+      // del dispositivo en disco (con su nombre y silentWindow) para
+      // que siga apareciendo en /host como "offline" cuando todos sus
+      // sockets se desconecten.
+      rememberDevice(info);
+      clientsInfo.delete(socket.id);
       broadcastClients();
     }
   });
@@ -1539,15 +1655,32 @@ io.on("connection", (socket) => {
     stopAlert("manual");
   });
 
-  // El admin puede renombrar un dispositivo desde el panel /host. Cambio
-  // visual sólo (no se persiste; el cliente sigue mandando su nombre
-  // local en el próximo identify).
+  // El admin puede renombrar un dispositivo desde el panel /host.
+  // Soporta dos casos:
+  //  - online: el id es un socket.id real → renombramos los sockets
+  //    vivos y empujamos el cambio al cliente para que lo persista
+  //    en localStorage.
+  //  - offline: el id es "offline:<clientId>" → sólo lo persistimos en
+  //    knownDevices.json. La próxima vez que el celu conecte va a
+  //    arrastrar el nombre nuevo (vía clientNameByClientId).
   socket.on("clients:rename", (payload) => {
     if (!isHost(socket)) return;
     if (!payload || typeof payload !== "object") return;
     const id = typeof payload.id === "string" ? payload.id : "";
     const name = sanitizeDeviceName(payload.name);
     if (!id || !name) return;
+    if (id.startsWith("offline:")) {
+      const clientId = id.slice("offline:".length);
+      const dev = knownDevices.get(clientId);
+      if (!dev) return;
+      dev.name = name;
+      dev.lastSeen = Date.now();
+      knownDevices.set(clientId, dev);
+      clientNameByClientId.set(clientId, name);
+      saveKnownDevices();
+      broadcastClients();
+      return;
+    }
     const info = clientsInfo.get(id);
     if (!info) return;
     // Si el dispositivo tiene clientId estable, propagamos el rename a
@@ -1565,17 +1698,58 @@ io.on("connection", (socket) => {
           targets.push(sid);
         }
       }
+      clientNameByClientId.set(info.clientId, name);
     } else {
       info.name = name;
       info.lastSeen = Date.now();
       targets.push(id);
     }
+    rememberDevice(info);
     broadcastClients();
     // Le decimos a los clientes que cambió su nombre (lo guardarán en
     // localStorage así sobrevive recargas).
     for (const sid of targets) {
       io.to(sid).emit("client:renamed", { name });
     }
+  });
+
+  // El admin puede borrar un dispositivo del panel — útil para sacar
+  // un celu que ya no se usa (bajado de baja, perdido, prestado a
+  // alguien que se fue) y para limpiar entries duplicadas legacy.
+  // Si está online, lo desconectamos y lo olvidamos. Si está offline,
+  // sólo lo sacamos de knownDevices.
+  socket.on("clients:remove", (payload) => {
+    if (!isHost(socket)) return;
+    if (!payload || typeof payload !== "object") return;
+    const id = typeof payload.id === "string" ? payload.id : "";
+    if (!id) return;
+    let clientIdToForget = null;
+    if (id.startsWith("offline:")) {
+      clientIdToForget = id.slice("offline:".length);
+    } else {
+      const info = clientsInfo.get(id);
+      if (info) {
+        clientIdToForget = info.clientId || null;
+        // Desconectamos TODOS los sockets de ese clientId — si no, el
+        // celu se vuelve a anunciar inmediatamente y el "borrado" no
+        // tiene efecto visual.
+        if (clientIdToForget) {
+          for (const [sid, other] of clientsInfo) {
+            if (other.clientId === clientIdToForget) {
+              const sock = io.sockets.sockets.get(sid);
+              if (sock) sock.disconnect(true);
+            }
+          }
+        } else {
+          const sock = io.sockets.sockets.get(id);
+          if (sock) sock.disconnect(true);
+        }
+      }
+    }
+    if (clientIdToForget) {
+      forgetDevice(clientIdToForget);
+    }
+    broadcastClients();
   });
 
   socket.on("schedule:add", (payload) => {

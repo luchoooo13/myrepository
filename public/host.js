@@ -483,7 +483,28 @@
       return '<span class="dev__state dev__state--silenced">🌙 silenciado</span>';
     if (state === "paused")
       return '<span class="dev__state dev__state--paused">⏸ pausado</span>';
+    if (state === "offline")
+      return '<span class="dev__state dev__state--offline">⚫ offline</span>';
     return '<span class="dev__state dev__state--idle">🟢 escuchando</span>';
+  }
+
+  function formatLastSeen(ms) {
+    if (!ms) return "nunca";
+    const diff = Date.now() - ms;
+    if (diff < 60 * 1000) return "hace instantes";
+    if (diff < 60 * 60 * 1000) return "hace " + Math.round(diff / 60000) + " min";
+    if (diff < 24 * 60 * 60 * 1000)
+      return "hace " + Math.round(diff / 3600000) + " h";
+    try {
+      return new Intl.DateTimeFormat("es-AR", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(ms));
+    } catch {
+      return new Date(ms).toLocaleString();
+    }
   }
 
   function silentWindowSummary(sw) {
@@ -502,13 +523,19 @@
     if (devicesAdminHintEl) devicesAdminHintEl.hidden = !isAdmin;
     if (!list || list.length === 0) {
       devicesListEl.innerHTML =
-        '<div class="host__devices-empty">No hay dispositivos conectados.</div>';
+        '<div class="host__devices-empty">No hay dispositivos registrados.</div>';
       return;
     }
     devicesListEl.innerHTML = "";
     // Orden: primero los que están sonando, después los normales, después
-    // pausados/silenciados al fondo.
-    const order = { alerting: 0, idle: 1, silenced: 2, paused: 3 };
+    // pausados/silenciados, y al fondo los offline (los que cerraron la app).
+    const order = {
+      alerting: 0,
+      idle: 1,
+      silenced: 2,
+      paused: 3,
+      offline: 4,
+    };
     const sorted = list.slice().sort((a, b) => {
       const oa = order[a.state] != null ? order[a.state] : 9;
       const ob = order[b.state] != null ? order[b.state] : 9;
@@ -516,8 +543,10 @@
       return (a.name || "").localeCompare(b.name || "");
     });
     for (const c of sorted) {
+      const isOffline = c.state === "offline";
       const card = document.createElement("div");
       card.className = "host__devices-card dev";
+      if (isOffline) card.classList.add("dev--offline");
       card.dataset.state = c.state || "idle";
 
       const top = document.createElement("div");
@@ -531,9 +560,13 @@
       meta.className = "dev__meta";
       const ipStr = c.ip ? "IP " + escapeHtml(c.ip) : "";
       const swStr = escapeHtml(silentWindowSummary(c.silentWindow));
+      const lastSeenStr = isOffline
+        ? "Última conexión: " + escapeHtml(formatLastSeen(c.lastSeen))
+        : "";
       meta.innerHTML =
         (ipStr ? '<span>' + ipStr + "</span>" : "") +
-        '<span>' + swStr + "</span>";
+        '<span>' + swStr + "</span>" +
+        (lastSeenStr ? '<span>' + lastSeenStr + "</span>" : "");
       card.appendChild(meta);
 
       if (isAdmin) {
@@ -554,6 +587,24 @@
           socket.emit("clients:rename", { id: c.id, name: trimmed });
         });
         actions.appendChild(renameBtn);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "btn btn--mini btn--danger";
+        removeBtn.textContent = "🗑 Quitar";
+        removeBtn.title = isOffline
+          ? "Sacar este dispositivo del panel"
+          : "Desconectar y olvidar este dispositivo";
+        removeBtn.addEventListener("click", () => {
+          const msg = isOffline
+            ? '¿Sacar a "' + (c.name || "este dispositivo") +
+              '" del panel? (Si vuelve a abrir la app, va a aparecer de nuevo con un nombre genérico.)'
+            : '¿Desconectar y sacar a "' + (c.name || "este dispositivo") +
+              '" del panel? (Si vuelve a abrir la app, va a aparecer de nuevo con un nombre genérico.)';
+          if (!window.confirm(msg)) return;
+          socket.emit("clients:remove", { id: c.id });
+        });
+        actions.appendChild(removeBtn);
         card.appendChild(actions);
       }
 
