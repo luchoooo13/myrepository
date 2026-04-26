@@ -512,7 +512,14 @@ function serializeClients() {
 }
 
 function broadcastClients() {
-  io.emit("clients:list", { clients: serializeClients() });
+  // Solo a hosts — los clientes web no necesitan saber quién está
+  // conectado y los datos (IP, nombre, silent window) son sensibles.
+  const payload = { clients: serializeClients() };
+  for (const s of io.sockets.sockets.values()) {
+    if (s.data && (s.data.role === "admin" || s.data.role === "operator")) {
+      s.emit("clients:list", payload);
+    }
+  }
 }
 
 function setClientState(socketId, state) {
@@ -1058,7 +1065,7 @@ setInterval(() => {
       `[schedule] disparando ${s.type} (${s.label})` +
         (s.recurring ? " [diaria]" : ""),
     );
-    startAlert({ type: s.type, label: s.label });
+    startAlert({ type: s.type, label: s.label, triggeredBy: "schedule" });
     if (s.recurring) {
       // Reprogramá para el próximo día a la misma hora.
       s.fireAt = nextFireAtBA(s.hour, s.minute, now + 60 * 1000);
