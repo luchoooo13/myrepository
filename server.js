@@ -1335,10 +1335,18 @@ io.on("connection", (socket) => {
   // otro socket.id (reconexión: el socket viejo todavía no terminó de
   // hacer cleanup), la borramos para no duplicar. Los detalles
   // (state/name) los traerá el nuevo identify.
+  //
+  // OJO: en el APK conviven webview + AlertService nativo, ambos con el
+  // mismo clientId y AMBOS sockets vivos al mismo tiempo. Por eso, antes
+  // de borrar la entrada del otro socket, validamos que esté muerto. Si
+  // sigue vivo es legítimo y la dedupe se hace en serializeClients() (un
+  // único item en el panel pero contamos los dos en clientSockets para
+  // que clients:count refleje el estado real).
   function dropStaleEntriesForClientId(clientId, currentSocketId) {
     if (!clientId) return;
     for (const [sid, info] of clientsInfo) {
       if (sid !== currentSocketId && info.clientId === clientId) {
+        if (io.sockets.sockets.has(sid)) continue;
         clientsInfo.delete(sid);
         clientSockets.delete(sid);
       }
@@ -1478,12 +1486,32 @@ io.on("connection", (socket) => {
     if (!id || !name) return;
     const info = clientsInfo.get(id);
     if (!info) return;
-    info.name = name;
-    info.lastSeen = Date.now();
+    // Si el dispositivo tiene clientId estable, propagamos el rename a
+    // TODOS los sockets que comparten ese clientId (en el APK conviven
+    // el webview + AlertService nativo). Sin esto, el server eligía un
+    // único socket "ganador" via dedupe y, si era el AlertService
+    // nativo, el webview — que es el que persiste el nombre en
+    // localStorage — no se enteraba del cambio.
+    const targets = [];
+    if (info.clientId) {
+      for (const [sid, other] of clientsInfo) {
+        if (other.clientId === info.clientId) {
+          other.name = name;
+          other.lastSeen = Date.now();
+          targets.push(sid);
+        }
+      }
+    } else {
+      info.name = name;
+      info.lastSeen = Date.now();
+      targets.push(id);
+    }
     broadcastClients();
-    // Le decimos al cliente que cambió su nombre (lo guardará en
+    // Le decimos a los clientes que cambió su nombre (lo guardarán en
     // localStorage así sobrevive recargas).
-    io.to(id).emit("client:renamed", { name });
+    for (const sid of targets) {
+      io.to(sid).emit("client:renamed", { name });
+    }
   });
 
   socket.on("schedule:add", (payload) => {

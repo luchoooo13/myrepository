@@ -999,6 +999,12 @@
     stopSpeakingLoop();
     stopVibration();
     refreshAlertUnlockHint();
+    // Volvemos a "idle" así el server (y por ende el panel del host) ven
+    // al dispositivo como en escucha. Sin esto, lastClientState se queda
+    // en "alerting" y la dedupe de reportClientState() saltea el envío
+    // del próximo "alerting" en la siguiente alerta — el host vería al
+    // celu como verde aunque la alerta esté sonando.
+    reportClientState("idle");
   }
 
   function dismissLocally() {
