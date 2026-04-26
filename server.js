@@ -1214,11 +1214,32 @@ function startAlert(payload) {
   // silent window) en el momento del disparo. Va a parar al historial
   // como "destinatarios alcanzados". También guardamos los nombres para
   // que el host pueda ver qué dispositivos recibieron la alerta sonando.
+  // OJO: `clientsInfo` tiene UN entry por socket, no por dispositivo.
+  // En el APK conviven dos sockets por celu (el del webview y el del
+  // AlertService nativo) compartiendo el mismo clientId, así que si
+  // contamos crudo cada celu con APK aparece duplicado en recipients y
+  // su nombre sale repetido en deviceNames. Deduplicamos por clientId
+  // usando la misma prioridad de estado que `serializeClients()`.
   let recipients = 0;
   let silenced = 0;
   let paused = 0;
   const deviceNames = [];
+  const dedupByDevice = new Map();
   for (const info of clientsInfo.values()) {
+    const key = info.clientId || ("sock:" + info.id);
+    const prev = dedupByDevice.get(key);
+    if (!prev) {
+      dedupByDevice.set(key, info);
+      continue;
+    }
+    const pPrev = STATE_PRIORITY[prev.state] || 0;
+    const pCur = STATE_PRIORITY[info.state] || 0;
+    if (pCur > pPrev) dedupByDevice.set(key, info);
+    else if (pCur === pPrev && info.lastSeen > prev.lastSeen) {
+      dedupByDevice.set(key, info);
+    }
+  }
+  for (const info of dedupByDevice.values()) {
     if (info.state === "paused") {
       paused++;
     } else if (info.state === "silenced") {
