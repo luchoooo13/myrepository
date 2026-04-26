@@ -471,15 +471,15 @@ public class AlertService extends Service {
             }
         } catch (Exception ignored) {
         }
-        // Silencio horario (independiente de la pausa). Igual mostramos la
-        // alerta en pantalla (notificación + AlertActivity) — esto es lo
-        // que promete la pestaña Inicio: "este dispositivo no va a sonar
-        // (igual recibe la alerta para verla en pantalla, pero sin sirena
-        // ni voz)". Pasamos un flag a startAlertMedia para que omita
-        // sirena/voz/vibración/flash pero mantenga la UI.
-        final boolean silentMode = isInSilentWindowNow();
-        if (silentMode) {
-            Log.d(TAG, "Silencio horario activo: alerta visual sin sonido");
+        // Silencio horario (independiente de la pausa). Si estamos dentro
+        // de la franja, este dispositivo no hace NADA con la alerta: no
+        // suena, no vibra, no hace flash, no abre el AlertActivity, no
+        // muestra la notificación de alta prioridad. Queda como si no
+        // hubiera llegado. (El historial se guarda en el cliente web,
+        // que también recibe el alert:start por su propio socket.)
+        if (isInSilentWindowNow()) {
+            Log.d(TAG, "Silencio horario activo: alerta ignorada");
+            return;
         }
         // Overrides opcionales: el server puede pedir una sirena custom
         // (ej. simulacro) y/o que no reproduzcamos la voz aparte porque el

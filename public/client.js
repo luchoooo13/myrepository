@@ -1591,18 +1591,13 @@
       if (!alert.__test) addLocalHistoryEntry(alert);
       return;
     }
-    // Silenciar por horario: igual mostramos overlay y guardamos historial,
-    // pero le pasamos al APK / al webview que la silencie (sin sirena/voz/
-    // vibración). El cartel queda en pantalla para verlo si el usuario
-    // está mirando.
+    // Silenciar por horario: NO mostramos overlay, NO suena, NO vibra,
+    // NO hace flash. El dispositivo queda 100% en silencio durante la
+    // franja. Igual la guardamos en el historial local así el usuario
+    // puede revisar después qué alertas pasó si miraba.
     if (!alert.__test && isInSilentWindow()) {
-      const silenced = Object.assign({}, alert, {
-        muteSound: true,
-        muteVoice: true,
-        muteVibration: true,
-      });
       reportClientState("silenced");
-      showAlert(silenced);
+      addLocalHistoryEntry(alert);
       return;
     }
     showAlert(alert);
