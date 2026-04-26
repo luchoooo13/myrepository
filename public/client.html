@@ -68,6 +68,71 @@
             </div>
           </div>
 
+          <div class="card" id="deviceCard">
+            <div class="card__title">Nombre de este dispositivo</div>
+            <div class="card__body">
+              <p class="card__text">
+                Aparece en el panel del host para que sepan qué celular es éste.
+              </p>
+              <div class="device-name">
+                <input
+                  type="text"
+                  id="deviceNameInput"
+                  class="device-name__input"
+                  maxlength="60"
+                  placeholder="Ej: Aula 5to A"
+                />
+                <button class="btn btn--primary" id="deviceNameSaveBtn" type="button">
+                  Guardar
+                </button>
+              </div>
+              <p class="card__text" id="deviceNameStatus" hidden></p>
+            </div>
+          </div>
+
+          <div class="card" id="silentWindowCard">
+            <div class="card__title">Silenciar por horario</div>
+            <div class="card__body">
+              <p class="card__text">
+                En la franja horaria y los días que elijas, este dispositivo no
+                va a sonar (igual recibe la alerta para verla en pantalla, pero
+                sin sirena ni voz). Independiente de la pausa manual.
+              </p>
+              <label class="switch switch--row" for="silentEnabled">
+                <span class="switch__row-text">
+                  <strong>Silenciar en este horario</strong>
+                  <small id="silentSummary">Desactivado</small>
+                </span>
+                <span class="switch__row-toggle">
+                  <input type="checkbox" id="silentEnabled" />
+                  <span class="switch__slider" aria-hidden="true"></span>
+                </span>
+              </label>
+              <div class="silent-fields" id="silentFields" hidden>
+                <div class="silent-time">
+                  <label class="silent-time__field">
+                    <span>Desde</span>
+                    <input type="time" id="silentFrom" value="22:00" />
+                  </label>
+                  <label class="silent-time__field">
+                    <span>Hasta</span>
+                    <input type="time" id="silentTo" value="07:00" />
+                  </label>
+                </div>
+                <div class="silent-days" id="silentDays">
+                  <button type="button" class="day-chip" data-day="1">Lun</button>
+                  <button type="button" class="day-chip" data-day="2">Mar</button>
+                  <button type="button" class="day-chip" data-day="3">Mié</button>
+                  <button type="button" class="day-chip" data-day="4">Jue</button>
+                  <button type="button" class="day-chip" data-day="5">Vie</button>
+                  <button type="button" class="day-chip" data-day="6">Sáb</button>
+                  <button type="button" class="day-chip" data-day="0">Dom</button>
+                </div>
+                <p class="card__text card__text--mini" id="silentStatus" hidden></p>
+              </div>
+            </div>
+          </div>
+
           <div class="card">
             <div class="card__title">Estado</div>
             <div class="card__body">
@@ -102,15 +167,16 @@
           <div class="tab__header">
             <h2 class="tab__title">Historial</h2>
             <button class="btn btn--ghost btn--small" id="clearHistoryBtn">
-              Borrar
+              Borrar local
             </button>
           </div>
           <p class="tab__hint">
-            Últimas 50 alertas recibidas en este dispositivo.
+            Últimas 50 alertas registradas por el servidor (visible para todos
+            los dispositivos). Tocá una para ver el detalle.
           </p>
           <div class="history" id="historyList">
             <div class="history__empty">
-              Todavía no recibiste ninguna alerta.
+              Todavía no se registraron alertas.
             </div>
           </div>
         </section>

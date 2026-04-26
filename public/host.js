@@ -55,6 +55,9 @@
   const pwdSubmitEl = document.getElementById("pwdSubmit");
   const pwdStatusEl = document.getElementById("pwdStatus");
   const pwdRoleLabelEl = document.getElementById("pwdRoleLabel");
+  const devicesListEl = document.getElementById("devicesList");
+  const devicesAdminHintEl = document.getElementById("devicesAdminHint");
+  const historyListEl = document.getElementById("historyList");
 
   let currentAlert = null;
   let tickTimer = null;
@@ -260,6 +263,14 @@
     const n = payload && typeof payload.count === "number" ? payload.count : 0;
     clientsCountEl.textContent = String(n);
   });
+  socket.on("clients:list", (payload) => {
+    if (!payload || !Array.isArray(payload.clients)) return;
+    renderDevices(payload.clients);
+  });
+  socket.on("alerts:history", (payload) => {
+    if (!payload || !Array.isArray(payload.history)) return;
+    renderAlertHistory(payload.history);
+  });
   socket.on("recommendations:update", (payload) => {
     if (!payload || typeof payload.recommendations !== "object") return;
     recsState = payload.recommendations;
@@ -460,6 +471,199 @@
     recsSection.hidden = false;
     loadRecsInitial();
   }
+  // --- Dispositivos ---------------------------------------------------
+  // Mostramos cada cliente con un indicador de estado (idle/alerting/
+  // silenced/paused), su IP corta y, si es admin, un botón de "renombrar".
+  // Los nombres son los que el cliente carga en localStorage; el rename
+  // dura sólo hasta que el cliente vuelva a mandar su identify.
+  function stateBadge(state) {
+    if (state === "alerting")
+      return '<span class="dev__state dev__state--alert">🔴 sonando</span>';
+    if (state === "silenced")
+      return '<span class="dev__state dev__state--silenced">🌙 silenciado</span>';
+    if (state === "paused")
+      return '<span class="dev__state dev__state--paused">⏸ pausado</span>';
+    return '<span class="dev__state dev__state--idle">🟢 escuchando</span>';
+  }
+
+  function silentWindowSummary(sw) {
+    if (!sw || !sw.enabled) return "Sin silencio horario";
+    const days = (sw.days || []).slice().sort();
+    const names = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+    let dayStr;
+    if (days.length === 0) dayStr = "ningún día";
+    else if (days.length === 7) dayStr = "todos los días";
+    else dayStr = days.map((d) => names[d]).join("·");
+    return "Silencio " + (sw.from || "?") + "→" + (sw.to || "?") + " (" + dayStr + ")";
+  }
+
+  function renderDevices(list) {
+    if (!devicesListEl) return;
+    if (devicesAdminHintEl) devicesAdminHintEl.hidden = !isAdmin;
+    if (!list || list.length === 0) {
+      devicesListEl.innerHTML =
+        '<div class="host__devices-empty">No hay dispositivos conectados.</div>';
+      return;
+    }
+    devicesListEl.innerHTML = "";
+    // Orden: primero los que están sonando, después los normales, después
+    // pausados/silenciados al fondo.
+    const order = { alerting: 0, idle: 1, silenced: 2, paused: 3 };
+    const sorted = list.slice().sort((a, b) => {
+      const oa = order[a.state] != null ? order[a.state] : 9;
+      const ob = order[b.state] != null ? order[b.state] : 9;
+      if (oa !== ob) return oa - ob;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+    for (const c of sorted) {
+      const card = document.createElement("div");
+      card.className = "host__devices-card dev";
+      card.dataset.state = c.state || "idle";
+
+      const top = document.createElement("div");
+      top.className = "dev__top";
+      top.innerHTML =
+        '<div class="dev__name">' + escapeHtml(c.name || "(sin nombre)") + "</div>" +
+        stateBadge(c.state || "idle");
+      card.appendChild(top);
+
+      const meta = document.createElement("div");
+      meta.className = "dev__meta";
+      const ipStr = c.ip ? "IP " + escapeHtml(c.ip) : "";
+      const swStr = escapeHtml(silentWindowSummary(c.silentWindow));
+      meta.innerHTML =
+        (ipStr ? '<span>' + ipStr + "</span>" : "") +
+        '<span>' + swStr + "</span>";
+      card.appendChild(meta);
+
+      if (isAdmin) {
+        const actions = document.createElement("div");
+        actions.className = "dev__actions";
+        const renameBtn = document.createElement("button");
+        renameBtn.type = "button";
+        renameBtn.className = "btn btn--mini";
+        renameBtn.textContent = "✏️ Renombrar";
+        renameBtn.addEventListener("click", () => {
+          const next = window.prompt(
+            "Nuevo nombre para este dispositivo:",
+            c.name || "",
+          );
+          if (next == null) return;
+          const trimmed = next.trim().slice(0, 60);
+          if (!trimmed) return;
+          socket.emit("clients:rename", { id: c.id, name: trimmed });
+        });
+        actions.appendChild(renameBtn);
+        card.appendChild(actions);
+      }
+
+      devicesListEl.appendChild(card);
+    }
+  }
+
+  // --- Historial de alertas (lado host) -------------------------------
+  function formatHistoryDateTime(ms) {
+    try {
+      return new Intl.DateTimeFormat("es-AR", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).format(new Date(ms));
+    } catch {
+      return new Date(ms).toLocaleString("es-AR");
+    }
+  }
+
+  function formatHistoryDuration(ms) {
+    if (!ms || ms < 0) return "—";
+    const total = Math.round(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    if (m > 0) return m + "m " + s + "s";
+    return s + " s";
+  }
+
+  function roleLabel(r) {
+    if (r === "admin") return "Administrador";
+    if (r === "operator") return "Preceptor";
+    if (r === "schedule") return "Programada";
+    if (r === "system") return "Sistema";
+    return r || "—";
+  }
+
+  function renderAlertHistory(list) {
+    if (!historyListEl) return;
+    if (!list || list.length === 0) {
+      historyListEl.innerHTML =
+        '<div class="host__history-empty">Todavía no se registraron alertas.</div>';
+      return;
+    }
+    historyListEl.innerHTML = "";
+    for (const e of list) {
+      const det = document.createElement("details");
+      det.className = "host__history-item";
+      if (e.type === "simulacro") det.classList.add("is-simulacro");
+      const sum = document.createElement("summary");
+      sum.className = "host__history-item-summary";
+      const recCount = typeof e.recipients === "number" ? e.recipients : 0;
+      sum.innerHTML =
+        '<div class="host__history-item-main">' +
+        '<div class="host__history-item-type">' +
+        escapeHtml(e.label || e.type) + "</div>" +
+        '<div class="host__history-item-time">' +
+        formatHistoryDateTime(e.startedAt) + "</div>" +
+        "</div>" +
+        '<div class="host__history-item-count">' + recCount + " 📺</div>";
+      det.appendChild(sum);
+
+      const body = document.createElement("div");
+      body.className = "host__history-item-body";
+      const rows = [];
+      rows.push(["Disparada por", roleLabel(e.triggeredBy)]);
+      if (e.triggeredByName) rows.push(["Origen", e.triggeredByName]);
+      let r = recCount + " dispositivo" + (recCount === 1 ? "" : "s");
+      if (typeof e.silenced === "number" && e.silenced > 0) {
+        r += " · " + e.silenced + " silenciado" + (e.silenced === 1 ? "" : "s");
+      }
+      if (typeof e.paused === "number" && e.paused > 0) {
+        r += " · " + e.paused + " pausado" + (e.paused === 1 ? "" : "s");
+      }
+      rows.push(["Recibido por", r]);
+      if (e.endedAt && e.durationMs) {
+        const reason =
+          e.endedReason === "timeout"
+            ? " (terminó sola)"
+            : e.endedReason === "manual"
+              ? " (cortada manualmente)"
+              : "";
+        rows.push(["Duración", formatHistoryDuration(e.durationMs) + reason]);
+      }
+      for (const [k, v] of rows) {
+        const row = document.createElement("div");
+        row.className = "host__history-item-row";
+        row.innerHTML =
+          '<span class="host__history-item-row-label">' + escapeHtml(k) + "</span>" +
+          '<span class="host__history-item-row-value">' + escapeHtml(v) + "</span>";
+        body.appendChild(row);
+      }
+      if (Array.isArray(e.deviceNames) && e.deviceNames.length > 0) {
+        const list2 = document.createElement("div");
+        list2.className = "host__history-item-row";
+        list2.innerHTML =
+          '<span class="host__history-item-row-label">Dispositivos</span>' +
+          '<span class="host__history-item-row-value">' +
+          e.deviceNames.map((n) => escapeHtml(n)).join(", ") +
+          "</span>";
+        body.appendChild(list2);
+      }
+      det.appendChild(body);
+      historyListEl.appendChild(det);
+    }
+  }
+
   // --- Cambio de contraseña -----------------------------------------
   function showPwdStatus(msg, level) {
     if (!pwdStatusEl) return;

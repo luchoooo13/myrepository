@@ -40,6 +40,33 @@
       <!-- botones inyectados por host.js -->
     </section>
 
+    <section class="host__devices" id="devicesSection">
+      <h2 class="host__devices-title">Dispositivos conectados</h2>
+      <p class="host__devices-hint">
+        Todos los celulares / PCs / TVs que están escuchando alertas en este
+        momento. El estado se actualiza solo: 🟢 escuchando, 🔴 alerta sonando,
+        🌙 silenciado por horario, ⏸ pausado por el usuario.
+        <span id="devicesAdminHint" hidden>
+          Como admin, podés tocar el lápiz para renombrar un dispositivo.
+        </span>
+      </p>
+      <div class="host__devices-list" id="devicesList">
+        <div class="host__devices-empty">No hay dispositivos conectados.</div>
+      </div>
+    </section>
+
+    <section class="host__history" id="historySection">
+      <h2 class="host__history-title">Historial de alertas</h2>
+      <p class="host__history-hint">
+        Las últimas alertas que se dispararon en el sistema (max. 50). Tocá
+        una para ver quién la disparó, cuántos dispositivos la recibieron y
+        cuáles estaban silenciados.
+      </p>
+      <div class="host__history-list" id="historyList">
+        <div class="host__history-empty">Todavía no se registraron alertas.</div>
+      </div>
+    </section>
+
     <section class="host__scheduler">
       <h2 class="host__scheduler-title">Programar alerta (hora Buenos Aires)</h2>
       <form class="host__scheduler-form" id="scheduleForm" autocomplete="off">

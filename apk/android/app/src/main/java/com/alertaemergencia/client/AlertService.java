@@ -87,6 +87,19 @@ public class AlertService extends Service {
     // memoria y al reconectar el socket volvía a disparar la alerta. Con esto
     // sobrevive a restarts del proceso.
     public static final String KEY_DISMISSED_STARTED_AT = "dismissed_started_at";
+    // Silencio horario por dispositivo (igual que en el cliente web). Si
+    // está activo y la hora local cae dentro del rango y el día está en
+    // la lista, descartamos el alert:start sin sonar (mismo comportamiento
+    // que la pausa pero independiente).
+    public static final String KEY_SILENT_ENABLED = "silent_enabled";
+    public static final String KEY_SILENT_FROM = "silent_from"; // "HH:MM"
+    public static final String KEY_SILENT_TO = "silent_to";     // "HH:MM"
+    public static final String KEY_SILENT_DAYS = "silent_days"; // CSV "0,1,2..6"
+    // Nombre que el host ve en su panel de Dispositivos. Lo setea el
+    // usuario desde la pestaña Inicio del cliente web. Lo guardamos sólo
+    // para enviarlo al server cuando el JS no esté disponible (no se usa
+    // en el servicio nativo más allá de eso).
+    public static final String KEY_DEVICE_NAME = "device_name";
 
     private static final int NOTIF_ONGOING = 101;
     private static final int NOTIF_ALERT = 102;
@@ -105,6 +118,11 @@ public class AlertService extends Service {
 
     private volatile boolean alertActive = false;
     private String currentVoiceUrl;
+    // Tipo de la alerta en curso (intruso, simulacro, fuego, etc.). Lo
+    // usamos para aplicar multiplicadores de volumen específicos por tipo
+    // (intruso suena bajo para no alertar al intruso, voz un toque más
+    // alta en otros tipos para que se entienda).
+    private String currentAlertType;
     // startedAt (timestamp del server) de la alerta actualmente mostrada.
     private long currentAlertStartedAt = 0;
     // Runnable del timeout del test alert (5s). Lo guardamos para poder
@@ -403,6 +421,14 @@ public class AlertService extends Service {
             }
         } catch (Exception ignored) {
         }
+        // Silencio horario (independiente de la pausa). Si el usuario lo
+        // configuró desde la pestaña Inicio, no sonamos pero igual seguimos
+        // recibiendo del server (no hace falta hacer nada extra; sólo
+        // descartamos esta alerta).
+        if (isInSilentWindowNow()) {
+            Log.d(TAG, "Alerta ignorada (silencio horario activo)");
+            return;
+        }
         // Overrides opcionales: el server puede pedir una sirena custom
         // (ej. simulacro) y/o que no reproduzcamos la voz aparte porque el
         // mp3 de la sirena ya incluye la locución.
@@ -448,6 +474,84 @@ public class AlertService extends Service {
     }
 
     /**
+     * Devuelve true si la hora local actual cae dentro del silencio horario
+     * configurado por el usuario. Soporta rangos que cruzan medianoche
+     * (ej. 22:00 → 07:00) y la lista de días (0=Dom, 1=Lun, …, 6=Sáb).
+     * Si no está habilitado, devuelve false.
+     */
+    private boolean isInSilentWindowNow() {
+        try {
+            SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+            if (!sp.getBoolean(KEY_SILENT_ENABLED, false)) return false;
+            String from = sp.getString(KEY_SILENT_FROM, "");
+            String to = sp.getString(KEY_SILENT_TO, "");
+            String daysCsv = sp.getString(KEY_SILENT_DAYS, "");
+            int fromMin = parseHHMM(from);
+            int toMin = parseHHMM(to);
+            if (fromMin < 0 || toMin < 0) return false;
+            java.util.Calendar c = java.util.Calendar.getInstance();
+            int dow = c.get(java.util.Calendar.DAY_OF_WEEK) - 1; // 0..6
+            int nowMin = c.get(java.util.Calendar.HOUR_OF_DAY) * 60
+                    + c.get(java.util.Calendar.MINUTE);
+            // Días seleccionados (CSV "0,1,4"). Si está vacío, no aplica.
+            boolean dayMatch = false;
+            if (daysCsv != null && !daysCsv.isEmpty()) {
+                for (String tok : daysCsv.split(",")) {
+                    try {
+                        if (Integer.parseInt(tok.trim()) == dow) {
+                            dayMatch = true;
+                            break;
+                        }
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+            if (!dayMatch) return false;
+            // Rango horario: si from < to, ventana directa; si from >= to,
+            // cruza medianoche (ej. 22:00 → 07:00 = 22..23:59 ó 0..06:59).
+            if (fromMin == toMin) return false;
+            if (fromMin < toMin) {
+                return nowMin >= fromMin && nowMin < toMin;
+            }
+            return nowMin >= fromMin || nowMin < toMin;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int parseHHMM(String s) {
+        if (s == null) return -1;
+        int idx = s.indexOf(':');
+        if (idx <= 0 || idx >= s.length() - 1) return -1;
+        try {
+            int h = Integer.parseInt(s.substring(0, idx));
+            int m = Integer.parseInt(s.substring(idx + 1));
+            if (h < 0 || h > 23 || m < 0 || m > 59) return -1;
+            return h * 60 + m;
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Multiplicadores de volumen por tipo de alerta. Replicamos lo mismo
+     * que el cliente web (sirenVolumeMultiplier / voiceVolumeMultiplier):
+     *  - intruso: sirena 0.3, voz 0.4 (no alertar al intruso).
+     *  - simulacro: 1.0 / 1.0 (volumen normal de prueba).
+     *  - resto: 1.0 / 1.15 (voz un poco más alta para que se entienda).
+     */
+    private float sirenVolumeMultiplier(String type) {
+        if ("intruso".equalsIgnoreCase(type)) return 0.3f;
+        return 1.0f;
+    }
+
+    private float voiceVolumeMultiplier(String type) {
+        if ("intruso".equalsIgnoreCase(type)) return 0.4f;
+        if ("simulacro".equalsIgnoreCase(type)) return 1.0f;
+        return 1.15f;
+    }
+
+    /**
      * Convierte una URL relativa recibida del server (ej. "/sounds/x.mp3") a
      * absoluta usando serverOrigin. Si ya viene con http(s) la devuelve tal cual.
      */
@@ -488,6 +592,7 @@ public class AlertService extends Service {
         }
         alertActive = true;
         currentAlertStartedAt = startedAt;
+        currentAlertType = type;
         acquireWakeLock();
         // Leemos los toggles del usuario (pestaña Ajustes del cliente web).
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -508,6 +613,7 @@ public class AlertService extends Service {
         Log.d(TAG, "stopAlertMedia: " + reason);
         alertActive = false;
         currentAlertStartedAt = 0;
+        currentAlertType = null;
         stopSiren();
         stopVoiceLoop();
         stopVibrationLoop();
@@ -565,6 +671,13 @@ public class AlertService extends Service {
                 int target = Math.round((pct / 100f) * max);
                 if (target < 1 && pct > 0) target = 1;
                 am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
+            }
+            // Multiplicador por tipo de alerta (intruso suena bajo, resto
+            // a 1.0). Se aplica sobre el stream ya configurado.
+            try {
+                float mul = sirenVolumeMultiplier(currentAlertType);
+                sirenPlayer.setVolume(mul, mul);
+            } catch (Exception ignored) {
             }
             if (usedRemote) {
                 // Para URLs remotas usamos prepareAsync para no bloquear el hilo.
@@ -641,6 +754,13 @@ public class AlertService extends Service {
             voicePlayer.setLooping(false);
             voicePlayer.setOnPreparedListener(mp -> {
                 try {
+                    // Multiplicador por tipo (intruso bajo, resto leve
+                    // boost para que se entienda mejor que la sirena).
+                    float mul = voiceVolumeMultiplier(currentAlertType);
+                    try {
+                        mp.setVolume(mul, mul);
+                    } catch (Exception ignored) {
+                    }
                     if (alertActive) mp.start();
                 } catch (IllegalStateException ignored) {
                 }

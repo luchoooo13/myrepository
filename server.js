@@ -394,6 +394,136 @@ app.post("/recommendations/reset", (req, res) => {
   res.json({ ok: true, recommendations: serializeRecommendations() });
 });
 
+// --- Historial de alertas disparadas ----------------------------------
+// Guardamos las últimas 50 alertas que efectivamente arrancaron, con
+// metadatos: tipo, label, quién la disparó (rol), timestamp, cuántos
+// dispositivos receptores había conectados, y si se cortó manualmente o
+// por timeout. Lo persistimos a disco para que sobreviva reinicios y los
+// hosts puedan ver el historial post-mortem.
+const ALERTS_HISTORY_FILE = path.join(__dirname, "alerts-history.json");
+const ALERTS_HISTORY_LIMIT = 50;
+let alertsHistory = [];
+try {
+  const raw = fs.readFileSync(ALERTS_HISTORY_FILE, "utf8");
+  const parsed = JSON.parse(raw);
+  if (Array.isArray(parsed)) alertsHistory = parsed.slice(0, ALERTS_HISTORY_LIMIT);
+} catch {
+  alertsHistory = [];
+}
+function saveAlertsHistory() {
+  try {
+    fs.writeFileSync(
+      ALERTS_HISTORY_FILE,
+      JSON.stringify(alertsHistory, null, 2),
+    );
+  } catch (err) {
+    console.warn(
+      "[history] no se pudo guardar alerts-history.json:",
+      err.message,
+    );
+  }
+}
+function broadcastAlertsHistory() {
+  io.emit("alerts:history", { history: alertsHistory });
+}
+function pushAlertHistory(entry) {
+  alertsHistory.unshift(entry);
+  if (alertsHistory.length > ALERTS_HISTORY_LIMIT) {
+    alertsHistory.length = ALERTS_HISTORY_LIMIT;
+  }
+  saveAlertsHistory();
+  broadcastAlertsHistory();
+}
+
+app.get("/alerts-history", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ history: alertsHistory });
+});
+
+// --- Estado en vivo de dispositivos cliente ---------------------------
+// Cada socket de /client se identifica con un nombre (default "Cliente
+// {n}") y reporta su estado: "idle" (escuchando), "alerting" (sonando una
+// alerta ahora mismo), o "silenced" (en silent window). Mantenemos un
+// Map socket.id -> info y se lo broadcastleemos a los hosts cada vez que
+// cambia, así pueden ver quién está sonando ahora.
+const clientsInfo = new Map(); // socket.id -> {id, name, state, silentWindow, lastSeen, ip}
+let nextClientNum = 1;
+
+function shortenIp(ip) {
+  if (!ip) return "";
+  if (ip.startsWith("::ffff:")) ip = ip.slice(7);
+  return ip;
+}
+
+function sanitizeDeviceName(raw) {
+  if (typeof raw !== "string") return "";
+  const t = raw.trim().slice(0, 60);
+  return t;
+}
+
+function sanitizeSilentWindow(raw) {
+  // { enabled: bool, from: "HH:MM", to: "HH:MM", days: [0..6] }
+  // 0 = domingo, 1 = lunes, ..., 6 = sábado (igual que getDay()).
+  if (!raw || typeof raw !== "object") return null;
+  const enabled = !!raw.enabled;
+  const from = typeof raw.from === "string" ? raw.from.slice(0, 5) : "";
+  const to = typeof raw.to === "string" ? raw.to.slice(0, 5) : "";
+  const fromOk = /^\d{2}:\d{2}$/.test(from);
+  const toOk = /^\d{2}:\d{2}$/.test(to);
+  let days = [];
+  if (Array.isArray(raw.days)) {
+    const seen = new Set();
+    for (const d of raw.days) {
+      const n = Number(d);
+      if (!Number.isInteger(n) || n < 0 || n > 6) continue;
+      if (seen.has(n)) continue;
+      seen.add(n);
+      days.push(n);
+    }
+    days.sort((a, b) => a - b);
+  }
+  return {
+    enabled: enabled && fromOk && toOk && days.length > 0,
+    from: fromOk ? from : "",
+    to: toOk ? to : "",
+    days,
+  };
+}
+
+function serializeClients() {
+  const out = [];
+  for (const info of clientsInfo.values()) {
+    out.push({
+      id: info.id,
+      name: info.name,
+      state: info.state,
+      silentWindow: info.silentWindow,
+      lastSeen: info.lastSeen,
+      ip: info.ip,
+    });
+  }
+  // Orden: primero los que están en alerta, después por nombre.
+  out.sort((a, b) => {
+    if (a.state === "alerting" && b.state !== "alerting") return -1;
+    if (b.state === "alerting" && a.state !== "alerting") return 1;
+    return String(a.name).localeCompare(String(b.name));
+  });
+  return out;
+}
+
+function broadcastClients() {
+  io.emit("clients:list", { clients: serializeClients() });
+}
+
+function setClientState(socketId, state) {
+  const info = clientsInfo.get(socketId);
+  if (!info) return;
+  if (info.state === state) return;
+  info.state = state;
+  info.lastSeen = Date.now();
+  broadcastClients();
+}
+
 app.post("/host-login", (req, res) => {
   const pwd =
     req.body && typeof req.body.password === "string" ? req.body.password : "";
@@ -949,8 +1079,32 @@ function clearAlertTimer() {
 
 function stopAlert(reason = "manual") {
   clearAlertTimer();
+  // Antes de borrar currentAlert agregamos una entrada al historial con
+  // el motivo de cierre ("manual" o "timeout") y duración real.
+  if (currentAlert && currentAlert.historyId) {
+    const idx = alertsHistory.findIndex((h) => h.id === currentAlert.historyId);
+    if (idx !== -1) {
+      alertsHistory[idx].endedAt = Date.now();
+      alertsHistory[idx].endedReason = reason;
+      alertsHistory[idx].durationMs =
+        alertsHistory[idx].endedAt - alertsHistory[idx].startedAt;
+      saveAlertsHistory();
+      broadcastAlertsHistory();
+    }
+  }
   currentAlert = null;
   io.emit("alert:stop", { reason, at: Date.now() });
+  // Resetear estado "alerting" → "idle" en todos los clientes que estaban
+  // sonando. El cliente igual emite client:state al cerrar la alerta, pero
+  // por las dudas (el usuario cierra la app antes de que llegue) lo
+  // hacemos también del lado del server.
+  for (const info of clientsInfo.values()) {
+    if (info.state === "alerting") {
+      info.state = "idle";
+      info.lastSeen = Date.now();
+    }
+  }
+  broadcastClients();
 }
 
 // Overrides por tipo de alerta: algunos tipos traen una sirena propia que
@@ -963,6 +1117,8 @@ const ALERT_OVERRIDES = {
   },
 };
 
+let nextHistoryId = 1;
+
 function startAlert(payload) {
   clearAlertTimer();
   // Usamos realNow() (no Date.now()) así startedAt/endsAt están en la
@@ -972,6 +1128,25 @@ function startAlert(payload) {
   const now = realNow();
   const override = ALERT_OVERRIDES[payload.type] || {};
   const recForType = recommendations[payload.type] || null;
+  // Contamos cuántos clientes estaban escuchando (no en pausa ni en
+  // silent window) en el momento del disparo. Va a parar al historial
+  // como "destinatarios alcanzados". También guardamos los nombres para
+  // que el host pueda ver qué dispositivos recibieron la alerta sonando.
+  let recipients = 0;
+  let silenced = 0;
+  let paused = 0;
+  const deviceNames = [];
+  for (const info of clientsInfo.values()) {
+    if (info.state === "paused") {
+      paused++;
+    } else if (info.state === "silenced") {
+      silenced++;
+    } else {
+      recipients++;
+      if (info.name) deviceNames.push(info.name);
+    }
+  }
+  const historyId = nextHistoryId++;
   currentAlert = {
     type: payload.type,
     label: payload.label,
@@ -980,6 +1155,8 @@ function startAlert(payload) {
     durationMs: ALERT_DURATION_MS,
     sirenUrl: override.sirenUrl || null,
     skipVoice: !!override.skipVoice,
+    historyId,
+    triggeredBy: payload.triggeredBy || "system",
     // Incluimos las recomendaciones vigentes en el mismo payload para que
     // el cliente las pueda mostrar debajo del cartel negro sin tener que
     // volver a pegar el GET /recommendations (además así gana el snapshot
@@ -990,6 +1167,22 @@ function startAlert(payload) {
         ? recForType.lines.slice()
         : [],
   };
+  pushAlertHistory({
+    id: historyId,
+    type: currentAlert.type,
+    label: currentAlert.label,
+    startedAt: currentAlert.startedAt,
+    endedAt: null,
+    endedReason: null,
+    durationMs: null,
+    triggeredBy: currentAlert.triggeredBy,
+    triggeredByName: payload.triggeredByName || null,
+    recipients,
+    silenced,
+    paused,
+    deviceNames,
+    recommendations: currentAlert.recommendations,
+  });
   io.emit("alert:start", currentAlert);
   // Notificación push a iPhones / Androids con la PWA instalada y
   // notificaciones permitidas. Llega aunque la app esté cerrada o el
@@ -1040,20 +1233,83 @@ io.on("connection", (socket) => {
   if (currentAlert && realNow() < currentAlert.endsAt) {
     socket.emit("alert:start", currentAlert);
   }
-  // Sincronizar lista de programaciones
+  // Sincronizar lista de programaciones, contadores y estado de
+  // dispositivos. Los hosts también reciben la lista completa de clients
+  // y el historial reciente al conectarse.
   socket.emit("schedule:list", serializeSchedules());
   socket.emit("clients:count", { count: clientSockets.size });
+  if (isHost(socket)) {
+    socket.emit("clients:list", { clients: serializeClients() });
+    socket.emit("alerts:history", { history: alertsHistory });
+  }
 
   socket.on("role:client", () => {
     if (!clientSockets.has(socket.id)) {
       clientSockets.add(socket.id);
       broadcastClientCount();
     }
+    // Registramos al cliente en clientsInfo si todavía no lo estaba.
+    // Esto se da, por ejemplo, cuando el APK manda role:client antes
+    // que client:identify (que el web sí manda en el mismo momento).
+    if (!clientsInfo.has(socket.id)) {
+      const ip = shortenIp(
+        (socket.handshake && socket.handshake.address) || "",
+      );
+      clientsInfo.set(socket.id, {
+        id: socket.id,
+        name: "Cliente " + nextClientNum++,
+        state: "idle",
+        silentWindow: { enabled: false, from: "", to: "", days: [] },
+        lastSeen: Date.now(),
+        ip,
+      });
+      broadcastClients();
+    }
+  });
+
+  // El cliente nos manda su nombre custom + silent window apenas se conecta
+  // (y cuando el usuario los edita). Persistencia es lado-cliente
+  // (localStorage); el server sólo lo refleja en clientsInfo para que los
+  // hosts lo vean.
+  socket.on("client:identify", (payload) => {
+    let info = clientsInfo.get(socket.id);
+    if (!info) {
+      const ip = shortenIp(
+        (socket.handshake && socket.handshake.address) || "",
+      );
+      info = {
+        id: socket.id,
+        name: "Cliente " + nextClientNum++,
+        state: "idle",
+        silentWindow: { enabled: false, from: "", to: "", days: [] },
+        lastSeen: Date.now(),
+        ip,
+      };
+      clientsInfo.set(socket.id, info);
+    }
+    if (payload && typeof payload === "object") {
+      const name = sanitizeDeviceName(payload.name);
+      if (name) info.name = name;
+      const sw = sanitizeSilentWindow(payload.silentWindow);
+      if (sw) info.silentWindow = sw;
+    }
+    info.lastSeen = Date.now();
+    broadcastClients();
+  });
+
+  socket.on("client:state", (payload) => {
+    if (!payload || typeof payload.state !== "string") return;
+    const allowed = ["idle", "alerting", "silenced", "paused"];
+    if (!allowed.includes(payload.state)) return;
+    setClientState(socket.id, payload.state);
   });
 
   socket.on("disconnect", () => {
     if (clientSockets.delete(socket.id)) {
       broadcastClientCount();
+    }
+    if (clientsInfo.delete(socket.id)) {
+      broadcastClients();
     }
   });
 
@@ -1067,12 +1323,35 @@ io.on("connection", (socket) => {
       typeof payload.label === "string" && payload.label.trim().length > 0
         ? payload.label.trim()
         : payload.type;
-    startAlert({ type: payload.type, label });
+    startAlert({
+      type: payload.type,
+      label,
+      triggeredBy: socket.data.role || "host",
+    });
   });
 
   socket.on("alert:stop", () => {
     if (!isHost(socket)) return;
     stopAlert("manual");
+  });
+
+  // El admin puede renombrar un dispositivo desde el panel /host. Cambio
+  // visual sólo (no se persiste; el cliente sigue mandando su nombre
+  // local en el próximo identify).
+  socket.on("clients:rename", (payload) => {
+    if (!isHost(socket)) return;
+    if (!payload || typeof payload !== "object") return;
+    const id = typeof payload.id === "string" ? payload.id : "";
+    const name = sanitizeDeviceName(payload.name);
+    if (!id || !name) return;
+    const info = clientsInfo.get(id);
+    if (!info) return;
+    info.name = name;
+    info.lastSeen = Date.now();
+    broadcastClients();
+    // Le decimos al cliente que cambió su nombre (lo guardará en
+    // localStorage así sobrevive recargas).
+    io.to(id).emit("client:renamed", { name });
   });
 
   socket.on("schedule:add", (payload) => {

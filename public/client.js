@@ -38,6 +38,16 @@
 
   const historyListEl = document.getElementById("historyList");
   const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+  const deviceNameInput = document.getElementById("deviceNameInput");
+  const deviceNameSaveBtn = document.getElementById("deviceNameSaveBtn");
+  const deviceNameStatus = document.getElementById("deviceNameStatus");
+  const silentEnabled = document.getElementById("silentEnabled");
+  const silentFields = document.getElementById("silentFields");
+  const silentFromEl = document.getElementById("silentFrom");
+  const silentToEl = document.getElementById("silentTo");
+  const silentDaysEl = document.getElementById("silentDays");
+  const silentSummary = document.getElementById("silentSummary");
+  const silentStatus = document.getElementById("silentStatus");
   const pushCard = document.getElementById("pushCard");
   const pushEnableBtn = document.getElementById("pushEnableBtn");
   const pushHelp = document.getElementById("pushHelp");
@@ -79,9 +89,30 @@
   const SIREN_SRC = "/sounds/siren.mp3";
   const VOICE_BASE = "/sounds/voice/";
   const VOICE_REPEAT_MS = 5000;
-  const HISTORY_KEY = "alertas.history.v1";
+  const HISTORY_KEY = "alertas.history.v1"; // legacy local cache
   const SETTINGS_KEY = "alertas.settings.v1";
+  const DEVICE_KEY = "alertas.device.v1";
+  const SILENT_KEY = "alertas.silent.v1";
   const HISTORY_MAX = 50;
+
+  // Volúmenes por tipo de alerta. El usuario puede bajarlos con el slider
+  // global de Ajustes; estos multiplicadores se aplican al final.
+  // - intruso: tiene que ser silencioso para no avisar al intruso de
+  //   que la alerta llegó. Se baja la sirena al 30% (queda audible para
+  //   los que están cerca pero no para alguien lejos).
+  // - simulacro: queda al 100% (es prueba, queremos sonido normal).
+  // - resto: la voz se sube un poquito por encima del slider (115%) para
+  //   asegurar que se entienda bien la indicación, ya que el usuario
+  //   suele tener el volumen del celu bajo.
+  function sirenVolumeMultiplier(type) {
+    if (type === "intruso") return 0.3;
+    return 1;
+  }
+  function voiceVolumeMultiplier(type) {
+    if (type === "intruso") return 0.4;
+    if (type === "simulacro") return 1;
+    return 1.15;
+  }
 
   // --- Settings --------------------------------------------------------
   const defaultSettings = {
@@ -310,9 +341,16 @@
   }
 
   function applyVolumeToAudio() {
-    const v = Math.max(0, Math.min(1, settings.volume / 100));
-    if (sirenAudio) sirenAudio.volume = v;
-    if (voiceAudio) voiceAudio.volume = v;
+    const base = Math.max(0, Math.min(1, settings.volume / 100));
+    const type = currentAlert ? currentAlert.type : null;
+    if (sirenAudio) {
+      const m = sirenVolumeMultiplier(type);
+      sirenAudio.volume = Math.max(0, Math.min(1, base * m));
+    }
+    if (voiceAudio) {
+      const m = voiceVolumeMultiplier(type);
+      voiceAudio.volume = Math.max(0, Math.min(1, base * m));
+    }
   }
 
   function applyStrobeClass() {
@@ -320,7 +358,13 @@
   }
 
   // --- Historial -------------------------------------------------------
-  function loadHistory() {
+  // El historial viene del server (último 50 alertas globales) y se
+  // empuja vía socket "alerts:history". Como fallback (caso APK con app
+  // legacy o cliente recién conectado) mantenemos también un cache local
+  // en localStorage que se actualiza cuando llega una alert:start.
+  let serverHistory = [];
+
+  function loadLocalHistory() {
     try {
       const raw = localStorage.getItem(HISTORY_KEY);
       if (!raw) return [];
@@ -332,7 +376,7 @@
     }
   }
 
-  function saveHistory(list) {
+  function saveLocalHistory(list) {
     try {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, HISTORY_MAX)));
     } catch {
@@ -340,20 +384,25 @@
     }
   }
 
-  function addHistoryEntry(alert) {
+  function addLocalHistoryEntry(alert) {
     if (!alert || alert.__test) return;
-    const list = loadHistory();
+    const list = loadLocalHistory();
     const entry = {
       type: alert.type,
       label: alert.label || alert.type,
       startedAt: alert.startedAt || Date.now(),
     };
-    // Evitar duplicados consecutivos (mismo startedAt).
     if (list.length && list[0].startedAt === entry.startedAt) return;
     list.unshift(entry);
-    saveHistory(list);
-    renderHistory();
-    updateLastAlert(entry);
+    saveLocalHistory(list);
+  }
+
+  function effectiveHistory() {
+    // Si tenemos historial del server, lo preferimos (tiene más metadatos).
+    if (Array.isArray(serverHistory) && serverHistory.length > 0) {
+      return serverHistory;
+    }
+    return loadLocalHistory();
   }
 
   function formatDateTime(ms) {
@@ -371,32 +420,102 @@
     }
   }
 
+  function formatDuration(ms) {
+    if (!ms || ms < 0) return "—";
+    const total = Math.round(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    if (m > 0) return m + "m " + s + "s";
+    return s + " s";
+  }
+
   function renderHistory() {
-    const list = loadHistory();
+    const list = effectiveHistory();
     if (list.length === 0) {
       historyListEl.innerHTML =
-        '<div class="history__empty">Todavía no recibiste ninguna alerta.</div>';
+        '<div class="history__empty">Todavía no se registraron alertas.</div>';
       return;
     }
     historyListEl.innerHTML = "";
     for (const e of list) {
-      const row = document.createElement("div");
-      row.className = "history__item";
-      if (e.type === "simulacro") row.classList.add("is-simulacro");
-      row.innerHTML = `
-        <div class="history__item-main">
-          <div class="history__item-type">${escapeHtml(e.label || e.type)}</div>
-          <div class="history__item-time">${formatDateTime(e.startedAt)}</div>
-        </div>
-        <div class="history__item-icon" aria-hidden="true">${iconForType(e.type)}</div>
-      `;
-      historyListEl.appendChild(row);
+      const details = document.createElement("details");
+      details.className = "history__item";
+      if (e.type === "simulacro") details.classList.add("is-simulacro");
+      const summary = document.createElement("summary");
+      summary.className = "history__item-summary";
+      summary.innerHTML =
+        '<div class="history__item-icon" aria-hidden="true">' +
+        iconForType(e.type) +
+        "</div>" +
+        '<div class="history__item-main">' +
+        '<div class="history__item-type">' + escapeHtml(e.label || e.type) + "</div>" +
+        '<div class="history__item-time">' + formatDateTime(e.startedAt) + "</div>" +
+        "</div>" +
+        '<span class="history__item-arrow" aria-hidden="true">›</span>';
+      details.appendChild(summary);
+      const body = document.createElement("div");
+      body.className = "history__item-body";
+      const rows = [];
+      if (e.triggeredBy) {
+        const role =
+          e.triggeredBy === "admin"
+            ? "Administrador"
+            : e.triggeredBy === "operator"
+              ? "Preceptor"
+              : e.triggeredBy === "schedule"
+                ? "Programada"
+                : e.triggeredBy === "system"
+                  ? "Sistema"
+                  : e.triggeredBy;
+        rows.push(["Disparada por", role]);
+      }
+      if (typeof e.recipients === "number") {
+        let r = String(e.recipients) + " dispositivo" + (e.recipients === 1 ? "" : "s");
+        if (typeof e.silenced === "number" && e.silenced > 0) {
+          r += " (" + e.silenced + " silenciado" + (e.silenced === 1 ? "" : "s") + ")";
+        }
+        rows.push(["Recibido por", r]);
+      }
+      if (e.endedAt && e.durationMs) {
+        const reason =
+          e.endedReason === "timeout"
+            ? " (terminó sola)"
+            : e.endedReason === "manual"
+              ? " (cortada manualmente)"
+              : "";
+        rows.push(["Duración", formatDuration(e.durationMs) + reason]);
+      }
+      if (Array.isArray(e.recommendations) && e.recommendations.length > 0) {
+        const ul = document.createElement("ul");
+        ul.className = "history__item-recs";
+        for (const line of e.recommendations) {
+          if (typeof line !== "string" || !line.trim()) continue;
+          const li = document.createElement("li");
+          li.textContent = line.trim();
+          ul.appendChild(li);
+        }
+        const wrap = document.createElement("div");
+        wrap.className = "history__item-row";
+        wrap.innerHTML = '<span class="history__item-row-label">Recomendaciones</span>';
+        wrap.appendChild(ul);
+        body.appendChild(wrap);
+      }
+      for (const [k, v] of rows) {
+        const row = document.createElement("div");
+        row.className = "history__item-row";
+        row.innerHTML =
+          '<span class="history__item-row-label">' + escapeHtml(k) + "</span>" +
+          '<span class="history__item-row-value">' + escapeHtml(v) + "</span>";
+        body.appendChild(row);
+      }
+      details.appendChild(body);
+      historyListEl.appendChild(details);
     }
   }
 
   function updateLastAlert(entry) {
     if (!entry) {
-      const list = loadHistory();
+      const list = effectiveHistory();
       if (!list.length) {
         lastAlertText.textContent = "Ninguna";
         return;
@@ -776,17 +895,28 @@
     // Excepción: cuando se prueba la alerta desde "Ajustes" con __runLocally
     // (fallback si el puente nativo no está), reproducimos todo en el webview
     // para que el usuario escuche algo aunque no haya servicio disponible.
+    // En modo "silenciado por horario", el server / cliente marca la alerta
+    // con muteSound/muteVoice/muteVibration. Mostramos el cartel pero no
+    // arrancamos audio ni vibración.
+    const muteSound = !!alert.muteSound;
+    const muteVoice = !!alert.muteVoice;
+    const muteVibration = !!alert.muteVibration;
     if (!IS_APK || alert.__runLocally) {
-      if (enabled || alert.__runLocally) {
+      if ((enabled || alert.__runLocally) && !muteSound) {
         startSiren(alert.sirenUrl || null);
+      }
+      if ((enabled || alert.__runLocally) && !muteVoice) {
         startSpeakingLoop(alert);
       }
-      startVibration();
+      if (!muteVibration) startVibration();
+    }
+    if (!muteSound && !muteVoice && !muteVibration) {
+      reportClientState("alerting");
     }
 
     refreshAlertUnlockHint();
 
-    if (!currentAlertIsTest) addHistoryEntry(alert);
+    if (!currentAlertIsTest) addLocalHistoryEntry(alert);
 
     // Recomendaciones debajo del cartel negro. Si el server incluyó lines
     // en el payload las usamos tal cual; si no (ej. alerta vieja o test
@@ -964,6 +1094,249 @@
     passive: true,
   });
 
+  // --- Nombre del dispositivo ------------------------------------------
+  // Lo que muestra el panel del host. Persiste en localStorage y se manda
+  // al server cada vez que conectamos / cambia.
+  function loadDeviceName() {
+    try {
+      const raw = localStorage.getItem(DEVICE_KEY);
+      if (!raw) return "";
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.name === "string") return parsed.name;
+    } catch {
+      /* ignore */
+    }
+    return "";
+  }
+  function saveDeviceName(name) {
+    try {
+      localStorage.setItem(DEVICE_KEY, JSON.stringify({ name }));
+    } catch {
+      /* ignore */
+    }
+  }
+  let deviceName = loadDeviceName();
+  if (deviceNameInput) deviceNameInput.value = deviceName;
+
+  function setDeviceNameStatus(msg, ok) {
+    if (!deviceNameStatus) return;
+    if (!msg) {
+      deviceNameStatus.hidden = true;
+      deviceNameStatus.textContent = "";
+      return;
+    }
+    deviceNameStatus.hidden = false;
+    deviceNameStatus.textContent = msg;
+    deviceNameStatus.classList.toggle("is-positive", !!ok);
+  }
+
+  if (deviceNameSaveBtn) {
+    deviceNameSaveBtn.addEventListener("click", () => {
+      const v = (deviceNameInput.value || "").trim().slice(0, 60);
+      if (!v) {
+        setDeviceNameStatus("Poné un nombre (no puede estar vacío).", false);
+        return;
+      }
+      deviceName = v;
+      saveDeviceName(deviceName);
+      identifyToServer();
+      pushDeviceNameToBridge();
+      setDeviceNameStatus("Nombre guardado: " + deviceName, true);
+    });
+  }
+
+  function pushDeviceNameToBridge() {
+    if (!bridgeAvailable() ||
+        typeof window.AlertBridge.setDeviceName !== "function") return;
+    try {
+      window.AlertBridge.setDeviceName(deviceName || "");
+    } catch (err) {
+      console.warn("AlertBridge.setDeviceName falló:", err);
+    }
+  }
+
+  // --- Silenciar por horario -------------------------------------------
+  // Distinto de la pausa manual. La pausa: te quita las alertas por X
+  // tiempo. El silencio por horario: durante una franja del día (y los
+  // días que elegiste), las alertas llegan pero sin sirena/voz/vibración.
+  function loadSilentWindow() {
+    try {
+      const raw = localStorage.getItem(SILENT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+  function saveSilentWindow(sw) {
+    try {
+      localStorage.setItem(SILENT_KEY, JSON.stringify(sw));
+    } catch {
+      /* ignore */
+    }
+  }
+  let silentWindow = loadSilentWindow() || {
+    enabled: false,
+    from: "22:00",
+    to: "07:00",
+    days: [1, 2, 3, 4, 5], // Lun-Vie
+  };
+
+  function applySilentWindowToUI() {
+    if (silentEnabled) silentEnabled.checked = !!silentWindow.enabled;
+    if (silentFromEl && silentWindow.from) silentFromEl.value = silentWindow.from;
+    if (silentToEl && silentWindow.to) silentToEl.value = silentWindow.to;
+    if (silentDaysEl) {
+      const chips = silentDaysEl.querySelectorAll(".day-chip");
+      const sel = new Set((silentWindow.days || []).map(Number));
+      chips.forEach((chip) => {
+        const d = parseInt(chip.getAttribute("data-day"), 10);
+        chip.classList.toggle("is-selected", sel.has(d));
+      });
+    }
+    if (silentFields) silentFields.hidden = !silentWindow.enabled;
+    renderSilentSummary();
+  }
+
+  function renderSilentSummary() {
+    if (!silentSummary) return;
+    if (!silentWindow.enabled) {
+      silentSummary.textContent = "Desactivado";
+      return;
+    }
+    const days = (silentWindow.days || []).slice().sort();
+    const names = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+    let dayStr;
+    if (days.length === 0) dayStr = "ningún día";
+    else if (days.length === 7) dayStr = "todos los días";
+    else dayStr = days.map((d) => names[d]).join(" · ");
+    silentSummary.textContent =
+      "De " + (silentWindow.from || "?") + " a " +
+      (silentWindow.to || "?") + " · " + dayStr;
+  }
+
+  function isInSilentWindow() {
+    if (!silentWindow || !silentWindow.enabled) return false;
+    const days = silentWindow.days || [];
+    if (!days.length) return false;
+    const now = new Date();
+    const day = now.getDay(); // 0=Dom..6=Sáb
+    const from = parseHHMM(silentWindow.from);
+    const to = parseHHMM(silentWindow.to);
+    if (from == null || to == null) return false;
+    const cur = now.getHours() * 60 + now.getMinutes();
+    if (from === to) return false;
+    if (from < to) {
+      // Misma noche (ej. 12:00 a 14:00). Tiene que estar el día actual.
+      if (!days.includes(day)) return false;
+      return cur >= from && cur < to;
+    }
+    // Cruza medianoche (ej. 22:00 a 07:00).
+    // Si estamos antes de medianoche: contamos el día actual.
+    // Si estamos después: contamos el día anterior.
+    if (cur >= from) {
+      return days.includes(day);
+    }
+    if (cur < to) {
+      const prev = (day + 6) % 7;
+      return days.includes(prev);
+    }
+    return false;
+  }
+
+  function parseHHMM(s) {
+    if (typeof s !== "string") return null;
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    const mn = parseInt(m[2], 10);
+    if (isNaN(h) || isNaN(mn) || h < 0 || h > 23 || mn < 0 || mn > 59) return null;
+    return h * 60 + mn;
+  }
+
+  function persistSilentWindow() {
+    saveSilentWindow(silentWindow);
+    applySilentWindowToUI();
+    identifyToServer();
+    pushSilentWindowToBridge();
+  }
+
+  function pushSilentWindowToBridge() {
+    if (!bridgeAvailable() ||
+        typeof window.AlertBridge.setSilentWindow !== "function") return;
+    try {
+      const days = (silentWindow.days || []).join(",");
+      window.AlertBridge.setSilentWindow(
+        !!silentWindow.enabled,
+        silentWindow.from || "",
+        silentWindow.to || "",
+        days,
+      );
+    } catch (err) {
+      console.warn("AlertBridge.setSilentWindow falló:", err);
+    }
+  }
+
+  if (silentEnabled) {
+    silentEnabled.addEventListener("change", () => {
+      silentWindow.enabled = !!silentEnabled.checked;
+      persistSilentWindow();
+    });
+  }
+  if (silentFromEl) {
+    silentFromEl.addEventListener("change", () => {
+      silentWindow.from = silentFromEl.value;
+      persistSilentWindow();
+    });
+  }
+  if (silentToEl) {
+    silentToEl.addEventListener("change", () => {
+      silentWindow.to = silentToEl.value;
+      persistSilentWindow();
+    });
+  }
+  if (silentDaysEl) {
+    silentDaysEl.addEventListener("click", (ev) => {
+      const chip = ev.target.closest(".day-chip");
+      if (!chip) return;
+      const d = parseInt(chip.getAttribute("data-day"), 10);
+      if (isNaN(d)) return;
+      const cur = new Set((silentWindow.days || []).map(Number));
+      if (cur.has(d)) cur.delete(d);
+      else cur.add(d);
+      silentWindow.days = Array.from(cur).sort((a, b) => a - b);
+      persistSilentWindow();
+    });
+  }
+
+  applySilentWindowToUI();
+
+  // --- Estado y comunicación con el server -----------------------------
+  let lastClientState = "idle";
+  function reportClientState(state) {
+    if (state === lastClientState) return;
+    lastClientState = state;
+    try {
+      socket.emit("client:state", { state });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function identifyToServer() {
+    try {
+      socket.emit("client:identify", {
+        name: deviceName || "",
+        silentWindow: silentWindow,
+        isApk: IS_APK,
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
   // --- Tabs ------------------------------------------------------------
   const tabButtons = document.querySelectorAll(".tabs__btn");
   const tabSections = document.querySelectorAll(".tab");
@@ -1110,6 +1483,29 @@
   socket.on("connect", () => {
     setStatus("En línea · esperando alertas", "online");
     socket.emit("role:client");
+    identifyToServer();
+    // Reportamos estado actual al reconectar.
+    lastClientState = "";
+    if (currentAlert) reportClientState("alerting");
+    else if (isPaused()) reportClientState("paused");
+    else if (isInSilentWindow()) reportClientState("silenced");
+    else reportClientState("idle");
+  });
+  socket.on("client:renamed", (payload) => {
+    if (!payload || typeof payload.name !== "string") return;
+    const name = payload.name.trim().slice(0, 60);
+    if (!name) return;
+    deviceName = name;
+    saveDeviceName(deviceName);
+    if (deviceNameInput) deviceNameInput.value = deviceName;
+    setDeviceNameStatus("El admin renombró este dispositivo: " + deviceName, true);
+    pushDeviceNameToBridge();
+  });
+  socket.on("alerts:history", (payload) => {
+    if (!payload || !Array.isArray(payload.history)) return;
+    serverHistory = payload.history;
+    renderHistory();
+    updateLastAlert();
   });
   socket.on("disconnect", () => setStatus("Desconectado", "offline"));
   socket.on("connect_error", () => setStatus("Error de conexión", "offline"));
@@ -1123,7 +1519,21 @@
     if (isPaused()) {
       // Igual guardamos el historial para que si después despausa, tenga
       // registro de lo que pasó mientras no estaba recibiendo.
-      if (!alert.__test) addHistoryEntry(alert);
+      if (!alert.__test) addLocalHistoryEntry(alert);
+      return;
+    }
+    // Silenciar por horario: igual mostramos overlay y guardamos historial,
+    // pero le pasamos al APK / al webview que la silencie (sin sirena/voz/
+    // vibración). El cartel queda en pantalla para verlo si el usuario
+    // está mirando.
+    if (!alert.__test && isInSilentWindow()) {
+      const silenced = Object.assign({}, alert, {
+        muteSound: true,
+        muteVoice: true,
+        muteVibration: true,
+      });
+      reportClientState("silenced");
+      showAlert(silenced);
       return;
     }
     showAlert(alert);
