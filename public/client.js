@@ -999,12 +999,18 @@
     stopSpeakingLoop();
     stopVibration();
     refreshAlertUnlockHint();
-    // Volvemos a "idle" así el server (y por ende el panel del host) ven
-    // al dispositivo como en escucha. Sin esto, lastClientState se queda
-    // en "alerting" y la dedupe de reportClientState() saltea el envío
-    // del próximo "alerting" en la siguiente alerta — el host vería al
-    // celu como verde aunque la alerta esté sonando.
-    reportClientState("idle");
+    // Volvemos a reportar el estado real al server. Sin esto,
+    // lastClientState se queda en "alerting" y la dedupe de
+    // reportClientState() saltea el envío del próximo "alerting" en la
+    // siguiente alerta — el host vería al celu como verde aunque la
+    // alerta esté sonando. Ojo: NO siempre es "idle"; si mientras
+    // sonaba la alerta el usuario pausó, o si el reloj cruzó al inicio
+    // de la franja silenciada, hay que reportar "paused" / "silenced"
+    // para que el panel del host muestre el estado real del celu, en
+    // vez de un 🟢 falso.
+    if (isPaused()) reportClientState("paused");
+    else if (isInSilentWindow()) reportClientState("silenced");
+    else reportClientState("idle");
   }
 
   function dismissLocally() {

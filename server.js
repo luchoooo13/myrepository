@@ -1147,12 +1147,15 @@ function stopAlert(reason = "manual") {
   // por las dudas (el usuario cierra la app antes de que llegue) lo
   // hacemos también del lado del server.
   for (const info of clientsInfo.values()) {
-    // También sacamos del estado "silenced": ese estado se setea
-    // cuando una alerta llegó durante la franja de silencio horario, y
-    // describe el último disparo, no la situación actual del celu. Si
-    // no lo reseteamos acá, el panel del host muestra "🌙 silenciado"
-    // para siempre hasta que el cliente reconecte el socket.
-    if (info.state === "alerting" || info.state === "silenced") {
+    // Sólo reseteamos "alerting": ese sí es transitorio y termina
+    // cuando termina la alerta. "silenced" en cambio describe que el
+    // celu está dentro de su franja silenciada (condición persistente
+    // del dispositivo); el cliente lo re-reporta en hideAlert() y en
+    // el connect handler con el estado real (paused / silenced /
+    // idle), así que no hace falta forzarlo acá. Si lo forzábamos,
+    // el panel mostraba 🟢 escuchando para celus que en realidad
+    // siguen en silencio horario.
+    if (info.state === "alerting") {
       info.state = "idle";
       info.lastSeen = Date.now();
     }
