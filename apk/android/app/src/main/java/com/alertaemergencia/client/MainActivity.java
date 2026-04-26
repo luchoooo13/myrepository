@@ -571,6 +571,23 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /**
+         * Guarda el clientId estable que el cliente web genera la primera
+         * vez (uuid persistido en localStorage). Lo persiste en
+         * SharedPreferences para que el AlertService nativo lo pueda leer
+         * y mandar el mismo clientId al server al hacer role:client.
+         * Sin esto, el server veía el socket nativo y el del webview como
+         * dos dispositivos distintos y los listaba duplicados en el panel.
+         */
+        @JavascriptInterface
+        public void setClientId(String id) {
+            String safe = id == null ? "" : id.trim();
+            if (safe.length() > 64) safe = safe.substring(0, 64);
+            prefs().edit()
+                    .putString(AlertService.KEY_CLIENT_ID, safe)
+                    .apply();
+        }
+
+        /**
          * Devuelve el nombre del dispositivo guardado (o "" si no se setteó).
          * El JS del cliente web lo lee al arrancar para precargar el input.
          */

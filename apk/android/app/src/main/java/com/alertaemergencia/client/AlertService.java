@@ -100,6 +100,12 @@ public class AlertService extends Service {
     // para enviarlo al server cuando el JS no esté disponible (no se usa
     // en el servicio nativo más allá de eso).
     public static final String KEY_DEVICE_NAME = "device_name";
+    // Id estable del dispositivo. Lo persiste el cliente web (en
+    // localStorage) y nos lo pasa por el bridge AlertBridge.setClientId.
+    // Lo usamos al hacer role:client para que el server no nos cree un
+    // "Cliente N" nuevo cada reconexión y para que el panel deduplique
+    // este socket nativo con el del webview (mismo dispositivo).
+    public static final String KEY_CLIENT_ID = "client_id";
 
     private static final int NOTIF_ONGOING = 101;
     private static final int NOTIF_ALERT = 102;
@@ -356,8 +362,19 @@ public class AlertService extends Service {
                 Log.d(TAG, "Socket conectado");
                 main.post(() -> updateOngoing("Conectado · esperando alertas"));
                 // Avisamos al server que somos un cliente (para el contador).
+                // Mandamos el clientId que escribió el webview (vía
+                // AlertBridge.setClientId) así el server deduplica nuestro
+                // socket nativo con el del webview — son el mismo
+                // dispositivo.
                 try {
-                    socket.emit("role:client");
+                    SharedPreferences sp = getSharedPreferences(
+                            PREFS, MODE_PRIVATE);
+                    String cid = sp.getString(KEY_CLIENT_ID, "");
+                    JSONObject payload = new JSONObject();
+                    if (cid != null && !cid.isEmpty()) {
+                        payload.put("clientId", cid);
+                    }
+                    socket.emit("role:client", payload);
                 } catch (Exception ignored) {
                 }
             });

@@ -446,7 +446,11 @@ app.get("/alerts-history", (_req, res) => {
 // alerta ahora mismo), o "silenced" (en silent window). Mantenemos un
 // Map socket.id -> info y se lo broadcastleemos a los hosts cada vez que
 // cambia, así pueden ver quién está sonando ahora.
-const clientsInfo = new Map(); // socket.id -> {id, name, state, silentWindow, lastSeen, ip}
+const clientsInfo = new Map(); // socket.id -> {id, clientId, name, state, silentWindow, lastSeen, ip}
+// clientId estable -> nombre auto-asignado ("Cliente N"). Así, cuando un
+// celu reconecta (cambia socket.id), seguimos llamándolo igual y no
+// inflamos el contador.
+const clientNameByClientId = new Map();
 let nextClientNum = 1;
 
 function shortenIp(ip) {
@@ -490,9 +494,43 @@ function sanitizeSilentWindow(raw) {
   };
 }
 
+// Prioridad de estado para elegir cuál entrada gana cuando hay varios
+// sockets para el mismo dispositivo (clientId compartido por
+// webview + AlertService nativa del APK). Más alto = más informativo.
+const STATE_PRIORITY = {
+  alerting: 4,
+  paused: 3,
+  silenced: 2,
+  idle: 1,
+};
+
 function serializeClients() {
-  const out = [];
+  // Deduplicamos por clientId estable: cada dispositivo físico tiene UN
+  // clientId pero puede tener varios sockets conectados al server al
+  // mismo tiempo (ej. en el APK, el webview y el AlertService nativo
+  // abren cada uno su propio socket). Si los listamos todos, en el
+  // panel del host aparecía el mismo celu varias veces.
+  // Para los sockets sin clientId (legacy), usamos socket.id así no se
+  // pisan entre ellos.
+  const byKey = new Map();
   for (const info of clientsInfo.values()) {
+    const key = info.clientId || ("sock:" + info.id);
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, info);
+      continue;
+    }
+    // Pickeamos el que tiene el estado más informativo (alerting >
+    // paused > silenced > idle), y a igual estado el más reciente.
+    const pPrev = STATE_PRIORITY[prev.state] || 0;
+    const pCur = STATE_PRIORITY[info.state] || 0;
+    if (pCur > pPrev) byKey.set(key, info);
+    else if (pCur === pPrev && info.lastSeen > prev.lastSeen) {
+      byKey.set(key, info);
+    }
+  }
+  const out = [];
+  for (const info of byKey.values()) {
     out.push({
       id: info.id,
       name: info.name,
@@ -1281,7 +1319,65 @@ io.on("connection", (socket) => {
   // lo usa para llenar la pestaña Historial sin esperar la próxima alerta).
   socket.emit("alerts:history", { history: alertsHistory });
 
-  socket.on("role:client", () => {
+  // Devuelve el clientId estable que mandó el cliente. Si no mandó (APK
+  // viejo, page legacy, etc.) usamos el socket.id como fallback — eso da
+  // el comportamiento viejo (cada reconexión = cliente nuevo) pero por
+  // lo menos no tira nada.
+  function sanitizeClientId(payload) {
+    if (!payload || typeof payload !== "object") return null;
+    const raw = payload.clientId;
+    if (typeof raw !== "string") return null;
+    const v = raw.trim().slice(0, 64);
+    return v.length > 0 ? v : null;
+  }
+
+  // Si ya había una entrada en clientsInfo para este clientId pero con
+  // otro socket.id (reconexión: el socket viejo todavía no terminó de
+  // hacer cleanup), la borramos para no duplicar. Los detalles
+  // (state/name) los traerá el nuevo identify.
+  function dropStaleEntriesForClientId(clientId, currentSocketId) {
+    if (!clientId) return;
+    for (const [sid, info] of clientsInfo) {
+      if (sid !== currentSocketId && info.clientId === clientId) {
+        clientsInfo.delete(sid);
+        clientSockets.delete(sid);
+      }
+    }
+  }
+
+  // Crea / actualiza la entrada de clientsInfo para este socket. Reusa el
+  // nombre auto-asignado si ya conocíamos al clientId, o asigna uno
+  // nuevo. No pisa el nombre si el cliente ya nos había mandado uno
+  // custom — eso lo hace identify.
+  function ensureClientInfo(clientId) {
+    let info = clientsInfo.get(socket.id);
+    if (info) return info;
+    const ip = shortenIp(
+      (socket.handshake && socket.handshake.address) || "",
+    );
+    let name;
+    if (clientId && clientNameByClientId.has(clientId)) {
+      name = clientNameByClientId.get(clientId);
+    } else {
+      name = "Cliente " + nextClientNum++;
+      if (clientId) clientNameByClientId.set(clientId, name);
+    }
+    info = {
+      id: socket.id,
+      clientId: clientId || null,
+      name,
+      state: "idle",
+      silentWindow: { enabled: false, from: "", to: "", days: [] },
+      lastSeen: Date.now(),
+      ip,
+    };
+    clientsInfo.set(socket.id, info);
+    return info;
+  }
+
+  socket.on("role:client", (payload) => {
+    const clientId = sanitizeClientId(payload);
+    dropStaleEntriesForClientId(clientId, socket.id);
     if (!clientSockets.has(socket.id)) {
       clientSockets.add(socket.id);
       broadcastClientCount();
@@ -1289,20 +1385,9 @@ io.on("connection", (socket) => {
     // Registramos al cliente en clientsInfo si todavía no lo estaba.
     // Esto se da, por ejemplo, cuando el APK manda role:client antes
     // que client:identify (que el web sí manda en el mismo momento).
-    if (!clientsInfo.has(socket.id)) {
-      const ip = shortenIp(
-        (socket.handshake && socket.handshake.address) || "",
-      );
-      clientsInfo.set(socket.id, {
-        id: socket.id,
-        name: "Cliente " + nextClientNum++,
-        state: "idle",
-        silentWindow: { enabled: false, from: "", to: "", days: [] },
-        lastSeen: Date.now(),
-        ip,
-      });
-      broadcastClients();
-    }
+    const created = !clientsInfo.has(socket.id);
+    ensureClientInfo(clientId);
+    if (created) broadcastClients();
   });
 
   // El cliente nos manda su nombre custom + silent window apenas se conecta
@@ -1310,20 +1395,16 @@ io.on("connection", (socket) => {
   // (localStorage); el server sólo lo refleja en clientsInfo para que los
   // hosts lo vean.
   socket.on("client:identify", (payload) => {
-    let info = clientsInfo.get(socket.id);
-    if (!info) {
-      const ip = shortenIp(
-        (socket.handshake && socket.handshake.address) || "",
-      );
-      info = {
-        id: socket.id,
-        name: "Cliente " + nextClientNum++,
-        state: "idle",
-        silentWindow: { enabled: false, from: "", to: "", days: [] },
-        lastSeen: Date.now(),
-        ip,
-      };
-      clientsInfo.set(socket.id, info);
+    const clientId = sanitizeClientId(payload);
+    dropStaleEntriesForClientId(clientId, socket.id);
+    const info = ensureClientInfo(clientId);
+    // El identify puede traer (o no) un clientId. Si llega ahora por
+    // primera vez (porque role:client se mandó sin él), lo guardamos.
+    if (clientId && !info.clientId) {
+      info.clientId = clientId;
+      if (!clientNameByClientId.has(clientId)) {
+        clientNameByClientId.set(clientId, info.name);
+      }
     }
     if (payload && typeof payload === "object") {
       const name = sanitizeDeviceName(payload.name);

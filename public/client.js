@@ -93,6 +93,41 @@
   const SETTINGS_KEY = "alertas.settings.v1";
   const DEVICE_KEY = "alertas.device.v1";
   const SILENT_KEY = "alertas.silent.v1";
+  // Id estable del dispositivo. Se genera la primera vez y se persiste.
+  // Lo usamos para que el server no cree un "Cliente N" nuevo en cada
+  // reconexión (cada vez que se pierde y vuelve la red, socket.io
+  // genera un socket.id distinto y antes eso aparecía como un cliente
+  // nuevo aunque sea el mismo celu).
+  const CLIENT_ID_KEY = "alertas.clientid.v1";
+  function getOrCreateClientId() {
+    try {
+      const existing = localStorage.getItem(CLIENT_ID_KEY);
+      if (existing && typeof existing === "string" && existing.length > 0) {
+        return existing.slice(0, 64);
+      }
+    } catch {
+      /* ignore */
+    }
+    let id = "";
+    try {
+      if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        id = crypto.randomUUID();
+      }
+    } catch {
+      /* ignore */
+    }
+    if (!id) {
+      id = "c-" + Date.now().toString(36) + "-" +
+        Math.random().toString(36).slice(2, 10);
+    }
+    try {
+      localStorage.setItem(CLIENT_ID_KEY, id);
+    } catch {
+      /* ignore */
+    }
+    return id;
+  }
+  const CLIENT_ID = getOrCreateClientId();
   const HISTORY_MAX = 50;
 
   // Volúmenes por tipo de alerta. El usuario puede bajarlos con el slider
@@ -1155,6 +1190,22 @@
     }
   }
 
+  // Empujamos el CLIENT_ID al servicio nativo del APK así, cuando éste
+  // se conecta por su propio socket (independiente del webview), manda
+  // el mismo clientId al server. Sin esto el server veía el socket
+  // nativo y el del webview como dos dispositivos distintos y se veían
+  // duplicados en el panel de Dispositivos del host.
+  function pushClientIdToBridge() {
+    if (!bridgeAvailable() ||
+        typeof window.AlertBridge.setClientId !== "function") return;
+    try {
+      window.AlertBridge.setClientId(CLIENT_ID || "");
+    } catch (err) {
+      console.warn("AlertBridge.setClientId falló:", err);
+    }
+  }
+  pushClientIdToBridge();
+
   // --- Silenciar por horario -------------------------------------------
   // Distinto de la pausa manual. La pausa: te quita las alertas por X
   // tiempo. El silencio por horario: durante una franja del día (y los
@@ -1328,6 +1379,7 @@
   function identifyToServer() {
     try {
       socket.emit("client:identify", {
+        clientId: CLIENT_ID,
         name: deviceName || "",
         silentWindow: silentWindow,
         isApk: IS_APK,
@@ -1490,7 +1542,7 @@
   // --- Socket ----------------------------------------------------------
   socket.on("connect", () => {
     setStatus("En línea · esperando alertas", "online");
-    socket.emit("role:client");
+    socket.emit("role:client", { clientId: CLIENT_ID });
     identifyToServer();
     // Reportamos estado actual al reconectar.
     lastClientState = "";
