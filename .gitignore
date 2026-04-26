@@ -22,6 +22,14 @@ push-subs.json
 # arranque del server; el admin las edita a mano. No van al repo.
 host-passwords.json
 
+# Recomendaciones editables desde /host. Se auto-crean con los defaults
+# del server en el primer arranque; cada despliegue tiene las suyas.
+recommendations.json
+
+# Historial de alertas disparadas. Se auto-crea al primer disparo y
+# guarda IPs/nombres de los celus, así que no va al repo.
+alerts-history.json
+
 # Keystore de firma release del APK. Si se pierde no se pueden publicar
 # updates (hay que desinstalar + reinstalar en cada celu). Guardalo en un
 # lugar seguro (Drive / USB / password manager).

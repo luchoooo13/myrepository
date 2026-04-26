@@ -538,6 +538,92 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /**
+         * Guarda la configuración de silencio horario para que el servicio
+         * nativo descarte alertas mientras estemos en la franja. Igual que
+         * el cliente web (independiente de la pausa manual).
+         *  - enabled: true para activar la ventana de silencio
+         *  - from / to: "HH:MM" (24h)
+         *  - daysCsv: lista de días separados por coma "0,1,2..6" (0=Dom)
+         */
+        @JavascriptInterface
+        public void setSilentWindow(boolean enabled, String from,
+                                    String to, String daysCsv) {
+            prefs().edit()
+                    .putBoolean(AlertService.KEY_SILENT_ENABLED, enabled)
+                    .putString(AlertService.KEY_SILENT_FROM, from == null ? "" : from)
+                    .putString(AlertService.KEY_SILENT_TO, to == null ? "" : to)
+                    .putString(AlertService.KEY_SILENT_DAYS, daysCsv == null ? "" : daysCsv)
+                    .apply();
+        }
+
+        /**
+         * Guarda el nombre que el dispositivo le muestra al host. Lo usa
+         * el cliente web (vía socket "client:identify") y el JS lee este
+         * valor al arrancar para enviarlo al server.
+         */
+        @JavascriptInterface
+        public void setDeviceName(String name) {
+            String safe = name == null ? "" : name.trim();
+            if (safe.length() > 60) safe = safe.substring(0, 60);
+            prefs().edit()
+                    .putString(AlertService.KEY_DEVICE_NAME, safe)
+                    .apply();
+        }
+
+        /**
+         * Guarda el clientId estable que el cliente web genera la primera
+         * vez (uuid persistido en localStorage). Lo persiste en
+         * SharedPreferences para que el AlertService nativo lo pueda leer
+         * y mandar el mismo clientId al server al hacer role:client.
+         * Sin esto, el server veía el socket nativo y el del webview como
+         * dos dispositivos distintos y los listaba duplicados en el panel.
+         */
+        @JavascriptInterface
+        public void setClientId(String id) {
+            String safe = id == null ? "" : id.trim();
+            if (safe.length() > 64) safe = safe.substring(0, 64);
+            String previous = prefs().getString(
+                    AlertService.KEY_CLIENT_ID, "");
+            prefs().edit()
+                    .putString(AlertService.KEY_CLIENT_ID, safe)
+                    .apply();
+            // Si el clientId cambió (típicamente: webview termina de
+            // levantarse y nos pasa el suyo), avisamos al AlertService
+            // para que reenvíe role:client al server con el clientId
+            // nuevo. Sin esto, la entrada anónima que el servicio creó
+            // al conectar quedaría sin clientId y aparecería como un
+            // "Cliente N" duplicado del webview.
+            if (!safe.isEmpty() && !safe.equals(previous)) {
+                runOnUiThread(() -> {
+                    try {
+                        Intent i = new Intent(
+                                MainActivity.this, AlertService.class);
+                        i.setAction(AlertService.ACTION_REFRESH_CLIENT_ID);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(i);
+                        } else {
+                            startService(i);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                });
+            }
+        }
+
+        /**
+         * Devuelve el nombre del dispositivo guardado (o "" si no se setteó).
+         * El JS del cliente web lo lee al arrancar para precargar el input.
+         */
+        @JavascriptInterface
+        public String getDeviceName() {
+            try {
+                return prefs().getString(AlertService.KEY_DEVICE_NAME, "");
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        /**
          * Dispara una alerta de prueba local de 5 segundos en el servicio
          * nativo — reproduce sirena + voz + flash + vibración sin pasar por
          * el server, así el usuario puede validar que todo funciona.

@@ -1589,6 +1589,254 @@ html:has(body.client) {
   }
 }
 
+/* Recomendaciones dentro del overlay — aparecen debajo del cartel negro.
+ * Las edita el admin desde /host. Si no hay recomendaciones para el tipo
+ * de alerta, el bloque queda hidden (no se ve). */
+.alert__recs {
+  position: relative;
+  z-index: 110;
+  margin-top: 1.2rem;
+  max-width: min(92vw, 640px);
+  width: 100%;
+  background: rgba(0, 0, 0, 0.78);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 16px;
+  padding: 1rem 1.2rem;
+  color: #fff;
+  max-height: 40vh;
+  overflow-y: auto;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.45);
+}
+.alert__recs-title {
+  font-size: clamp(0.9rem, 2.2vw, 1.1rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fde68a;
+  margin-bottom: 0.6rem;
+  text-align: center;
+}
+.alert__recs-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.alert__recs-list li {
+  position: relative;
+  padding-left: 1.5rem;
+  font-size: clamp(0.95rem, 2.6vw, 1.15rem);
+  line-height: 1.35;
+  font-weight: 600;
+  color: #f9fafb;
+}
+.alert__recs-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0.4rem;
+  top: -0.05em;
+  font-size: 1.3em;
+  color: #fde68a;
+}
+
+/* Placeholder mientras fetch /recommendations termina (Guía rápida). */
+.info-recs-loading,
+.info-recs-empty {
+  color: var(--muted);
+  font-style: italic;
+  margin: 0.5rem 0 0.8rem;
+}
+
+/* Editor de recomendaciones en /host (sólo admin). */
+.host__recs {
+  background: var(--panel);
+  border-radius: 16px;
+  padding: 1.4rem 1.5rem;
+  margin-top: 1.2rem;
+  box-shadow: var(--shadow);
+}
+.host__recs-title {
+  margin: 0 0 0.3rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.host__recs-hint {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.host__recs-status {
+  margin: 0 0 0.8rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+.host__recs-status[data-level="ok"] {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+.host__recs-status[data-level="err"] {
+  background: rgba(220, 38, 38, 0.15);
+  border-color: rgba(220, 38, 38, 0.4);
+  color: #fca5a5;
+}
+.host__recs-list {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+.host__recs-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.host__recs-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.host__recs-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.host__recs-card-icon {
+  font-size: 1.2em;
+  line-height: 1;
+}
+.host__recs-textarea {
+  width: 100%;
+  min-height: 120px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+.host__recs-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.host__recs-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.host__recs-actions .btn--save {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.host__recs-actions .btn--save:hover {
+  filter: brightness(1.08);
+}
+.host__recs-actions .btn--save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.host__recs-actions .btn--reset {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.host__recs-actions .btn--reset:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.host__recs-actions .btn--reset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Cambio de contraseña en /host. Disponible para admin y operator: cada
+ * uno cambia la contraseña de su propio rol. */
+.host__pwd {
+  background: var(--panel);
+  border-radius: 16px;
+  padding: 1.4rem 1.5rem;
+  margin-top: 1.2rem;
+  box-shadow: var(--shadow);
+}
+.host__pwd-title {
+  margin: 0 0 0.3rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.host__pwd-hint {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.host__pwd-form {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+}
+.host__pwd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.host__pwd-field input {
+  padding: 0.55rem 0.7rem;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  font-size: 1rem;
+}
+.host__pwd-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.host__pwd-status {
+  margin-top: 0.8rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+.host__pwd-status[data-level="ok"] {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+.host__pwd-status[data-level="err"] {
+  background: rgba(220, 38, 38, 0.15);
+  border-color: rgba(220, 38, 38, 0.4);
+  color: #fca5a5;
+}
+
 /* Respeto a reduce-motion: NO desactivamos el flash (es de emergencia)
  * pero bajamos la frecuencia un poco. */
 @media (prefers-reduced-motion: reduce) {
@@ -1596,4 +1844,333 @@ html:has(body.client) {
   .alert.is-simulacro {
     animation-duration: 1s;
   }
+}
+
+/* ============================================================
+ * Cliente: nombre de dispositivo + silencio horario (Inicio)
+ * ============================================================ */
+.device-name {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.device-name__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--md-on-surface, #fff);
+  font: inherit;
+}
+.device-name__input:focus {
+  outline: none;
+  border-color: var(--md-primary, #93c5fd);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.switch--row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+.switch--row .switch__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.switch--row .switch__row-text strong {
+  font-size: 1rem;
+}
+.switch--row .switch__row-text small {
+  font-size: 0.8rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+}
+.switch--row .switch__row-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.switch--row .switch__row-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.silent-fields {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.silent-time {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.silent-time__field {
+  flex: 1 1 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+}
+.silent-time__field input {
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--md-on-surface, #fff);
+  font: inherit;
+}
+.silent-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.day-chip {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--md-on-surface, #fff);
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.day-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.day-chip.is-on {
+  background: var(--md-primary, #93c5fd);
+  border-color: var(--md-primary, #93c5fd);
+  color: #0b1220;
+  font-weight: 600;
+}
+.card__text--mini {
+  font-size: 0.85rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+}
+
+/* ============================================================
+ * Host: panel de Dispositivos conectados
+ * ============================================================ */
+.host__devices {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.host__devices-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+.host__devices-hint {
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+  line-height: 1.45;
+}
+.host__devices-list {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.host__devices-empty {
+  font-size: 0.9rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+  padding: 0.6rem;
+  text-align: center;
+}
+.host__devices-card.dev {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.host__devices-card.dev[data-state="alerting"] {
+  border-color: rgba(220, 38, 38, 0.6);
+  background: rgba(220, 38, 38, 0.12);
+}
+.host__devices-card.dev[data-state="silenced"] {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.08);
+}
+.host__devices-card.dev[data-state="paused"] {
+  border-color: rgba(234, 179, 8, 0.4);
+  background: rgba(234, 179, 8, 0.08);
+}
+.host__devices-card.dev[data-state="offline"],
+.dev--offline {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.015);
+  opacity: 0.7;
+}
+.dev__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.dev__name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dev__state {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+.dev__state--alert {
+  background: rgba(220, 38, 38, 0.25);
+  border-color: rgba(220, 38, 38, 0.5);
+}
+.dev__state--silenced {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+.dev__state--paused {
+  background: rgba(234, 179, 8, 0.2);
+  border-color: rgba(234, 179, 8, 0.4);
+}
+.dev__state--idle {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+.dev__state--offline {
+  background: rgba(120, 120, 130, 0.2);
+  border-color: rgba(120, 120, 130, 0.35);
+  color: #cbd5e1;
+}
+.dev__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+}
+.dev__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.btn--mini {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+}
+
+/* ============================================================
+ * Host: historial de alertas
+ * ============================================================ */
+.host__history {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.host__history-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+.host__history-hint {
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+  line-height: 1.45;
+}
+.host__history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.host__history-empty {
+  font-size: 0.9rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+  padding: 0.6rem;
+  text-align: center;
+}
+.host__history-item {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+.host__history-item.is-simulacro {
+  border-color: rgba(59, 130, 246, 0.35);
+}
+.host__history-item-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.host__history-item-summary::-webkit-details-marker {
+  display: none;
+}
+.host__history-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.host__history-item-type {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.host__history-item-time {
+  font-size: 0.78rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+}
+.host__history-item-count {
+  font-size: 0.85rem;
+  color: var(--md-on-surface-muted, #cbd5e1);
+  white-space: nowrap;
+}
+.host__history-item-body {
+  padding: 0 0.85rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-top: 0.6rem;
+}
+.host__history-item-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.host__history-item-row-label {
+  flex: 0 0 auto;
+  color: var(--md-on-surface-muted, #cbd5e1);
+  min-width: 110px;
+}
+.host__history-item-row-value {
+  flex: 1 1 auto;
+  word-break: break-word;
 }

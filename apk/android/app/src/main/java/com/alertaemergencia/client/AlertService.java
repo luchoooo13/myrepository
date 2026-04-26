@@ -59,6 +59,13 @@ public class AlertService extends Service {
     // sockets, no cancela alertas en curso).
     public static final String ACTION_REFRESH_PAUSE =
             "com.alertaemergencia.client.REFRESH_PAUSE";
+    // Lo manda MainActivity/AlertBridge cuando el webview termina de
+    // calcular su CLIENT_ID y lo persiste en prefs. Acá reenviamos
+    // role:client al server con el clientId nuevo, así el server
+    // refresca la entrada anónima que habíamos creado al conectar y la
+    // mapea con la del webview (mismo dispositivo, no dos entradas).
+    public static final String ACTION_REFRESH_CLIENT_ID =
+            "com.alertaemergencia.client.REFRESH_CLIENT_ID";
 
     public static final String EXTRA_SERVER_URL = "server_url";
 
@@ -87,6 +94,25 @@ public class AlertService extends Service {
     // memoria y al reconectar el socket volvía a disparar la alerta. Con esto
     // sobrevive a restarts del proceso.
     public static final String KEY_DISMISSED_STARTED_AT = "dismissed_started_at";
+    // Silencio horario por dispositivo (igual que en el cliente web). Si
+    // está activo y la hora local cae dentro del rango y el día está en
+    // la lista, descartamos el alert:start sin sonar (mismo comportamiento
+    // que la pausa pero independiente).
+    public static final String KEY_SILENT_ENABLED = "silent_enabled";
+    public static final String KEY_SILENT_FROM = "silent_from"; // "HH:MM"
+    public static final String KEY_SILENT_TO = "silent_to";     // "HH:MM"
+    public static final String KEY_SILENT_DAYS = "silent_days"; // CSV "0,1,2..6"
+    // Nombre que el host ve en su panel de Dispositivos. Lo setea el
+    // usuario desde la pestaña Inicio del cliente web. Lo guardamos sólo
+    // para enviarlo al server cuando el JS no esté disponible (no se usa
+    // en el servicio nativo más allá de eso).
+    public static final String KEY_DEVICE_NAME = "device_name";
+    // Id estable del dispositivo. Lo persiste el cliente web (en
+    // localStorage) y nos lo pasa por el bridge AlertBridge.setClientId.
+    // Lo usamos al hacer role:client para que el server no nos cree un
+    // "Cliente N" nuevo cada reconexión y para que el panel deduplique
+    // este socket nativo con el del webview (mismo dispositivo).
+    public static final String KEY_CLIENT_ID = "client_id";
 
     private static final int NOTIF_ONGOING = 101;
     private static final int NOTIF_ALERT = 102;
@@ -105,6 +131,11 @@ public class AlertService extends Service {
 
     private volatile boolean alertActive = false;
     private String currentVoiceUrl;
+    // Tipo de la alerta en curso (intruso, simulacro, fuego, etc.). Lo
+    // usamos para aplicar multiplicadores de volumen específicos por tipo
+    // (intruso suena bajo para no alertar al intruso, voz un toque más
+    // alta en otros tipos para que se entienda).
+    private String currentAlertType;
     // startedAt (timestamp del server) de la alerta actualmente mostrada.
     private long currentAlertStartedAt = 0;
     // Runnable del timeout del test alert (5s). Lo guardamos para poder
@@ -195,6 +226,32 @@ public class AlertService extends Service {
                             decorateWithPause(describeConnectionState())));
             return START_STICKY;
         }
+        if (ACTION_REFRESH_CLIENT_ID.equals(action)) {
+            // El webview acaba de pasarnos su CLIENT_ID por bridge. Si
+            // ya teníamos el socket conectado, reenviamos role:client
+            // ahora con el clientId nuevo así el server actualiza la
+            // entrada anónima que habíamos creado al conectar (antes de
+            // que existiera el clientId). Si el socket todavía no se
+            // armó, no hay nada que hacer — cuando se arme va a leer
+            // el clientId de prefs y lo va a mandar al primer emit.
+            startForeground(NOTIF_ONGOING,
+                    buildOngoingNotification(
+                            decorateWithPause(describeConnectionState())));
+            try {
+                if (socket != null && socket.connected()) {
+                    SharedPreferences sp = getSharedPreferences(
+                            PREFS, MODE_PRIVATE);
+                    String cid = sp.getString(KEY_CLIENT_ID, "");
+                    JSONObject payload = new JSONObject();
+                    if (cid != null && !cid.isEmpty()) {
+                        payload.put("clientId", cid);
+                    }
+                    socket.emit("role:client", payload);
+                }
+            } catch (Exception ignored) {
+            }
+            return START_STICKY;
+        }
         if (ACTION_TEST_ALERT.equals(action)) {
             // Alerta de prueba de 5 segundos sin pasar por el server.
             // Sirena + voz + flash + vibración en modo simulacro.
@@ -204,7 +261,7 @@ public class AlertService extends Service {
                 // Si ya hay una alerta real en curso, no corremos el test
                 // (ni programamos el stop de 5s) para no interrumpirla.
                 if (!alertActive) {
-                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0);
+                    startAlertMedia("simulacro", "Prueba (5 seg)", null, false, 0, null);
                     // Guardamos el Runnable para poder cancelarlo si una
                     // alerta real reemplaza al test antes de los 5s. Si el
                     // test sigue corriendo cuando llega el timeout, el check
@@ -338,8 +395,19 @@ public class AlertService extends Service {
                 Log.d(TAG, "Socket conectado");
                 main.post(() -> updateOngoing("Conectado · esperando alertas"));
                 // Avisamos al server que somos un cliente (para el contador).
+                // Mandamos el clientId que escribió el webview (vía
+                // AlertBridge.setClientId) así el server deduplica nuestro
+                // socket nativo con el del webview — son el mismo
+                // dispositivo.
                 try {
-                    socket.emit("role:client");
+                    SharedPreferences sp = getSharedPreferences(
+                            PREFS, MODE_PRIVATE);
+                    String cid = sp.getString(KEY_CLIENT_ID, "");
+                    JSONObject payload = new JSONObject();
+                    if (cid != null && !cid.isEmpty()) {
+                        payload.put("clientId", cid);
+                    }
+                    socket.emit("role:client", payload);
                 } catch (Exception ignored) {
                 }
             });
@@ -377,6 +445,11 @@ public class AlertService extends Service {
         String type = alert.optString("type", "alerta");
         String label = alert.optString("label", type);
         final long startedAt = alert.optLong("startedAt", 0);
+        // Recomendaciones del tipo: el server nos las manda en el mismo
+        // payload (snapshot del momento del disparo). Si no vienen o están
+        // vacías, pasamos un array vacío y AlertActivity simplemente no
+        // las muestra.
+        final String[] recommendations = extractStringArray(alert, "recommendations");
         // Si el usuario ya descartó esta misma alerta en este equipo,
         // ignoramos los replays (ej. reconexión del socket mientras la
         // alerta sigue activa en el server).
@@ -398,6 +471,16 @@ public class AlertService extends Service {
             }
         } catch (Exception ignored) {
         }
+        // Silencio horario (independiente de la pausa). Si estamos dentro
+        // de la franja, este dispositivo no hace NADA con la alerta: no
+        // suena, no vibra, no hace flash, no abre el AlertActivity, no
+        // muestra la notificación de alta prioridad. Queda como si no
+        // hubiera llegado. (El historial se guarda en el cliente web,
+        // que también recibe el alert:start por su propio socket.)
+        if (isInSilentWindowNow()) {
+            Log.d(TAG, "Silencio horario activo: alerta ignorada");
+            return;
+        }
         // Overrides opcionales: el server puede pedir una sirena custom
         // (ej. simulacro) y/o que no reproduzcamos la voz aparte porque el
         // mp3 de la sirena ya incluye la locución.
@@ -412,8 +495,130 @@ public class AlertService extends Service {
                         || "null".equals(sirenUrlRaw))
                         ? null
                         : absolutizeUrl(sirenUrlRaw);
-        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt));
+        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt, recommendations));
     };
+
+    /**
+     * Lee un array JSON de strings del payload de alert:start. Devuelve
+     * un String[] (vacío si no hay o el campo no es array). Trunca cada
+     * línea a 400 chars (mismo límite que el server) y tope de 20
+     * elementos para defender contra payloads absurdamente grandes.
+     */
+    private String[] extractStringArray(JSONObject obj, String key) {
+        try {
+            if (!obj.has(key) || obj.isNull(key)) return new String[0];
+            org.json.JSONArray arr = obj.optJSONArray(key);
+            if (arr == null) return new String[0];
+            int n = Math.min(arr.length(), 20);
+            java.util.ArrayList<String> out = new java.util.ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                String s = arr.optString(i, "");
+                if (s == null) continue;
+                s = s.trim();
+                if (s.isEmpty()) continue;
+                if (s.length() > 400) s = s.substring(0, 400);
+                out.add(s);
+            }
+            return out.toArray(new String[0]);
+        } catch (Exception e) {
+            return new String[0];
+        }
+    }
+
+    /**
+     * Devuelve true si la hora local actual cae dentro del silencio horario
+     * configurado por el usuario. Soporta rangos que cruzan medianoche
+     * (ej. 22:00 → 07:00) y la lista de días (0=Dom, 1=Lun, …, 6=Sáb).
+     * Si no está habilitado, devuelve false.
+     */
+    private boolean isInSilentWindowNow() {
+        try {
+            SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+            if (!sp.getBoolean(KEY_SILENT_ENABLED, false)) return false;
+            String from = sp.getString(KEY_SILENT_FROM, "");
+            String to = sp.getString(KEY_SILENT_TO, "");
+            String daysCsv = sp.getString(KEY_SILENT_DAYS, "");
+            int fromMin = parseHHMM(from);
+            int toMin = parseHHMM(to);
+            if (fromMin < 0 || toMin < 0) return false;
+            if (fromMin == toMin) return false;
+            if (daysCsv == null || daysCsv.isEmpty()) return false;
+            java.util.Calendar c = java.util.Calendar.getInstance();
+            int dow = c.get(java.util.Calendar.DAY_OF_WEEK) - 1; // 0..6
+            int nowMin = c.get(java.util.Calendar.HOUR_OF_DAY) * 60
+                    + c.get(java.util.Calendar.MINUTE);
+            // Determinamos qué día "cuenta" para el match. Si la ventana cruza
+            // medianoche (ej. 22:00 → 07:00) y estamos del lado post-medianoche
+            // (cur < to), el día relevante es el ANTERIOR (la noche que arrancó
+            // el silencio). Mismo razonamiento que el JS en client.js.
+            int dayToCheck;
+            if (fromMin < toMin) {
+                if (!(nowMin >= fromMin && nowMin < toMin)) return false;
+                dayToCheck = dow;
+            } else if (nowMin >= fromMin) {
+                dayToCheck = dow;
+            } else if (nowMin < toMin) {
+                dayToCheck = (dow + 6) % 7;
+            } else {
+                return false;
+            }
+            for (String tok : daysCsv.split(",")) {
+                try {
+                    if (Integer.parseInt(tok.trim()) == dayToCheck) {
+                        return true;
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int parseHHMM(String s) {
+        if (s == null) return -1;
+        int idx = s.indexOf(':');
+        if (idx <= 0 || idx >= s.length() - 1) return -1;
+        try {
+            int h = Integer.parseInt(s.substring(0, idx));
+            int m = Integer.parseInt(s.substring(idx + 1));
+            if (h < 0 || h > 23 || m < 0 || m > 59) return -1;
+            return h * 60 + m;
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Multiplicadores de volumen por tipo de alerta. Replican lo mismo
+     * que el cliente web (sirenVolumeMultiplier / voiceVolumeMultiplier).
+     *  - intruso: sirena MUDA (no queremos avisarle al intruso). Queda
+     *    sólo flash + vibración + voz baja para los que están cerca.
+     *  - simulacro: 1.0 / 1.0 (es prueba, queremos que suene como una
+     *    alerta real).
+     *  - resto: la sirena va más baja (0.4) para que la voz se entienda
+     *    por arriba. La voz ya está al máximo permitido por
+     *    MediaPlayer.setVolume() (1.0) — para que "suene más", lo que
+     *    podemos hacer es bajar la sirena.
+     */
+    private float sirenVolumeMultiplier(String type) {
+        if ("intruso".equalsIgnoreCase(type)) return 0f;
+        if ("simulacro".equalsIgnoreCase(type)) return 1.0f;
+        return 0.4f;
+    }
+
+    private float voiceVolumeMultiplier(String type) {
+        if ("intruso".equalsIgnoreCase(type)) return 0.45f;
+        return 1.0f;
+    }
+
+    /** Asegura que el valor entre a MediaPlayer.setVolume() en el rango [0,1]. */
+    private float clampVol(float v) {
+        if (v < 0f) return 0f;
+        if (v > 1f) return 1f;
+        return v;
+    }
 
     /**
      * Convierte una URL relativa recibida del server (ej. "/sounds/x.mp3") a
@@ -432,7 +637,7 @@ public class AlertService extends Service {
     // ------------------------------------------------------------------
     private void startAlertMedia(String type, String label,
                                  String sirenUrl, boolean skipVoice,
-                                 long startedAt) {
+                                 long startedAt, String[] recommendations) {
         // Si había un test alert con timeout programado a 5s y ahora entra
         // una alerta (sea real o otro test), cancelamos el timeout para que
         // no mate la nueva alerta cuando expire.
@@ -456,8 +661,11 @@ public class AlertService extends Service {
         }
         alertActive = true;
         currentAlertStartedAt = startedAt;
+        currentAlertType = type;
         acquireWakeLock();
-        // Leemos los toggles del usuario (pestaña Ajustes del cliente web).
+        // Toggles del usuario (pestaña Ajustes del cliente web). El
+        // silencio horario ya filtró más arriba con un return temprano,
+        // así que acá sabemos que el dispositivo sí tiene que reaccionar.
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
         boolean wantVibration = sp.getBoolean(KEY_SET_VIBRATION, true);
         boolean wantStrobe = sp.getBoolean(KEY_SET_STROBE, true);
@@ -468,14 +676,15 @@ public class AlertService extends Service {
         }
         if (wantVibration) startVibrationLoop();
         if (wantStrobe && flash != null) flash.startBlinking();
-        showAlertNotification(type, label);
-        launchAlertActivity(type, label);
+        showAlertNotification(type, label, recommendations);
+        launchAlertActivity(type, label, recommendations);
     }
 
     private void stopAlertMedia(String reason) {
         Log.d(TAG, "stopAlertMedia: " + reason);
         alertActive = false;
         currentAlertStartedAt = 0;
+        currentAlertType = null;
         stopSiren();
         stopVoiceLoop();
         stopVibrationLoop();
@@ -533,6 +742,14 @@ public class AlertService extends Service {
                 int target = Math.round((pct / 100f) * max);
                 if (target < 1 && pct > 0) target = 1;
                 am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
+            }
+            // Multiplicador por tipo de alerta (intruso suena bajo, resto
+            // a 1.0). Se aplica sobre el stream ya configurado. Lo clampeamos
+            // a [0,1] porque MediaPlayer.setVolume() es estricto con el rango.
+            try {
+                float mul = clampVol(sirenVolumeMultiplier(currentAlertType));
+                sirenPlayer.setVolume(mul, mul);
+            } catch (Exception ignored) {
             }
             if (usedRemote) {
                 // Para URLs remotas usamos prepareAsync para no bloquear el hilo.
@@ -609,6 +826,16 @@ public class AlertService extends Service {
             voicePlayer.setLooping(false);
             voicePlayer.setOnPreparedListener(mp -> {
                 try {
+                    // Multiplicador por tipo (intruso bajo, resto leve
+                    // boost para que se entienda mejor que la sirena). Se
+                    // clampea a [0,1] porque MediaPlayer.setVolume() exige
+                    // ese rango (1.15 sería contrato roto, aunque algunos
+                    // dispositivos lo aceptan silenciosamente).
+                    float mul = clampVol(voiceVolumeMultiplier(currentAlertType));
+                    try {
+                        mp.setVolume(mul, mul);
+                    } catch (Exception ignored) {
+                    }
                     if (alertActive) mp.start();
                 } catch (IllegalStateException ignored) {
                 }
@@ -806,7 +1033,7 @@ public class AlertService extends Service {
         return "Esperando conexión…";
     }
 
-    private void showAlertNotification(String type, String label) {
+    private void showAlertNotification(String type, String label, String[] recommendations) {
         NotificationManager nm =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
@@ -814,6 +1041,13 @@ public class AlertService extends Service {
         Intent open = new Intent(this, AlertActivity.class);
         open.putExtra(AlertActivity.EXTRA_TYPE, type);
         open.putExtra(AlertActivity.EXTRA_LABEL, label);
+        // Incluimos las recomendaciones acá también para que, si el
+        // usuario abre la alerta tocando la notif (o si Android usa el
+        // fullScreenIntent en vez de nuestro startActivity), AlertActivity
+        // reciba el array y muestre la tarjeta "QUÉ HACER".
+        if (recommendations != null && recommendations.length > 0) {
+            open.putExtra(AlertActivity.EXTRA_RECOMMENDATIONS, recommendations);
+        }
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -855,10 +1089,13 @@ public class AlertService extends Service {
     // ------------------------------------------------------------------
     //  Launch AlertActivity
     // ------------------------------------------------------------------
-    private void launchAlertActivity(String type, String label) {
+    private void launchAlertActivity(String type, String label, String[] recommendations) {
         Intent i = new Intent(this, AlertActivity.class);
         i.putExtra(AlertActivity.EXTRA_TYPE, type);
         i.putExtra(AlertActivity.EXTRA_LABEL, label);
+        if (recommendations != null && recommendations.length > 0) {
+            i.putExtra(AlertActivity.EXTRA_RECOMMENDATIONS, recommendations);
+        }
         i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);

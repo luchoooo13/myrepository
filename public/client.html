@@ -68,6 +68,72 @@
             </div>
           </div>
 
+          <div class="card" id="deviceCard">
+            <div class="card__title">Nombre de este dispositivo</div>
+            <div class="card__body">
+              <p class="card__text">
+                Aparece en el panel del host para que sepan qué celular es éste.
+              </p>
+              <div class="device-name">
+                <input
+                  type="text"
+                  id="deviceNameInput"
+                  class="device-name__input"
+                  maxlength="60"
+                  placeholder="Ej: Aula 5to A"
+                />
+                <button class="btn btn--primary" id="deviceNameSaveBtn" type="button">
+                  Guardar
+                </button>
+              </div>
+              <p class="card__text" id="deviceNameStatus" hidden></p>
+            </div>
+          </div>
+
+          <div class="card" id="silentWindowCard">
+            <div class="card__title">Silenciar por horario</div>
+            <div class="card__body">
+              <p class="card__text">
+                En la franja horaria y los días que elijas, este dispositivo
+                ignora completamente las alertas: no suena, no vibra, no abre
+                la pantalla. Las podés revisar después en el Historial.
+                Independiente de la pausa manual.
+              </p>
+              <label class="switch switch--row" for="silentEnabled">
+                <span class="switch__row-text">
+                  <strong>Silenciar en este horario</strong>
+                  <small id="silentSummary">Desactivado</small>
+                </span>
+                <span class="switch__row-toggle">
+                  <input type="checkbox" id="silentEnabled" />
+                  <span class="switch__slider" aria-hidden="true"></span>
+                </span>
+              </label>
+              <div class="silent-fields" id="silentFields" hidden>
+                <div class="silent-time">
+                  <label class="silent-time__field">
+                    <span>Desde</span>
+                    <input type="time" id="silentFrom" value="22:00" />
+                  </label>
+                  <label class="silent-time__field">
+                    <span>Hasta</span>
+                    <input type="time" id="silentTo" value="07:00" />
+                  </label>
+                </div>
+                <div class="silent-days" id="silentDays">
+                  <button type="button" class="day-chip" data-day="1">Lun</button>
+                  <button type="button" class="day-chip" data-day="2">Mar</button>
+                  <button type="button" class="day-chip" data-day="3">Mié</button>
+                  <button type="button" class="day-chip" data-day="4">Jue</button>
+                  <button type="button" class="day-chip" data-day="5">Vie</button>
+                  <button type="button" class="day-chip" data-day="6">Sáb</button>
+                  <button type="button" class="day-chip" data-day="0">Dom</button>
+                </div>
+                <p class="card__text card__text--mini" id="silentStatus" hidden></p>
+              </div>
+            </div>
+          </div>
+
           <div class="card">
             <div class="card__title">Estado</div>
             <div class="card__body">
@@ -102,15 +168,16 @@
           <div class="tab__header">
             <h2 class="tab__title">Historial</h2>
             <button class="btn btn--ghost btn--small" id="clearHistoryBtn">
-              Borrar
+              Borrar local
             </button>
           </div>
           <p class="tab__hint">
-            Últimas 50 alertas recibidas en este dispositivo.
+            Últimas 50 alertas registradas por el servidor (visible para todos
+            los dispositivos). Tocá una para ver el detalle.
           </p>
           <div class="history" id="historyList">
             <div class="history__empty">
-              Todavía no recibiste ninguna alerta.
+              Todavía no se registraron alertas.
             </div>
           </div>
         </section>
@@ -123,80 +190,13 @@
             seguí las indicaciones de los responsables del lugar.
           </p>
 
-          <details class="info">
-            <summary class="info__summary">
-              <span class="info__icon" aria-hidden="true">🌐</span>
-              <span>Sismo</span>
-            </summary>
-            <div class="info__body">
-              <ul>
-                <li><strong>Agachate, cubrite y sostenete.</strong> Debajo de una mesa resistente si hay.</li>
-                <li>Alejate de ventanas, espejos y objetos que puedan caer.</li>
-                <li>En la calle, andá a un espacio abierto lejos de cables y paredes.</li>
-                <li>No uses el ascensor. Esperá a que pare el movimiento para evacuar.</li>
-              </ul>
-            </div>
-          </details>
-
-          <details class="info">
-            <summary class="info__summary">
-              <span class="info__icon" aria-hidden="true">🔥</span>
-              <span>Incendio</span>
-            </summary>
-            <div class="info__body">
-              <ul>
-                <li>Si hay humo, agachate y avanzá lo más bajo posible.</li>
-                <li>Cerrá las puertas detrás tuyo para frenar el fuego.</li>
-                <li>No uses el ascensor, salí por la escalera.</li>
-                <li>Tocá las puertas con el dorso de la mano antes de abrirlas.</li>
-              </ul>
-            </div>
-          </details>
-
-          <details class="info">
-            <summary class="info__summary">
-              <span class="info__icon" aria-hidden="true">🚪</span>
-              <span>Evacuación</span>
-            </summary>
-            <div class="info__body">
-              <ul>
-                <li>Salí con calma siguiendo las señales de evacuación.</li>
-                <li>No vuelvas por objetos personales.</li>
-                <li>Ayudá a quienes necesiten asistencia.</li>
-                <li>Dirigite al punto de reunión y esperá instrucciones.</li>
-              </ul>
-            </div>
-          </details>
-
-          <details class="info">
-            <summary class="info__summary">
-              <span class="info__icon" aria-hidden="true">🧑‍⚕️</span>
-              <span>Emergencia médica</span>
-            </summary>
-            <div class="info__body">
-              <ul>
-                <li>Llamá al <strong>107 (SAME)</strong> o al <strong>911</strong>.</li>
-                <li>No muevas al paciente si no es imprescindible.</li>
-                <li>Si hay un DEA cerca y la persona está inconsciente, usalo.</li>
-                <li>Mantené la calma y seguí las instrucciones del operador.</li>
-              </ul>
-            </div>
-          </details>
-
-          <details class="info">
-            <summary class="info__summary">
-              <span class="info__icon" aria-hidden="true">🛡️</span>
-              <span>Intruso / Amenaza</span>
-            </summary>
-            <div class="info__body">
-              <ul>
-                <li>Si podés huir con seguridad, hacelo.</li>
-                <li>Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.</li>
-                <li>Llamá al <strong>911</strong> apenas sea seguro.</li>
-                <li>Seguí las indicaciones del personal de seguridad.</li>
-              </ul>
-            </div>
-          </details>
+          <!-- Lista de recomendaciones por tipo. El contenido lo pobla
+               client.js desde /recommendations — así el admin las puede
+               editar desde el panel host sin tocar código. Hasta que
+               termine de cargar, mostramos un placeholder. -->
+          <div id="infoRecsList" class="info-recs-list">
+            <p class="info-recs-loading">Cargando recomendaciones…</p>
+          </div>
 
           <h3 class="tab__subtitle">Números de emergencia (Argentina)</h3>
           <div class="emergency-numbers">
@@ -350,6 +350,14 @@
         <div class="alert__tag">ALERTA</div>
         <div class="alert__type" id="alertType">—</div>
         <div class="alert__time" id="alertTime">1:00</div>
+      </div>
+      <!-- Recomendaciones para la alerta en curso. Las carga client.js desde
+           el payload de alert:start (ver startAlert en server.js). Si el
+           admin no configuró recomendaciones para ese tipo, queda vacío
+           y no aparece en pantalla. -->
+      <div class="alert__recs" id="alertRecs" hidden>
+        <div class="alert__recs-title">Qué hacer</div>
+        <ul class="alert__recs-list" id="alertRecsList"></ul>
       </div>
       <!-- Hint de desbloqueo de audio: aparece cuando llega una alerta pero
            el audio del navegador todavia no esta "desbloqueado" (tipico en
