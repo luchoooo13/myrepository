@@ -155,6 +155,15 @@ public class AlertService extends Service {
     // el usuario acababa de descartar.
     private volatile long dismissedStartedAt = 0;
 
+    // Último estado que reportamos al server con `client:state`. Lo
+    // usamos para deduplicar (no mandamos el mismo state dos veces) y
+    // para que cuando el webview no esté en foreground el AlertService
+    // siga avisándole al panel /host que este dispositivo está sonando
+    // / silenciado / pausado. Si no, el panel mostraba "🟢 escuchando"
+    // a un celu que en realidad estaba haciendo sonar la sirena, y el
+    // admin pensaba que no había recibido la alerta.
+    private String lastReportedState = "idle";
+
     // ------------------------------------------------------------------
     //  Lifecycle
     // ------------------------------------------------------------------
@@ -624,6 +633,28 @@ public class AlertService extends Service {
      * Convierte una URL relativa recibida del server (ej. "/sounds/x.mp3") a
      * absoluta usando serverOrigin. Si ya viene con http(s) la devuelve tal cual.
      */
+    /**
+     * Emite `client:state` al server. Lo llamamos al empezar / cortar la
+     * alerta para que el panel /host marque a este dispositivo como
+     * 🔴 sonando aunque la app no esté en foreground (sin esto, el panel
+     * lo dejaba en 🟢 escuchando y el admin creía que no había recibido
+     * la alerta). Deduplicamos para no spamear el server con el mismo
+     * estado repetido.
+     */
+    private void reportClientState(String state) {
+        if (state == null) state = "idle";
+        if (state.equals(lastReportedState)) return;
+        lastReportedState = state;
+        try {
+            if (socket != null && socket.connected()) {
+                JSONObject payload = new JSONObject();
+                payload.put("state", state);
+                socket.emit("client:state", payload);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     private String absolutizeUrl(String s) {
         if (s == null || s.isEmpty()) return null;
         if (s.startsWith("http://") || s.startsWith("https://")) return s;
@@ -678,6 +709,9 @@ public class AlertService extends Service {
         if (wantStrobe && flash != null) flash.startBlinking();
         showAlertNotification(type, label, recommendations);
         launchAlertActivity(type, label, recommendations);
+        // Le avisamos al server que estamos sonando — el panel /host se
+        // entera aunque el webview no esté en foreground.
+        reportClientState("alerting");
     }
 
     private void stopAlertMedia(String reason) {
@@ -695,6 +729,11 @@ public class AlertService extends Service {
         close.setPackage(getPackageName());
         sendBroadcast(close);
         releaseWakeLock();
+        // Volvemos al estado idle en el panel /host. Si el dispositivo
+        // tenía alguna pausa/silencio aplicado por el webview, ese se
+        // re-reporta cuando el usuario abra la app de nuevo (o por el
+        // próximo alert:start si todavía está dentro de la franja).
+        reportClientState("idle");
     }
 
     private void startSiren(String customUrl) {
