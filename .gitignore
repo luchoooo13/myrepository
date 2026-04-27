@@ -30,6 +30,10 @@ recommendations.json
 # guarda IPs/nombres de los celus, así que no va al repo.
 alerts-history.json
 
+# Registro de dispositivos conocidos. Se auto-crea cuando un cliente
+# conecta y guarda IPs/nombres/silent-window, así que no va al repo.
+known-devices.json
+
 # Keystore de firma release del APK. Si se pierde no se pueden publicar
 # updates (hay que desinstalar + reinstalar en cada celu). Guardalo en un
 # lugar seguro (Drive / USB / password manager).

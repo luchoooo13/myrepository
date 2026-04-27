@@ -489,6 +489,24 @@ try {
 } catch {
   /* primera vez: arrancamos vacío */
 }
+// Re-sincronizamos nextClientNum con los nombres autogenerados que ya
+// teníamos persistidos. Sin esto, después de un restart del server el
+// contador arrancaría en 1 y un dispositivo nuevo recibiría "Cliente 1"
+// otra vez — chocando con el nombre del primer celu que ya está
+// guardado en knownDevices. Tomamos el max(N) + 1 para arrancar fresco.
+try {
+  let maxN = 0;
+  for (const name of clientNameByClientId.values()) {
+    const m = /^Cliente (\d+)$/.exec(name || "");
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (Number.isFinite(n) && n > maxN) maxN = n;
+    }
+  }
+  if (maxN >= nextClientNum) nextClientNum = maxN + 1;
+} catch {
+  /* default 1 */
+}
 function saveKnownDevices() {
   try {
     const out = { devices: Array.from(knownDevices.values()) };
