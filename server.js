@@ -1492,22 +1492,32 @@ io.on("connection", (socket) => {
   // nombre auto-asignado si ya conocíamos al clientId, o asigna uno
   // nuevo. No pisa el nombre si el cliente ya nos había mandado uno
   // custom — eso lo hace identify.
+  //
+  // OJO: SOLO creamos la entrada si tenemos clientId. Sin clientId no
+  // podemos deduplicar al socket con sus hermanos (ej. webview +
+  // AlertService nativo del APK comparten clientId pero usan dos sockets
+  // distintos). Si creamos un entry "anónimo" para el socket que llegó
+  // primero, en el panel se ve como un "Cliente N" extra al lado del
+  // real — el famoso "phantom client". Por eso, si todavía no tenemos
+  // clientId, devolvemos null y no registramos nada en clientsInfo. El
+  // socket SÍ se cuenta en clientSockets para clients:count.
   function ensureClientInfo(clientId) {
     let info = clientsInfo.get(socket.id);
     if (info) return info;
+    if (!clientId) return null;
     const ip = shortenIp(
       (socket.handshake && socket.handshake.address) || "",
     );
     let name;
-    if (clientId && clientNameByClientId.has(clientId)) {
+    if (clientNameByClientId.has(clientId)) {
       name = clientNameByClientId.get(clientId);
     } else {
       name = "Cliente " + nextClientNum++;
-      if (clientId) clientNameByClientId.set(clientId, name);
+      clientNameByClientId.set(clientId, name);
     }
     info = {
       id: socket.id,
-      clientId: clientId || null,
+      clientId,
       name,
       state: "idle",
       silentWindow: { enabled: false, from: "", to: "", days: [] },
@@ -1525,11 +1535,17 @@ io.on("connection", (socket) => {
       clientSockets.add(socket.id);
       broadcastClientCount();
     }
-    // Registramos al cliente en clientsInfo si todavía no lo estaba.
-    // Esto se da, por ejemplo, cuando el APK manda role:client antes
-    // que client:identify (que el web sí manda en el mismo momento).
+    // Si todavía no tenemos clientId, no creamos entrada. El AlertService
+    // del APK suele emitir role:client (sin clientId) antes de que el
+    // webview termine de cargar y le pase el suyo por bridge. Cuando eso
+    // pase, vamos a recibir un segundo role:client con clientId y ahí
+    // recién registramos. Mientras tanto, el socket queda contado en
+    // clientSockets pero invisible en el panel — exactamente lo que
+    // queremos para que no aparezca un "Cliente N" fantasma.
+    if (!clientId) return;
     const created = !clientsInfo.has(socket.id);
     const info = ensureClientInfo(clientId);
+    if (!info) return;
     // Caso típico del APK: el AlertService nativo se conecta y emite
     // role:client antes de que el webview termine de cargar y pueda
     // pasarle el clientId por el bridge. Más tarde el bridge le dice
@@ -1540,7 +1556,7 @@ io.on("connection", (socket) => {
     // todavía tenían el clientId anterior). Sin esto, la entrada del
     // socket nativo y la del webview quedaban con clientIds distintos
     // y se mostraban como dos dispositivos en el panel.
-    if (clientId && info.clientId !== clientId) {
+    if (info.clientId !== clientId) {
       info.clientId = clientId;
       if (clientNameByClientId.has(clientId)) {
         // Ya teníamos un nombre asignado para este clientId (otra
@@ -1560,8 +1576,10 @@ io.on("connection", (socket) => {
   // hosts lo vean.
   socket.on("client:identify", (payload) => {
     const clientId = sanitizeClientId(payload);
+    if (!clientId) return; // sin clientId no registramos (anti-phantom)
     dropStaleEntriesForClientId(clientId, socket.id);
     const info = ensureClientInfo(clientId);
+    if (!info) return;
     // El identify puede traer (o no) un clientId. Aceptamos updates
     // (no sólo el primer set) por la misma razón que en role:client:
     // si el webview rotó su CLIENT_ID y la entrada vieja ya tenía

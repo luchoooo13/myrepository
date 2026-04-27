@@ -778,6 +778,35 @@
     return Promise.resolve(VOICE_BASE + alertObj.type + ".mp3");
   }
 
+  // Pitch / velocidad de la voz. Subimos un toque la playbackRate y
+  // deshabilitamos preservesPitch para que el tono también suba — así la
+  // voz queda más aguda que el TTS de Google estándar (lo que el usuario
+  // pidió). Mantenemos el cambio chico para que no se vuelva chillona.
+  const VOICE_PLAYBACK_RATE = 1.12;
+  function applyVoicePitch(audio) {
+    if (!audio) return;
+    try {
+      audio.preservesPitch = false;
+    } catch {
+      /* ignore */
+    }
+    try {
+      audio.webkitPreservesPitch = false;
+    } catch {
+      /* ignore */
+    }
+    try {
+      audio.mozPreservesPitch = false;
+    } catch {
+      /* ignore */
+    }
+    try {
+      audio.playbackRate = VOICE_PLAYBACK_RATE;
+    } catch {
+      /* ignore */
+    }
+  }
+
   function ensureVoiceAudio(src) {
     if (!voiceAudio) {
       voiceAudio = new Audio(src);
@@ -790,6 +819,7 @@
         /* ignore */
       }
     }
+    applyVoicePitch(voiceAudio);
     applyVolumeToAudio();
     return voiceAudio;
   }

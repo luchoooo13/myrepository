@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
     // usuario pueda confirmar de un vistazo que está corriendo el APK nuevo.
     // Subir este valor cuando cambiamos algo importante del nativo para que
     // sea obvio si el APK viejo quedó instalado por algún motivo.
-    public static final String BUILD_TAG = "v3-pausa";
+    public static final String BUILD_TAG = "v4-antiphantom";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

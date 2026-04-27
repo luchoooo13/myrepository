@@ -836,6 +836,20 @@ public class AlertService extends Service {
                         mp.setVolume(mul, mul);
                     } catch (Exception ignored) {
                     }
+                    // Subimos un toque pitch + velocidad para que la voz
+                    // quede más aguda que el TTS de Google estándar (lo
+                    // que el usuario pidió). API 23+; abajo de eso queda
+                    // con el pitch original.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        try {
+                            android.media.PlaybackParams pp =
+                                    new android.media.PlaybackParams();
+                            pp.setPitch(1.12f);
+                            pp.setSpeed(1.05f);
+                            mp.setPlaybackParams(pp);
+                        } catch (Exception ignored) {
+                        }
+                    }
                     if (alertActive) mp.start();
                 } catch (IllegalStateException ignored) {
                 }
