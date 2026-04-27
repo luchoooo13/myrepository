@@ -1447,6 +1447,13 @@
   }
 
   applySilentWindowToUI();
+  // Empujamos al toque la config de silencio horario y el nombre del
+  // dispositivo al AlertService nativo. Así, si el storage del webview y
+  // el SharedPreferences quedaron desincronizados (por borrado parcial
+  // de datos o un futuro path que escriba localStorage sin pasar por
+  // persistSilentWindow), el servicio igual tiene la última versión.
+  pushSilentWindowToBridge();
+  pushDeviceNameToBridge();
 
   // --- Estado y comunicación con el server -----------------------------
   let lastClientState = "idle";
