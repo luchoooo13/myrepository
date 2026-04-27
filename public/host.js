@@ -607,26 +607,27 @@
 
       const top = document.createElement("div");
       top.className = "dev__top";
-      // Mostramos el indicador de señal sólo si el dispositivo está
-      // online — para los offline no tiene sentido (el último RTT
-      // medido sería viejo y engañoso).
-      const sigHtml = isOffline ? "" : signalBadge(c.netinfo);
+      // Mostramos el badge de estado a la derecha del nombre. El badge
+      // de señal lo bajamos al renglón de meta (junto con IP / silencio)
+      // para que no compita con el nombre — antes lo tapaba en celus
+      // con nombres largos.
       top.innerHTML =
         '<div class="dev__name">' + escapeHtml(c.name || "(sin nombre)") + "</div>" +
-        '<div class="dev__top-right">' +
-          sigHtml +
-          stateBadge(c.state || "idle") +
-        "</div>";
+        stateBadge(c.state || "idle");
       card.appendChild(top);
 
       const meta = document.createElement("div");
       meta.className = "dev__meta";
+      // Señal sólo si está online — para los offline el último RTT sería
+      // viejo y engañoso.
+      const sigHtml = isOffline ? "" : signalBadge(c.netinfo);
       const ipStr = c.ip ? "IP " + escapeHtml(c.ip) : "";
       const swStr = escapeHtml(silentWindowSummary(c.silentWindow));
       const lastSeenStr = isOffline
         ? "Última conexión: " + escapeHtml(formatLastSeen(c.lastSeen))
         : "";
       meta.innerHTML =
+        sigHtml +
         (ipStr ? '<span>' + ipStr + "</span>" : "") +
         '<span>' + swStr + "</span>" +
         (lastSeenStr ? '<span>' + lastSeenStr + "</span>" : "");

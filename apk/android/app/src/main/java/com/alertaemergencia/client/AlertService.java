@@ -447,6 +447,14 @@ public class AlertService extends Service {
             socket.on("alert:start", onAlertStart);
             socket.on("alert:stop", args -> main.post(() -> stopAlertMedia("server-stop")));
 
+            // Loop de pings desde el lado nativo. El webview también
+            // pinguea, pero cuando la app está cerrada / en background el
+            // webview no corre y el server lo veía como "sin datos". Con
+            // este loop, el celu sigue mandando RTT cada 15 seg desde el
+            // servicio en foreground, así el panel /host muestra señal en
+            // vivo aunque el usuario tenga la pantalla apagada.
+            scheduleNetPingLoop();
+
             // Calidad de conexión: cuando el server nos contesta el ping,
             // calculamos el RTT y se lo mandamos como `client:netinfo`. Sin
             // esto el panel /host no podría mostrar 📶 fuerte/medio/débil
@@ -474,6 +482,7 @@ public class AlertService extends Service {
     }
 
     private void disconnectSocket() {
+        cancelNetPingLoop();
         if (socket != null) {
             try {
                 socket.off();
@@ -482,6 +491,41 @@ public class AlertService extends Service {
             }
             socket = null;
         }
+    }
+
+    // ------------------------------------------------------------------
+    //  Loop de ping nativo para reportar calidad de conexión cuando la
+    //  app está cerrada / minimizada. El webview tiene el suyo en
+    //  client.js, pero deja de correr cuando el usuario sale de la app.
+    //  Acá le mandamos `client:ping` cada 15 seg desde el AlertService
+    //  (que sigue vivo en foreground) y el handler de `client:pong` ya
+    //  arriba se encarga de reportar el RTT al server.
+    // ------------------------------------------------------------------
+    private static final long NET_PING_INTERVAL_MS = 15_000L;
+    private final Runnable netPingTick = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if (socket != null && socket.connected()) {
+                    JSONObject payload = new JSONObject();
+                    payload.put("t0", System.currentTimeMillis());
+                    socket.emit("client:ping", payload);
+                }
+            } catch (Exception ignored) {
+            }
+            main.postDelayed(this, NET_PING_INTERVAL_MS);
+        }
+    };
+
+    private void scheduleNetPingLoop() {
+        main.removeCallbacks(netPingTick);
+        // Disparamos uno al toque (sin esperar 15 seg) para que el host
+        // vea calidad de red apenas se conecta el celu.
+        main.post(netPingTick);
+    }
+
+    private void cancelNetPingLoop() {
+        main.removeCallbacks(netPingTick);
     }
 
     private final Emitter.Listener onAlertStart = args -> {
