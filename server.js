@@ -610,9 +610,20 @@ function serializeClients() {
   // pisan entre ellos.
   const byKey = new Map();
   const liveClientIds = new Set();
+  // Por dispositivo (clientId) nos quedamos con la mejor info de red
+  // (RTT más reciente entre los sockets de ese device). Si el webview
+  // se va a background, el AlertService nativo sigue mandando ping y
+  // el panel sigue mostrando señal viva.
+  const netByKey = new Map();
   for (const info of clientsInfo.values()) {
     const key = info.clientId || ("sock:" + info.id);
     if (info.clientId) liveClientIds.add(info.clientId);
+    if (info.netinfo) {
+      const cur = netByKey.get(key);
+      if (!cur || (info.netinfo.at || 0) > (cur.at || 0)) {
+        netByKey.set(key, info.netinfo);
+      }
+    }
     const prev = byKey.get(key);
     if (!prev) {
       byKey.set(key, info);
@@ -628,7 +639,7 @@ function serializeClients() {
     }
   }
   const out = [];
-  for (const info of byKey.values()) {
+  for (const [key, info] of byKey.entries()) {
     out.push({
       id: info.id,
       clientId: info.clientId || null,
@@ -637,6 +648,7 @@ function serializeClients() {
       silentWindow: info.silentWindow,
       lastSeen: info.lastSeen,
       ip: info.ip,
+      netinfo: netByKey.get(key) || null,
     });
   }
   // Sumamos los dispositivos conocidos que NO tienen un socket vivo —
@@ -1643,6 +1655,40 @@ io.on("connection", (socket) => {
     // Persistimos el dispositivo para que siga apareciendo en /host
     // cuando cierre la app (state="offline").
     rememberDevice(info);
+    broadcastClients();
+  });
+
+  // Ping/pong propio para medir latencia desde el lado del cliente. El
+  // cliente manda { t0: Date.now() }, le respondemos eco al toque y el
+  // cliente calcula el RTT y nos lo manda en client:netinfo. No usamos
+  // el ping interno de socket.io porque no expone su RTT al app code.
+  socket.on("client:ping", (payload) => {
+    const t0 = payload && typeof payload.t0 === "number" ? payload.t0 : 0;
+    try {
+      socket.emit("client:pong", { t0, t1: Date.now() });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  // Info de calidad de conexión que reporta el cliente (RTT calculado +
+  // navigator.connection.effectiveType si está disponible). La
+  // guardamos en clientsInfo y la mandamos a los hosts en
+  // serializeClients() para mostrar 📶 fuerte/medio/débil.
+  socket.on("client:netinfo", (payload) => {
+    const info = clientsInfo.get(socket.id);
+    if (!info) return;
+    if (!payload || typeof payload !== "object") return;
+    const rttMs = Number.isFinite(payload.rttMs)
+      ? Math.max(0, Math.min(60000, Math.round(payload.rttMs)))
+      : null;
+    const effectiveType =
+      typeof payload.effectiveType === "string"
+        ? payload.effectiveType.slice(0, 16)
+        : null;
+    if (rttMs == null && !effectiveType) return;
+    info.netinfo = { rttMs, effectiveType, at: Date.now() };
+    info.lastSeen = Date.now();
     broadcastClients();
   });
 

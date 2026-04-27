@@ -280,13 +280,28 @@
 
           <div class="setting setting--column">
             <div class="setting__label">
-              <span class="setting__label-title">Volumen</span>
-              <span class="setting__label-hint" id="volumeLabel">100 %</span>
+              <span class="setting__label-title">Volumen sirena</span>
+              <span class="setting__label-hint" id="sirenVolumeLabel">100 %</span>
             </div>
             <input
               type="range"
               class="range"
-              id="setVolume"
+              id="setSirenVolume"
+              min="0"
+              max="100"
+              value="100"
+            />
+          </div>
+
+          <div class="setting setting--column">
+            <div class="setting__label">
+              <span class="setting__label-title">Volumen voz</span>
+              <span class="setting__label-hint" id="voiceVolumeLabel">100 %</span>
+            </div>
+            <input
+              type="range"
+              class="range"
+              id="setVoiceVolume"
               min="0"
               max="100"
               value="100"

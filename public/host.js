@@ -507,6 +507,62 @@
     }
   }
 
+  // Convierte el `netinfo` que reporta el cliente (RTT + effectiveType)
+  // a un nivel 0..4 con etiqueta legible. El 0 es "sin info" (gris); de
+  // ahí 1=débil, 2=regular, 3=buena, 4=excelente. Se basa en el RTT,
+  // que en LAN suele ser <30ms y por internet/mobile va creciendo.
+  function netSignalInfo(net) {
+    if (!net || typeof net !== "object") {
+      return { level: 0, label: "Sin datos", title: "Sin medición de red" };
+    }
+    const rtt = Number.isFinite(net.rttMs) ? net.rttMs : null;
+    const eff = typeof net.effectiveType === "string" ? net.effectiveType : "";
+    let level = 0;
+    let qual = "Sin datos";
+    if (rtt != null) {
+      if (rtt < 60) {
+        level = 4;
+        qual = "Excelente";
+      } else if (rtt < 150) {
+        level = 3;
+        qual = "Buena";
+      } else if (rtt < 350) {
+        level = 2;
+        qual = "Regular";
+      } else {
+        level = 1;
+        qual = "Débil";
+      }
+    }
+    // En navegadores que exponen effectiveType, "slow-2g" o "2g" baja la
+    // calificación a débil aunque el RTT pareciera ok (típico cuando
+    // hay paquetes que se pierden y el RTT puntual no lo refleja).
+    if (eff === "slow-2g" || eff === "2g") {
+      if (level > 1) level = 1;
+      qual = "Débil";
+    }
+    let title = qual;
+    if (rtt != null) title += " · " + rtt + " ms";
+    if (eff) title += " (" + eff + ")";
+    return { level, label: qual, title };
+  }
+
+  function signalBadge(net) {
+    const info = netSignalInfo(net);
+    let bars = "";
+    for (let i = 1; i <= 4; i++) {
+      const cls = i <= info.level ? "dev__sig-bar is-on" : "dev__sig-bar";
+      bars += '<span class="' + cls + '"></span>';
+    }
+    const lvlClass = "dev__sig dev__sig--lvl" + info.level;
+    return (
+      '<span class="' + lvlClass + '" title="' + escapeHtml(info.title) + '">' +
+      '<span class="dev__sig-bars" aria-hidden="true">' + bars + "</span>" +
+      '<span class="dev__sig-label">' + escapeHtml(info.label) + "</span>" +
+      "</span>"
+    );
+  }
+
   function silentWindowSummary(sw) {
     if (!sw || !sw.enabled) return "Sin silencio horario";
     const days = (sw.days || []).slice().sort();
@@ -551,9 +607,16 @@
 
       const top = document.createElement("div");
       top.className = "dev__top";
+      // Mostramos el indicador de señal sólo si el dispositivo está
+      // online — para los offline no tiene sentido (el último RTT
+      // medido sería viejo y engañoso).
+      const sigHtml = isOffline ? "" : signalBadge(c.netinfo);
       top.innerHTML =
         '<div class="dev__name">' + escapeHtml(c.name || "(sin nombre)") + "</div>" +
-        stateBadge(c.state || "idle");
+        '<div class="dev__top-right">' +
+          sigHtml +
+          stateBadge(c.state || "idle") +
+        "</div>";
       card.appendChild(top);
 
       const meta = document.createElement("div");

@@ -83,6 +83,11 @@ public class AlertService extends Service {
     public static final String KEY_SET_STROBE = "set_strobe";
     public static final String KEY_SET_VOICE = "set_voice";
     public static final String KEY_SET_VOLUME = "set_volume";
+    // Volúmenes separados sirena / voz (0..100). El usuario los regula
+    // por separado en Ajustes. El KEY_SET_VOLUME viejo (legacy) sigue
+    // controlando el stream global de alarma para no romper builds previos.
+    public static final String KEY_SET_SIREN_VOLUME = "set_siren_volume";
+    public static final String KEY_SET_VOICE_VOLUME = "set_voice_volume";
     // Timestamp (ms) hasta el que el usuario pausó las notificaciones en
     // este dispositivo. Mientras esté en el futuro, el servicio ignora los
     // alert:start del server (no suena sirena, no vibra, no flash, no voz,
@@ -442,6 +447,26 @@ public class AlertService extends Service {
             socket.on("alert:start", onAlertStart);
             socket.on("alert:stop", args -> main.post(() -> stopAlertMedia("server-stop")));
 
+            // Calidad de conexión: cuando el server nos contesta el ping,
+            // calculamos el RTT y se lo mandamos como `client:netinfo`. Sin
+            // esto el panel /host no podría mostrar 📶 fuerte/medio/débil
+            // para el celu cuando la app está en background (porque el
+            // webview no manda pings si no está activo).
+            socket.on("client:pong", args -> {
+                if (args.length == 0 || !(args[0] instanceof JSONObject)) return;
+                try {
+                    JSONObject p = (JSONObject) args[0];
+                    long t0 = p.optLong("t0", 0);
+                    if (t0 <= 0) return;
+                    long rtt = System.currentTimeMillis() - t0;
+                    if (rtt < 0 || rtt > 60000) return;
+                    JSONObject out = new JSONObject();
+                    out.put("rttMs", rtt);
+                    socket.emit("client:netinfo", out);
+                } catch (Exception ignored) {
+                }
+            });
+
             socket.connect();
         } catch (IllegalArgumentException e) {
             Log.e(TAG, "URL inválida: " + serverOrigin, e);
@@ -786,18 +811,32 @@ public class AlertService extends Service {
                 // Aplicamos el porcentaje que el usuario eligió en Ajustes
                 // (slider de volumen). Si no hay nada guardado, por defecto 100%.
                 SharedPreferences volSp = getSharedPreferences(PREFS, MODE_PRIVATE);
-                int pct = volSp.getInt(KEY_SET_VOLUME, 100);
-                if (pct < 0) pct = 0;
-                if (pct > 100) pct = 100;
-                int target = Math.round((pct / 100f) * max);
-                if (target < 1 && pct > 0) target = 1;
+                // Stream global = max entre sirena y voz para que ninguno
+                // quede mudo si el usuario sólo movió uno de los dos.
+                int pctG = Math.max(
+                        volSp.getInt(KEY_SET_SIREN_VOLUME,
+                                volSp.getInt(KEY_SET_VOLUME, 100)),
+                        volSp.getInt(KEY_SET_VOICE_VOLUME,
+                                volSp.getInt(KEY_SET_VOLUME, 100)));
+                if (pctG < 0) pctG = 0;
+                if (pctG > 100) pctG = 100;
+                int target = Math.round((pctG / 100f) * max);
+                if (target < 1 && pctG > 0) target = 1;
                 am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
             }
             // Multiplicador por tipo de alerta (intruso suena bajo, resto
-            // a 1.0). Se aplica sobre el stream ya configurado. Lo clampeamos
-            // a [0,1] porque MediaPlayer.setVolume() es estricto con el rango.
+            // a 1.0) por el porcentaje del slider de sirena. Se aplica
+            // sobre el stream ya configurado. Clampeamos a [0,1] porque
+            // MediaPlayer.setVolume() es estricto con el rango.
             try {
-                float mul = clampVol(sirenVolumeMultiplier(currentAlertType));
+                SharedPreferences volSp = getSharedPreferences(PREFS, MODE_PRIVATE);
+                int sirenPct = volSp.getInt(KEY_SET_SIREN_VOLUME,
+                        volSp.getInt(KEY_SET_VOLUME, 100));
+                if (sirenPct < 0) sirenPct = 0;
+                if (sirenPct > 100) sirenPct = 100;
+                float pctMul = sirenPct / 100f;
+                float mul = clampVol(
+                        sirenVolumeMultiplier(currentAlertType) * pctMul);
                 sirenPlayer.setVolume(mul, mul);
             } catch (Exception ignored) {
             }
@@ -881,7 +920,19 @@ public class AlertService extends Service {
                     // clampea a [0,1] porque MediaPlayer.setVolume() exige
                     // ese rango (1.15 sería contrato roto, aunque algunos
                     // dispositivos lo aceptan silenciosamente).
-                    float mul = clampVol(voiceVolumeMultiplier(currentAlertType));
+                    // El multiplicador por tipo se cruza con el slider
+                    // de voz que el usuario reguló en Ajustes. Si el
+                    // slider no está seteado, fallback al slider global
+                    // legacy (KEY_SET_VOLUME).
+                    SharedPreferences volSp = getSharedPreferences(
+                            PREFS, MODE_PRIVATE);
+                    int voicePct = volSp.getInt(KEY_SET_VOICE_VOLUME,
+                            volSp.getInt(KEY_SET_VOLUME, 100));
+                    if (voicePct < 0) voicePct = 0;
+                    if (voicePct > 100) voicePct = 100;
+                    float mul = clampVol(
+                            voiceVolumeMultiplier(currentAlertType)
+                                    * (voicePct / 100f));
                     try {
                         mp.setVolume(mul, mul);
                     } catch (Exception ignored) {

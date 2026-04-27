@@ -452,6 +452,33 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /**
+         * Volumen aplicado al MediaPlayer de la sirena (0..100). Se cruza
+         * con el multiplicador por tipo en startSiren — el resultado va a
+         * MediaPlayer.setVolume(). Sirve para controlar el volumen de la
+         * sirena INDEPENDIENTE de la voz (antes era un solo slider para
+         * los dos).
+         */
+        @JavascriptInterface
+        public void setSirenVolume(int percent) {
+            int clamped = Math.max(0, Math.min(100, percent));
+            prefs().edit()
+                    .putInt(AlertService.KEY_SET_SIREN_VOLUME, clamped)
+                    .apply();
+        }
+
+        /**
+         * Volumen aplicado al MediaPlayer de la voz (0..100). Igual que
+         * setSirenVolume pero para el player de voz / TTS.
+         */
+        @JavascriptInterface
+        public void setVoiceVolume(int percent) {
+            int clamped = Math.max(0, Math.min(100, percent));
+            prefs().edit()
+                    .putInt(AlertService.KEY_SET_VOICE_VOLUME, clamped)
+                    .apply();
+        }
+
+        /**
          * Guarda si el usuario quiere vibración durante la alerta. El
          * servicio nativo lo lee antes de llamar a startVibrationLoop.
          */

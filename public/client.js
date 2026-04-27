@@ -57,8 +57,10 @@
   const setVibration = document.getElementById("setVibration");
   const setStrobe = document.getElementById("setStrobe");
   const setVoice = document.getElementById("setVoice");
-  const setVolume = document.getElementById("setVolume");
-  const volumeLabel = document.getElementById("volumeLabel");
+  const setSirenVolume = document.getElementById("setSirenVolume");
+  const sirenVolumeLabel = document.getElementById("sirenVolumeLabel");
+  const setVoiceVolume = document.getElementById("setVoiceVolume");
+  const voiceVolumeLabel = document.getElementById("voiceVolumeLabel");
   const testAlertBtn = document.getElementById("testAlertBtn");
   const resetDataBtn = document.getElementById("resetDataBtn");
 
@@ -157,7 +159,12 @@
     vibration: true,
     strobe: true,
     voice: true,
-    volume: 100,
+    // Volúmenes separados sirena / voz (0..100). Antes era un único
+    // `volume` global; lo dejamos en defaultSettings para migrar valores
+    // viejos en loadSettings(). El multiplicador por tipo (sirenVolumeMultiplier
+    // / voiceVolumeMultiplier) se aplica encima de estos.
+    sirenVolume: 100,
+    voiceVolume: 100,
     // pausedUntil: ms timestamp. 0 = no pausado. Number.MAX_SAFE_INTEGER = pausa
     // indefinida (hasta que el usuario la desactive manualmente).
     pausedUntil: 0,
@@ -168,7 +175,16 @@
       const raw = localStorage.getItem(SETTINGS_KEY);
       if (!raw) return { ...defaultSettings };
       const parsed = JSON.parse(raw);
-      return { ...defaultSettings, ...parsed };
+      const merged = { ...defaultSettings, ...parsed };
+      // Migración: antes había un único slider "volume". Si lo tenemos
+      // guardado y todavía no setearon los nuevos sliders, lo replicamos
+      // a sirenVolume y voiceVolume así el usuario no pierde su preset.
+      if (typeof parsed.volume === "number" &&
+          parsed.sirenVolume == null && parsed.voiceVolume == null) {
+        merged.sirenVolume = parsed.volume;
+        merged.voiceVolume = parsed.volume;
+      }
+      return merged;
     } catch {
       return { ...defaultSettings };
     }
@@ -188,8 +204,10 @@
     setVibration.checked = !!settings.vibration;
     setStrobe.checked = !!settings.strobe;
     setVoice.checked = !!settings.voice;
-    setVolume.value = String(settings.volume);
-    volumeLabel.textContent = Math.round(settings.volume) + " %";
+    setSirenVolume.value = String(settings.sirenVolume);
+    sirenVolumeLabel.textContent = Math.round(settings.sirenVolume) + " %";
+    setVoiceVolume.value = String(settings.voiceVolume);
+    voiceVolumeLabel.textContent = Math.round(settings.voiceVolume) + " %";
     applyVolumeToAudio();
     applyStrobeClass();
     pushSettingsToBridge();
@@ -367,8 +385,28 @@
       if (typeof window.AlertBridge.setVoiceEnabled === "function") {
         window.AlertBridge.setVoiceEnabled(!!settings.voice);
       }
+      // setAlarmVolume mueve el stream global de alarma del sistema (un
+      // solo slider físico afecta tanto sirena como voz). Para tener
+      // sliders separados, sumamos setSirenVolume / setVoiceVolume que
+      // multiplican adentro del MediaPlayer. Por compatibilidad, mandamos
+      // el max(siren, voice) al stream global así no queda mudo si el
+      // usuario sólo movió uno de los dos.
       if (typeof window.AlertBridge.setAlarmVolume === "function") {
-        window.AlertBridge.setAlarmVolume(parseInt(settings.volume, 10) || 0);
+        const maxV = Math.max(
+          parseInt(settings.sirenVolume, 10) || 0,
+          parseInt(settings.voiceVolume, 10) || 0,
+        );
+        window.AlertBridge.setAlarmVolume(maxV);
+      }
+      if (typeof window.AlertBridge.setSirenVolume === "function") {
+        window.AlertBridge.setSirenVolume(
+          parseInt(settings.sirenVolume, 10) || 0,
+        );
+      }
+      if (typeof window.AlertBridge.setVoiceVolume === "function") {
+        window.AlertBridge.setVoiceVolume(
+          parseInt(settings.voiceVolume, 10) || 0,
+        );
       }
       if (typeof window.AlertBridge.setPausedUntil === "function") {
         window.AlertBridge.setPausedUntil(settings.pausedUntil || 0);
@@ -379,15 +417,16 @@
   }
 
   function applyVolumeToAudio() {
-    const base = Math.max(0, Math.min(1, settings.volume / 100));
+    const sirenBase = Math.max(0, Math.min(1, settings.sirenVolume / 100));
+    const voiceBase = Math.max(0, Math.min(1, settings.voiceVolume / 100));
     const type = currentAlert ? currentAlert.type : null;
     if (sirenAudio) {
       const m = sirenVolumeMultiplier(type);
-      sirenAudio.volume = Math.max(0, Math.min(1, base * m));
+      sirenAudio.volume = Math.max(0, Math.min(1, sirenBase * m));
     }
     if (voiceAudio) {
       const m = voiceVolumeMultiplier(type);
-      voiceAudio.volume = Math.max(0, Math.min(1, base * m));
+      voiceAudio.volume = Math.max(0, Math.min(1, voiceBase * m));
     }
   }
 
@@ -1500,19 +1539,47 @@
     else if (currentAlert) startSpeakingLoop(currentAlert);
   });
 
-  setVolume.addEventListener("input", () => {
-    settings.volume = parseInt(setVolume.value, 10) || 0;
-    volumeLabel.textContent = settings.volume + " %";
+  setSirenVolume.addEventListener("input", () => {
+    settings.sirenVolume = parseInt(setSirenVolume.value, 10) || 0;
+    sirenVolumeLabel.textContent = settings.sirenVolume + " %";
     persistAndApply();
-    // En el APK, el audio lo maneja el servicio Android (stream ALARM). El
-    // slider del webview no puede tocar el volumen de ese stream desde JS,
-    // así que usamos un puente Java expuesto por MainActivity.
-    if (bridgeAvailable() &&
-        typeof window.AlertBridge.setAlarmVolume === "function") {
+    // En el APK el audio lo maneja el servicio Android (stream ALARM). Le
+    // pasamos los volúmenes nuevos por el bridge así actualiza el
+    // MediaPlayer de la sirena en caliente.
+    if (bridgeAvailable()) {
       try {
-        window.AlertBridge.setAlarmVolume(settings.volume);
+        if (typeof window.AlertBridge.setSirenVolume === "function") {
+          window.AlertBridge.setSirenVolume(settings.sirenVolume);
+        }
+        // Mantenemos el stream global en el max para que ningún slider
+        // quede mudo por culpa del otro.
+        if (typeof window.AlertBridge.setAlarmVolume === "function") {
+          window.AlertBridge.setAlarmVolume(
+            Math.max(settings.sirenVolume, settings.voiceVolume),
+          );
+        }
       } catch (err) {
-        console.warn("AlertBridge.setAlarmVolume falló:", err);
+        console.warn("AlertBridge.setSirenVolume falló:", err);
+      }
+    }
+  });
+
+  setVoiceVolume.addEventListener("input", () => {
+    settings.voiceVolume = parseInt(setVoiceVolume.value, 10) || 0;
+    voiceVolumeLabel.textContent = settings.voiceVolume + " %";
+    persistAndApply();
+    if (bridgeAvailable()) {
+      try {
+        if (typeof window.AlertBridge.setVoiceVolume === "function") {
+          window.AlertBridge.setVoiceVolume(settings.voiceVolume);
+        }
+        if (typeof window.AlertBridge.setAlarmVolume === "function") {
+          window.AlertBridge.setAlarmVolume(
+            Math.max(settings.sirenVolume, settings.voiceVolume),
+          );
+        }
+      } catch (err) {
+        console.warn("AlertBridge.setVoiceVolume falló:", err);
       }
     }
   });
@@ -1595,7 +1662,51 @@
     else if (isPaused()) reportClientState("paused");
     else if (isInSilentWindow()) reportClientState("silenced");
     else reportClientState("idle");
+    // Mandamos un ping inmediato para que el host vea calidad de red al
+    // toque, sin esperar al primer ciclo de 15s.
+    sendNetPing();
   });
+
+  // --- Calidad de conexión (RTT + tipo de red) -------------------------
+  // Cada ~15s mandamos un ping al server con timestamp y, cuando responde
+  // con pong, calculamos el RTT y se lo emitimos como `client:netinfo`.
+  // El panel /host lo usa para mostrar 📶 fuerte/medio/débil al lado de
+  // cada dispositivo. Si el navegador expone navigator.connection
+  // (Chrome / Android), también mandamos effectiveType (4g, 3g, etc.).
+  let pendingNetPingT0 = 0;
+  function sendNetPing() {
+    try {
+      pendingNetPingT0 = Date.now();
+      socket.emit("client:ping", { t0: pendingNetPingT0 });
+    } catch {
+      /* ignore */
+    }
+  }
+  socket.on("client:pong", (payload) => {
+    if (!payload || typeof payload.t0 !== "number") return;
+    const rtt = Date.now() - payload.t0;
+    if (rtt < 0) return;
+    let effectiveType = null;
+    try {
+      const conn =
+        navigator.connection ||
+        navigator.mozConnection ||
+        navigator.webkitConnection;
+      if (conn && typeof conn.effectiveType === "string") {
+        effectiveType = conn.effectiveType;
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      socket.emit("client:netinfo", { rttMs: rtt, effectiveType });
+    } catch {
+      /* ignore */
+    }
+  });
+  setInterval(() => {
+    if (socket && socket.connected) sendNetPing();
+  }, 15 * 1000);
   socket.on("client:renamed", (payload) => {
     if (!payload || typeof payload.name !== "string") return;
     const name = payload.name.trim().slice(0, 60);
