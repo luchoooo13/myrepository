@@ -419,6 +419,17 @@ public class AlertService extends Service {
                     socket.emit("role:client", payload);
                 } catch (Exception ignored) {
                 }
+                // Si nos reconectamos en medio de una alerta (transport
+                // upgrade del polling al websocket, red que se cae y vuelve,
+                // etc.), el server le creó al socket nuevo una entrada en
+                // estado idle. Sin esto, el panel /host volvía a mostrar
+                // 🟢 escuchando aunque el celu siguiera con la sirena
+                // sonando. Reseteamos lastReportedState y re-emitimos el
+                // estado actual para que el server lo refleje.
+                lastReportedState = "idle";
+                if (alertActive) {
+                    reportClientState("alerting");
+                }
             });
             socket.on(Socket.EVENT_DISCONNECT, args -> {
                 Log.d(TAG, "Socket desconectado");
