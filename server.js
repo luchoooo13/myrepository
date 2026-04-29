@@ -447,6 +447,13 @@ app.get("/alerts-history", (_req, res) => {
 // Map socket.id -> info y se lo broadcastleemos a los hosts cada vez que
 // cambia, así pueden ver quién está sonando ahora.
 const clientsInfo = new Map(); // socket.id -> {id, clientId, name, state, silentWindow, lastSeen, ip}
+// Cache de netinfo por clientId estable, con TTL. Sin esto, si el celu
+// reconecta el socket (cambio de socket.id), por unos segundos no hay
+// netinfo para ese clientId y la UI muestra "Sin datos" → titilea.
+// Mantenemos la última muestra que mandó cualquier socket de ese
+// clientId y la consideramos válida durante NETINFO_TTL_MS.
+const netinfoByClientId = new Map(); // clientId -> {rttMs, effectiveType, at}
+const NETINFO_TTL_MS = 90 * 1000; // 90s — bastante más que el ping (15s)
 // clientId estable -> nombre auto-asignado ("Cliente N"). Así, cuando un
 // celu reconecta (cambia socket.id), seguimos llamándolo igual y no
 // inflamos el contador.
@@ -639,7 +646,18 @@ function serializeClients() {
     }
   }
   const out = [];
+  const now = Date.now();
   for (const [key, info] of byKey.entries()) {
+    let netinfo = netByKey.get(key) || null;
+    // Fallback: si los sockets vivos todavía no mandaron netinfo (recién
+    // reconectaron y la primera muestra llega ~15s después), usamos la
+    // última muestra que vimos para ese clientId mientras esté fresca.
+    if (!netinfo && info.clientId) {
+      const cached = netinfoByClientId.get(info.clientId);
+      if (cached && now - (cached.at || 0) < NETINFO_TTL_MS) {
+        netinfo = cached;
+      }
+    }
     out.push({
       id: info.id,
       clientId: info.clientId || null,
@@ -648,7 +666,7 @@ function serializeClients() {
       silentWindow: info.silentWindow,
       lastSeen: info.lastSeen,
       ip: info.ip,
-      netinfo: netByKey.get(key) || null,
+      netinfo,
     });
   }
   // Sumamos los dispositivos conocidos que NO tienen un socket vivo —
@@ -1696,8 +1714,12 @@ io.on("connection", (socket) => {
       console.log("[netinfo] DROP — sin rttMs ni effectiveType", payload);
       return;
     }
-    info.netinfo = { rttMs, effectiveType, at: Date.now() };
+    const sample = { rttMs, effectiveType, at: Date.now() };
+    info.netinfo = sample;
     info.lastSeen = Date.now();
+    if (info.clientId) {
+      netinfoByClientId.set(info.clientId, sample);
+    }
     console.log("[netinfo] OK clientId=" + (info.clientId || "?") +
       " sock=" + socket.id + " rtt=" + rttMs + "ms eff=" + (effectiveType || "-"));
     broadcastClients();
