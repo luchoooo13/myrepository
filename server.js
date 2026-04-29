@@ -1677,8 +1677,14 @@ io.on("connection", (socket) => {
   // serializeClients() para mostrar 📶 fuerte/medio/débil.
   socket.on("client:netinfo", (payload) => {
     const info = clientsInfo.get(socket.id);
-    if (!info) return;
-    if (!payload || typeof payload !== "object") return;
+    if (!info) {
+      console.log("[netinfo] DROP — no clientsInfo para socket", socket.id);
+      return;
+    }
+    if (!payload || typeof payload !== "object") {
+      console.log("[netinfo] DROP — payload inválido", payload);
+      return;
+    }
     const rttMs = Number.isFinite(payload.rttMs)
       ? Math.max(0, Math.min(60000, Math.round(payload.rttMs)))
       : null;
@@ -1686,9 +1692,14 @@ io.on("connection", (socket) => {
       typeof payload.effectiveType === "string"
         ? payload.effectiveType.slice(0, 16)
         : null;
-    if (rttMs == null && !effectiveType) return;
+    if (rttMs == null && !effectiveType) {
+      console.log("[netinfo] DROP — sin rttMs ni effectiveType", payload);
+      return;
+    }
     info.netinfo = { rttMs, effectiveType, at: Date.now() };
     info.lastSeen = Date.now();
+    console.log("[netinfo] OK clientId=" + (info.clientId || "?") +
+      " sock=" + socket.id + " rtt=" + rttMs + "ms eff=" + (effectiveType || "-"));
     broadcastClients();
   });
 

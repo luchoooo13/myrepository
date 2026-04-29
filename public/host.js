@@ -263,10 +263,31 @@
     const n = payload && typeof payload.count === "number" ? payload.count : 0;
     clientsCountEl.textContent = String(n);
   });
+  // Debug temporal: dejamos un log al recibir clients:list para que, si
+  // las barritas siguen mostrando "Sin datos", el usuario pueda abrir
+  // la consola del navegador (F12) y verificar si el server está
+  // mandando netinfo o no. Si no aparece netinfo en cada cliente, el
+  // problema está en el server / cliente. Si aparece pero el badge
+  // sigue gris, el problema está en netSignalInfo() / el render.
   socket.on("clients:list", (payload) => {
+    try {
+      const summary = (payload && payload.clients ? payload.clients : []).map(
+        (c) => ({
+          name: c.name,
+          state: c.state,
+          netinfo: c.netinfo,
+        }),
+      );
+      console.log("[host] clients:list", summary);
+    } catch (e) {
+      /* ignore */
+    }
+    return _origClientsListHandler(payload);
+  });
+  function _origClientsListHandler(payload) {
     if (!payload || !Array.isArray(payload.clients)) return;
     renderDevices(payload.clients);
-  });
+  }
   socket.on("alerts:history", (payload) => {
     if (!payload || !Array.isArray(payload.history)) return;
     renderAlertHistory(payload.history);
