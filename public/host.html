@@ -40,6 +40,33 @@
       <!-- botones inyectados por host.js -->
     </section>
 
+    <section class="host__devices" id="devicesSection">
+      <h2 class="host__devices-title">Dispositivos conectados</h2>
+      <p class="host__devices-hint">
+        Todos los celulares / PCs / TVs que están escuchando alertas en este
+        momento. El estado se actualiza solo: 🟢 escuchando, 🔴 alerta sonando,
+        🌙 silenciado por horario, ⏸ pausado por el usuario.
+        <span id="devicesAdminHint" hidden>
+          Como admin, podés tocar el lápiz para renombrar un dispositivo.
+        </span>
+      </p>
+      <div class="host__devices-list" id="devicesList">
+        <div class="host__devices-empty">No hay dispositivos conectados.</div>
+      </div>
+    </section>
+
+    <section class="host__history" id="historySection">
+      <h2 class="host__history-title">Historial de alertas</h2>
+      <p class="host__history-hint">
+        Las últimas alertas que se dispararon en el sistema (max. 50). Tocá
+        una para ver quién la disparó, cuántos dispositivos la recibieron y
+        cuáles estaban silenciados.
+      </p>
+      <div class="host__history-list" id="historyList">
+        <div class="host__history-empty">Todavía no se registraron alertas.</div>
+      </div>
+    </section>
+
     <section class="host__scheduler">
       <h2 class="host__scheduler-title">Programar alerta (hora Buenos Aires)</h2>
       <form class="host__scheduler-form" id="scheduleForm" autocomplete="off">
@@ -62,6 +89,48 @@
       <ul class="host__scheduler-list" id="scheduleList">
         <li class="host__scheduler-empty">No hay alertas programadas.</li>
       </ul>
+    </section>
+
+    <section class="host__recs" id="recsSection" hidden>
+      <h2 class="host__recs-title">Recomendaciones por tipo de alerta</h2>
+      <p class="host__recs-hint">
+        Las líneas que escribas acá son las que ven los profes en la pestaña
+        "Guía rápida" de la app, y también aparecen debajo del cartel negro
+        cuando suena una alerta de ese tipo. Una línea = una recomendación.
+        Los cambios se sincronizan solos con todos los dispositivos.
+      </p>
+      <div class="host__recs-status" id="recsStatus" hidden></div>
+      <div class="host__recs-list" id="recsList">
+        <!-- inyectado por host.js -->
+      </div>
+    </section>
+
+    <section class="host__pwd" id="pwdSection">
+      <h2 class="host__pwd-title">Cambiar contraseña</h2>
+      <p class="host__pwd-hint">
+        Cambiás la contraseña de tu usuario actual
+        (<span id="pwdRoleLabel">—</span>). Para confirmar pedimos la
+        contraseña que usás hoy. Los otros dispositivos logueados con esa
+        misma cuenta van a tener que volver a entrar.
+      </p>
+      <form class="host__pwd-form" id="pwdForm" autocomplete="off">
+        <label class="host__pwd-field">
+          <span>Contraseña actual</span>
+          <input type="password" id="pwdCurrent" autocomplete="current-password" required />
+        </label>
+        <label class="host__pwd-field">
+          <span>Nueva contraseña (mín. 6)</span>
+          <input type="password" id="pwdNext" autocomplete="new-password" required minlength="6" />
+        </label>
+        <label class="host__pwd-field">
+          <span>Repetir nueva</span>
+          <input type="password" id="pwdConfirm" autocomplete="new-password" required minlength="6" />
+        </label>
+        <button class="btn btn--schedule" type="submit" id="pwdSubmit">
+          Guardar contraseña
+        </button>
+      </form>
+      <div class="host__pwd-status" id="pwdStatus" hidden></div>
     </section>
 
     <footer class="host__footer">
