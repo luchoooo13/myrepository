@@ -313,6 +313,28 @@
             />
           </div>
 
+          <div class="tab__subtitle">Tono de sirena</div>
+          <p class="tab__hint" style="margin-top:0">
+            Elegí qué sirena suena en todas las alertas (excepto simulacro,
+            que siempre usa su propia sirena).
+          </p>
+          <div class="tone-picker" id="tonePicker">
+            <label class="tone-option">
+              <input type="radio" name="sirenTone" value="default" checked />
+              <span class="tone-option__card">
+                <span class="material-symbols-outlined tone-option__icon" aria-hidden="true">campaign</span>
+                <span class="tone-option__name">Sirena estándar</span>
+              </span>
+            </label>
+            <label class="tone-option">
+              <input type="radio" name="sirenTone" value="eas" />
+              <span class="tone-option__card">
+                <span class="material-symbols-outlined tone-option__icon" aria-hidden="true">warning</span>
+                <span class="tone-option__name">EAS</span>
+              </span>
+            </label>
+          </div>
+
           <button class="btn btn--primary btn--block" id="testAlertBtn">
             <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
             Probar alerta (5 seg)

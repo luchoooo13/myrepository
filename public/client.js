@@ -61,6 +61,7 @@
   const sirenVolumeLabel = document.getElementById("sirenVolumeLabel");
   const setVoiceVolume = document.getElementById("setVoiceVolume");
   const voiceVolumeLabel = document.getElementById("voiceVolumeLabel");
+  const tonePicker = document.getElementById("tonePicker");
   const testAlertBtn = document.getElementById("testAlertBtn");
   const resetDataBtn = document.getElementById("resetDataBtn");
 
@@ -89,6 +90,10 @@
   let clientRecsState = {};
 
   const SIREN_SRC = "/sounds/siren.mp3";
+  const SIREN_TONES = {
+    default: "/sounds/siren.mp3",
+    eas:     "/sounds/eas.mp3",
+  };
   const VOICE_BASE = "/sounds/voice/";
   const VOICE_REPEAT_MS = 5000;
   const HISTORY_KEY = "alertas.history.v1"; // legacy local cache
@@ -159,6 +164,7 @@
     vibration: true,
     strobe: true,
     voice: true,
+    sirenTone: "default",
     // Volúmenes separados sirena / voz (0..100). Antes era un único
     // `volume` global; lo dejamos en defaultSettings para migrar valores
     // viejos en loadSettings(). El multiplicador por tipo (sirenVolumeMultiplier
@@ -208,6 +214,12 @@
     sirenVolumeLabel.textContent = Math.round(settings.sirenVolume) + " %";
     setVoiceVolume.value = String(settings.voiceVolume);
     voiceVolumeLabel.textContent = Math.round(settings.voiceVolume) + " %";
+    if (tonePicker) {
+      const radio = tonePicker.querySelector(
+        'input[name="sirenTone"][value="' + (settings.sirenTone || "default") + '"]'
+      );
+      if (radio) radio.checked = true;
+    }
     applyVolumeToAudio();
     applyStrobeClass();
     pushSettingsToBridge();
@@ -410,6 +422,9 @@
       }
       if (typeof window.AlertBridge.setPausedUntil === "function") {
         window.AlertBridge.setPausedUntil(settings.pausedUntil || 0);
+      }
+      if (typeof window.AlertBridge.setSirenTone === "function") {
+        window.AlertBridge.setSirenTone(settings.sirenTone || "default");
       }
     } catch (err) {
       console.warn("pushSettingsToBridge falló:", err);
@@ -1008,7 +1023,9 @@
     const muteVibration = !!alert.muteVibration;
     if (!IS_APK || alert.__runLocally) {
       if ((enabled || alert.__runLocally) && !muteSound) {
-        startSiren(alert.sirenUrl || null);
+        const sirenSrc = alert.sirenUrl
+          || (alert.type !== "simulacro" ? (SIREN_TONES[settings.sirenTone] || SIREN_SRC) : null);
+        startSiren(sirenSrc);
       }
       if ((enabled || alert.__runLocally) && !muteVoice) {
         startSpeakingLoop(alert);
@@ -1167,7 +1184,9 @@
       // en curso — ese caso ya estaba cubierto por el flujo viejo).
       if (pending && currentAlert === pending && !wasEnabled) {
         if (!IS_APK || pending.__runLocally) {
-          startSiren(pending.sirenUrl || null);
+          const unlockSrc = pending.sirenUrl
+            || (pending.type !== "simulacro" ? (SIREN_TONES[settings.sirenTone] || SIREN_SRC) : null);
+          startSiren(unlockSrc);
           startSpeakingLoop(pending);
         }
       }
@@ -1588,6 +1607,24 @@
       }
     }
   });
+
+  // --- Tone picker ---
+  if (tonePicker) {
+    tonePicker.querySelectorAll('input[name="sirenTone"]').forEach((radio) => {
+      radio.addEventListener("change", () => {
+        settings.sirenTone = radio.value;
+        persistAndApply();
+        if (bridgeAvailable() &&
+            typeof window.AlertBridge.setSirenTone === "function") {
+          try {
+            window.AlertBridge.setSirenTone(settings.sirenTone);
+          } catch (err) {
+            console.warn("AlertBridge.setSirenTone falló:", err);
+          }
+        }
+      });
+    });
+  }
 
   clearHistoryBtn.addEventListener("click", () => {
     if (!confirm("¿Seguro que querés borrar el historial local?")) return;

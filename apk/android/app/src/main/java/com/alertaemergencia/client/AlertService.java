@@ -88,6 +88,10 @@ public class AlertService extends Service {
     // controlando el stream global de alarma para no romper builds previos.
     public static final String KEY_SET_SIREN_VOLUME = "set_siren_volume";
     public static final String KEY_SET_VOICE_VOLUME = "set_voice_volume";
+    // Tono de sirena elegido por el usuario: "default" | "eas".
+    // Se usa para todas las alertas excepto simulacro (que siempre usa
+    // su propia sirena). Default = "default" = assets/siren.mp3.
+    public static final String KEY_SET_SIREN_TONE = "set_siren_tone";
     // Timestamp (ms) hasta el que el usuario pausó las notificaciones en
     // este dispositivo. Mientras esté en el futuro, el servicio ignora los
     // alert:start del server (no suena sirena, no vibra, no flash, no voz,
@@ -837,7 +841,15 @@ public class AlertService extends Service {
                 }
             }
             if (!usedRemote) {
-                AssetFileDescriptor afd = getAssets().openFd("siren.mp3");
+                String assetName = "siren.mp3";
+                if (!"simulacro".equalsIgnoreCase(currentAlertType)) {
+                    SharedPreferences toneSp = getSharedPreferences(PREFS, MODE_PRIVATE);
+                    String tone = toneSp.getString(KEY_SET_SIREN_TONE, "default");
+                    if ("eas".equals(tone)) {
+                        assetName = "eas.mp3";
+                    }
+                }
+                AssetFileDescriptor afd = getAssets().openFd(assetName);
                 sirenPlayer.setDataSource(afd.getFileDescriptor(),
                         afd.getStartOffset(), afd.getLength());
                 afd.close();
