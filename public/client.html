@@ -6,8 +6,9 @@
       name="viewport"
       content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
-    <meta name="theme-color" content="#0b1220" />
-    <title>SchoolAlerts · Cliente</title>
+    <meta name="theme-color" content="#0e0e11" />
+    <title>SchoolAlerts</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" />
     <link rel="stylesheet" href="/styles.css" />
     <!-- PWA / iOS -->
     <link rel="manifest" href="/manifest.json" />
@@ -21,7 +22,7 @@
     <div class="app" id="app">
       <header class="app__topbar">
         <div class="app__brand">
-          <span class="app__brand-icon" aria-hidden="true">⚠️</span>
+          <span class="material-symbols-outlined app__brand-icon" aria-hidden="true">crisis_alert</span>
           <span class="app__brand-text">SchoolAlerts</span>
         </div>
         <div class="app__status">
@@ -49,6 +50,7 @@
                 voz cuando llegue una alerta.
               </p>
               <button class="btn btn--primary btn--block" id="enableBtn">
+                <span class="material-symbols-outlined" aria-hidden="true">volume_up</span>
                 Activar sonido y voz
               </button>
             </div>
@@ -62,6 +64,7 @@
                 celular bloqueado o la app cerrada.
               </p>
               <button class="btn btn--primary btn--block" id="pushEnableBtn">
+                <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
                 Activar notificaciones
               </button>
               <p class="card__text" id="pushStatus" hidden></p>
@@ -83,6 +86,7 @@
                   placeholder="Ej: Aula 5to A"
                 />
                 <button class="btn btn--primary" id="deviceNameSaveBtn" type="button">
+                  <span class="material-symbols-outlined" aria-hidden="true">save</span>
                   Guardar
                 </button>
               </div>
@@ -168,6 +172,7 @@
           <div class="tab__header">
             <h2 class="tab__title">Historial</h2>
             <button class="btn btn--ghost btn--small" id="clearHistoryBtn">
+              <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1em">delete_sweep</span>
               Borrar local
             </button>
           </div>
@@ -309,6 +314,7 @@
           </div>
 
           <button class="btn btn--primary btn--block" id="testAlertBtn">
+            <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
             Probar alerta (5 seg)
           </button>
           <p class="setting__footer">
@@ -317,11 +323,12 @@
           </p>
 
           <button class="btn btn--danger btn--block" id="resetDataBtn">
+            <span class="material-symbols-outlined" aria-hidden="true">delete</span>
             Borrar historial y preferencias
           </button>
 
           <p class="tab__hint app__credit" style="margin-top: 1.5rem">
-            Creado con <span class="app__credit-heart" aria-hidden="true">💖</span>, Lucho
+            Creado con <span class="material-symbols-outlined app__credit-heart" aria-hidden="true" style="font-size:1em;vertical-align:middle;color:#f27a7a">favorite</span>, Lucho
             2026 app SchoolAlerts
           </p>
         </section>
@@ -329,19 +336,27 @@
 
       <nav class="tabs" role="tablist">
         <button class="tabs__btn is-active" data-tab-target="home" type="button">
-          <span class="tabs__icon" aria-hidden="true">🏠</span>
+          <div class="tabs__icon-wrapper">
+            <span class="material-symbols-outlined tabs__icon">crisis_alert</span>
+          </div>
           <span class="tabs__label">Inicio</span>
         </button>
         <button class="tabs__btn" data-tab-target="history" type="button">
-          <span class="tabs__icon" aria-hidden="true">📋</span>
+          <div class="tabs__icon-wrapper">
+            <span class="material-symbols-outlined tabs__icon">article</span>
+          </div>
           <span class="tabs__label">Historial</span>
         </button>
         <button class="tabs__btn" data-tab-target="info" type="button">
-          <span class="tabs__icon" aria-hidden="true">ℹ️</span>
+          <div class="tabs__icon-wrapper">
+            <span class="material-symbols-outlined tabs__icon">info</span>
+          </div>
           <span class="tabs__label">Info</span>
         </button>
         <button class="tabs__btn" data-tab-target="settings" type="button">
-          <span class="tabs__icon" aria-hidden="true">⚙️</span>
+          <div class="tabs__icon-wrapper">
+            <span class="material-symbols-outlined tabs__icon">settings</span>
+          </div>
           <span class="tabs__label">Ajustes</span>
         </button>
       </nav>
@@ -356,7 +371,7 @@
         aria-label="Cerrar alerta en este dispositivo"
         title="Cerrar alerta en este dispositivo"
       >
-        <span aria-hidden="true">×</span>
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
       </button>
       <div class="alert__clock">
         <div class="clock__time" data-clock-time>--:--:--</div>
@@ -382,7 +397,7 @@
            arrancar la sirena. El click en cualquier parte del overlay
            (excepto la X) dispara unlockAudioAndPlayCurrent(). -->
       <div class="alert__unlock" id="alertUnlockHint" hidden>
-        <span class="alert__unlock-icon" aria-hidden="true">🔊</span>
+        <span class="material-symbols-outlined alert__unlock-icon" aria-hidden="true">volume_up</span>
         <span class="alert__unlock-text">
           Tocá la pantalla para escuchar la sirena
         </span>
