@@ -817,25 +817,23 @@
     return Promise.resolve(VOICE_BASE + alertObj.type + ".mp3");
   }
 
-  // Pitch / velocidad de la voz. Subimos un toque la playbackRate y
-  // deshabilitamos preservesPitch para que el tono también suba — así la
-  // voz queda más aguda que el TTS de Google estándar (lo que el usuario
-  // pidió). Mantenemos el cambio chico para que no se vuelva chillona.
-  const VOICE_PLAYBACK_RATE = 1.12;
+  // Voz: Google TTS español (Susana Ballesteros). Se reproduce a
+  // velocidad y tono natural (playbackRate 1.0, preservesPitch true).
+  const VOICE_PLAYBACK_RATE = 1.0;
   function applyVoicePitch(audio) {
     if (!audio) return;
     try {
-      audio.preservesPitch = false;
+      audio.preservesPitch = true;
     } catch {
       /* ignore */
     }
     try {
-      audio.webkitPreservesPitch = false;
+      audio.webkitPreservesPitch = true;
     } catch {
       /* ignore */
     }
     try {
-      audio.mozPreservesPitch = false;
+      audio.mozPreservesPitch = true;
     } catch {
       /* ignore */
     }
