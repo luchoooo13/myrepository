@@ -510,6 +510,18 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /**
+         * Tono de sirena elegido ("default" o "eas"). Se aplica a todas
+         * las alertas excepto simulacro.
+         */
+        @JavascriptInterface
+        public void setSirenTone(String tone) {
+            if (tone == null || tone.isEmpty()) tone = "default";
+            prefs().edit()
+                    .putString(AlertService.KEY_SET_SIREN_TONE, tone)
+                    .apply();
+        }
+
+        /**
          * Guarda el timestamp (ms) hasta el que el usuario pausó las
          * notificaciones en este dispositivo. El servicio nativo lo lee en
          * onAlertStart y descarta las alertas mientras la pausa siga
