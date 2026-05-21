@@ -791,11 +791,22 @@
     } catch {
       /* ignore */
     }
-    const p = audio.play();
-    if (p && typeof p.catch === "function") {
-      p.catch((err) => console.warn("No se pudo reproducir la sirena:", err));
+    const tryPlay = () => {
+      const p = audio.play();
+      if (p && typeof p.catch === "function") {
+        p.catch((err) => console.warn("No se pudo reproducir la sirena:", err));
+      }
+    };
+    if (audio.readyState >= 2) {
+      tryPlay();
+    } else {
+      audio.addEventListener("canplay", function onReady() {
+        audio.removeEventListener("canplay", onReady);
+        if (alertActive()) tryPlay();
+      });
     }
   }
+  function alertActive() { return !!currentAlert; }
 
   function stopSiren() {
     if (!sirenAudio) return;
@@ -1172,7 +1183,9 @@
     // Si ya hay una alerta activa con sirena custom (ej. simulacro usa
     // /sounds/siren-simulacro.mp3), tenemos que calentar ESE audio y no el
     // default — si no, pisaríamos el audio actual con el default.
-    const warmSirenSrc = pending && pending.sirenUrl ? pending.sirenUrl : null;
+    const warmSirenSrc = pending && pending.sirenUrl
+      ? pending.sirenUrl
+      : (settings.sirenTone !== "default" ? (SIREN_TONES[settings.sirenTone] || null) : null);
     return Promise.all([
       warmUpAudio(ensureSirenAudio(warmSirenSrc)),
       warmUpAudio(ensureVoiceAudio(VOICE_BASE + "simulacro.mp3")),
