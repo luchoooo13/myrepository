@@ -625,8 +625,10 @@ html, body {
 }
 
 .tabs__btn.is-active .tabs__icon {
-  font-variation-settings: 'FILL' 1; /* Rellena el ícono al activar */
+  font-variation-settings: 'FILL' 1;
 }
+.tabs__btn.is-active .tabs__label { font-weight: 600; }
+.tabs__btn:active .tabs__icon { transform: scale(0.92); }
 
 /* ── Cards (M3 Filled Cards) ── */
 .card {
@@ -735,73 +737,6 @@ html:has(body.client) { height: 100%; }
 .tab__subtitle { font-size: 0.68rem; font-weight: 600; margin: 1.75rem 0 0.7rem; color: var(--md-on-surface-muted); text-transform: uppercase; letter-spacing: 0.16em; }
 .tab__hint     { color: var(--md-on-surface-variant); font-size: 0.87rem; margin: 0.35rem 0 1.25rem; line-height: 1.55; }
 
-/* ── Bottom nav — MATERIAL YOU STYLE ── */
-.tabs {
-  display: flex;
-  background: var(--md-surface);
-  padding: 0 0.5rem max(0.6rem, env(safe-area-inset-bottom,0px));
-  z-index: 6;
-  flex-shrink: 0;
-  border-top: 1px solid var(--md-outline-variant);
-}
-.tabs__btn {
-  flex: 1;
-  background: none;
-  border: 0;
-  color: var(--md-on-surface-muted);
-  font-family: var(--font-ui);
-  font-size: 0.68rem;
-  font-weight: 400;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-  padding: 0.6rem 0.25rem 0.3rem;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: color 0.2s ease;
-  letter-spacing: 0.01em;
-  position: relative;
-}
-
-/* Pill indicator (indicator M3) */
-.tabs__btn::before {
-  content: "";
-  position: absolute;
-  top: 0.45rem;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 2px;
-  background: var(--md-primary);
-  border-radius: var(--r-full);
-  transition: width 0.25s cubic-bezier(.4,0,.2,1);
-}
-.tabs__btn.is-active::before { width: 2rem; }
-
-.tabs__icon {
-  display: inline-flex;
-  background: transparent;
-  font-size: 1.25rem;
-  line-height: 1;
-  transition: transform 0.2s cubic-bezier(.4,0,.2,1);
-  border-radius: var(--r-full);
-  padding: 0.15rem 0.85rem;
-  margin-top: 0.3rem;
-}
-/* Pill de fondo del ícono activo */
-.tabs__btn.is-active .tabs__icon {
-  background: var(--md-primary-container);
-  color: var(--md-primary);
-  transform: scale(1.05);
-}
-.tabs__btn:active .tabs__icon { transform: scale(0.92); }
-
-.tabs__label { font-size: 0.66rem; transition: color 0.2s ease, font-weight 0.2s ease; }
-.tabs__btn.is-active {
-  color: var(--md-primary);
-}
-.tabs__btn.is-active .tabs__label { font-weight: 600; }
 
 /* ── Hero (reloj en inicio) ── */
 .hero {
@@ -829,21 +764,7 @@ html:has(body.client) { height: 100%; }
 }
 .hero__hint { display: none; }
 
-/* ── Cards ── */
-.card {
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--md-outline-variant);
-  border-radius: 0;
-  padding: 1.1rem 0;
-  margin: 0;
-}
-.card--muted  { background: transparent; border-bottom: 1px solid var(--md-outline-variant); }
-.card:last-child { border-bottom: 0; }
-.card__title {
-  font-size: 0.67rem; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--md-on-surface-muted); margin: 0 0 0.55rem; font-weight: 600;
-}
+/* ── Card body (extra rules) ── */
 .card__body      { font-size: 0.93rem; line-height: 1.5; color: var(--md-on-surface); }
 .card__body--muted { color: var(--md-on-surface-variant); font-size: 0.88rem; }
 .card__text      { margin: 0 0 0.9rem; color: var(--md-on-surface-variant); font-size: 0.88rem; line-height: 1.5; }
@@ -861,12 +782,12 @@ html:has(body.client) { height: 100%; }
 .status-row__value.is-positive { color: var(--md-success); }
 
 /* ── Botones del cliente ── */
-.btn--block  { display: flex; width: 100%; border-radius: var(--r-full); padding: 0.85rem 1rem; font-size: 0.9rem; }
-.btn--small  { padding: 0.42rem 0.95rem; font-size: 0.77rem; border-radius: var(--r-full); }
-.btn--ghost  { background: transparent; border: 1px solid var(--md-outline); color: var(--md-on-surface); font-weight: 400; }
-.btn--ghost:hover { background: rgba(255,255,255,0.04); }
-.btn--danger { background: transparent; color: var(--md-error); border: 1px solid var(--md-error); border-radius: var(--r-full); }
-.btn--danger:hover { background: var(--md-error-container); }
+body.client .btn--block  { display: flex; width: 100%; border-radius: var(--r-full); padding: 0.85rem 1rem; font-size: 0.9rem; }
+body.client .btn--small  { padding: 0.42rem 0.95rem; font-size: 0.77rem; border-radius: var(--r-full); }
+body.client .btn--ghost  { background: transparent; border: 1px solid var(--md-outline); color: var(--md-on-surface); font-weight: 400; }
+body.client .btn--ghost:hover { background: rgba(255,255,255,0.04); }
+body.client .btn--danger { background: transparent; color: var(--md-error); border: 1px solid var(--md-error); border-radius: var(--r-full); }
+body.client .btn--danger:hover { background: var(--md-error-container); }
 #enableBtn.is-enabled { background: transparent; color: var(--md-success); border-color: var(--md-success); }
 
 /* ── Historial (cliente) ── */
@@ -958,7 +879,6 @@ html:has(body.client) { height: 100%; }
 .setting__label-hint  { font-size: 0.76rem; color: var(--md-on-surface-variant); }
 .setting__footer      { font-size: 0.78rem; color: var(--md-on-surface-muted); margin: 0.5rem 0 0; text-align: center; }
 
-/* ── Switch (toggle) — Material You ── */
 /* ── Switch (toggle) — Material You ── */
 .switch {
   position: relative; display: inline-block;
@@ -1206,8 +1126,7 @@ html:has(body.client) { height: 100%; }
 .info-recs-loading,
 .info-recs-empty { color: var(--muted); font-style: italic; margin: 0.5rem 0 0.8rem; }
 
-/* ── Clock overlay en alerta ── */
-.clock--overlay { position: relative; z-index: 12; }
+
 
 /* ============================================================
  * REDUCE MOTION
@@ -1218,80 +1137,13 @@ html:has(body.client) { height: 100%; }
   .switch__slider, .switch__slider::before { transition: none; }
 }
 
-/* ── Corrección para mostrar los interruptores en Ajustes ── */
+/* ── Corrección para settings-item ── */
 .settings-item {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Empuja el interruptor al extremo derecho */
+  justify-content: space-between;
   gap: 1rem;
   padding: 1rem;
   width: 100%;
   box-sizing: border-box;
-}
-
-/* ── CORRECCIÓN DEFINITIVA PARA CONTROL-ROW Y SETTINGS-ITEM ── */
-
-/* Asegura el contenedor de la fila de ajustes */
-.settings-item {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 1rem;
-  padding: 1rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Hace que CUALQUIER switch dentro de ajustes o controles tenga el tamaño M3 */
-.settings-item .switch,
-.control-row .switch,
-.switch {
-  position: relative !important;
-  display: inline-block !important;
-  width: 52px !important;
-  height: 32px !important;
-  flex-shrink: 0 !important;
-}
-
-/* El fondo del switch (el riel) */
-.settings-item .switch__slider,
-.control-row .switch__slider,
-.switch__slider {
-  position: absolute;
-  inset: 0;
-  background: #36363d; /* Cambialo por tu variable si querés */
-  border: 2px solid #b0b0c0;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-/* La bolita interna (thumb) */
-.settings-item .switch__slider::before,
-.control-row .switch__slider::before,
-.switch__slider::before {
-  content: "";
-  position: absolute;
-  height: 16px;
-  width: 16px;
-  left: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: #b0b0c0;
-  border-radius: 50%;
-  transition: transform 0.25s cubic-bezier(.2, 0, 0, 1), background 0.2s, width 0.2s, height 0.2s;
-}
-
-/* Cuando el input está checked (activado) */
-.switch input:checked + .switch__slider {
-  background: var(--md-primary, #7c9dff) !important;
-  border-color: var(--md-primary, #7c9dff) !important;
-}
-
-.switch input:checked + .switch__slider::before {
-  transform: translate(20px, -50%) !important;
-  background: #0a0a18 !important;
-  width: 24px !important;
-  height: 24px !important;
-  left: 2px !important;
 }
