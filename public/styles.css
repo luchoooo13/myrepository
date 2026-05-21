@@ -915,6 +915,7 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 .switch--row {
   display: flex; justify-content: space-between; align-items: center;
   gap: 0.75rem; margin-top: 1rem;
+  width: 100%; height: auto;
 }
 .switch--row .switch__row-text         { display: flex; flex-direction: column; gap: 0.15rem; }
 .switch--row .switch__row-text strong  { font-size: 0.95rem; font-weight: 400; }
