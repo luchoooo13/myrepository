@@ -1020,107 +1020,179 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   51%,100% { background: #1e3a8a; }
 }
 
-/* ── Nuevo overlay .alert (v2) ── */
+/* ── Overlay de alerta — MATERIAL YOU M3 ── */
 .alert {
   position: fixed; inset: 0; display: grid; place-items: center;
-  color: #fff; padding: 1.25rem; background: #dc2626;
+  color: #fff; padding: 1.25rem;
   z-index: 100; overflow: hidden;
-  animation: alertFlashBg 0.5s steps(2,end) infinite;
+  background: linear-gradient(160deg, #b91c1c 0%, #dc2626 40%, #991b1b 100%);
+  animation: m3AlertPulse 1.8s ease-in-out infinite;
 }
-.alert.is-simulacro { animation: alertFlashBgBlue 0.5s steps(2,end) infinite; }
-
-@keyframes alertFlashBg {
-  0%,50%   { background: #ffffff; }
-  51%,100% { background: #dc2626; }
-}
-@keyframes alertFlashBgBlue {
-  0%,50%   { background: #ffffff; }
-  51%,100% { background: #1d4ed8; }
-}
-.alert.is-nostrobe { animation: alertFlashBgSoft 1s steps(2,end) infinite; }
-.alert.is-nostrobe.is-simulacro { animation: alertFlashBgSoftBlue 1s steps(2,end) infinite; }
-@keyframes alertFlashBgSoft {
-  0%,50%   { background: #dc2626; }
-  51%,100% { background: #7f1d1d; }
-}
-@keyframes alertFlashBgSoftBlue {
-  0%,50%   { background: #1d4ed8; }
-  51%,100% { background: #1e3a8a; }
+.alert.is-simulacro {
+  background: linear-gradient(160deg, #1e40af 0%, #3b82f6 40%, #1e3a8a 100%);
+  animation: m3AlertPulseBlue 1.8s ease-in-out infinite;
 }
 
-.alert__bg { display: none; }
+/* Strobe activo: pulso más agresivo con flash blanco */
+@keyframes m3AlertPulse {
+  0%   { background: linear-gradient(160deg, #b91c1c 0%, #dc2626 40%, #991b1b 100%); }
+  8%   { background: linear-gradient(160deg, #fff 0%, #fecaca 40%, #fca5a5 100%); }
+  16%  { background: linear-gradient(160deg, #dc2626 0%, #b91c1c 40%, #7f1d1d 100%); }
+  50%  { background: linear-gradient(160deg, #991b1b 0%, #dc2626 40%, #b91c1c 100%); }
+  100% { background: linear-gradient(160deg, #b91c1c 0%, #dc2626 40%, #991b1b 100%); }
+}
+@keyframes m3AlertPulseBlue {
+  0%   { background: linear-gradient(160deg, #1e40af 0%, #3b82f6 40%, #1e3a8a 100%); }
+  8%   { background: linear-gradient(160deg, #fff 0%, #bfdbfe 40%, #93c5fd 100%); }
+  16%  { background: linear-gradient(160deg, #3b82f6 0%, #1e40af 40%, #1e3a8a 100%); }
+  50%  { background: linear-gradient(160deg, #1e3a8a 0%, #3b82f6 40%, #1e40af 100%); }
+  100% { background: linear-gradient(160deg, #1e40af 0%, #3b82f6 40%, #1e3a8a 100%); }
+}
+
+/* Sin strobe: pulso suave sin flash blanco */
+.alert.is-nostrobe {
+  animation: m3AlertSoft 2.5s ease-in-out infinite;
+}
+.alert.is-nostrobe.is-simulacro {
+  animation: m3AlertSoftBlue 2.5s ease-in-out infinite;
+}
+@keyframes m3AlertSoft {
+  0%, 100% { background: linear-gradient(160deg, #b91c1c 0%, #dc2626 40%, #991b1b 100%); }
+  50%      { background: linear-gradient(160deg, #7f1d1d 0%, #991b1b 40%, #7f1d1d 100%); }
+}
+@keyframes m3AlertSoftBlue {
+  0%, 100% { background: linear-gradient(160deg, #1e40af 0%, #3b82f6 40%, #1e3a8a 100%); }
+  50%      { background: linear-gradient(160deg, #1e3a8a 0%, #1e40af 40%, #1e3a8a 100%); }
+}
+
+/* Fondo animado con gradiente radial */
+.alert__bg {
+  display: block; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 120% 80% at 50% 30%, rgba(255,255,255,0.08) 0%, transparent 70%);
+  pointer-events: none; z-index: 101;
+}
+
+/* Reloj (esquina superior izquierda) */
 .alert__clock {
   position: absolute;
-  top: max(0.9rem, env(safe-area-inset-top,0px));
-  left: max(1rem, env(safe-area-inset-left,0px));
-  color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  top: max(1.1rem, env(safe-area-inset-top,0px));
+  left: max(1.25rem, env(safe-area-inset-left,0px));
+  color: rgba(255,255,255,0.85); z-index: 115;
 }
-.alert__clock .clock__time { font-size: clamp(1.1rem,3vw,1.6rem); font-weight: 800; }
+.alert__clock .clock__time {
+  font-size: clamp(1rem,2.8vw,1.4rem); font-weight: 500;
+  font-family: var(--font-ui); letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Botón cerrar — M3 filled tonal icon button */
 .alert__close {
   position: absolute;
-  top: max(0.75rem, env(safe-area-inset-top,0px));
-  right: max(0.75rem, env(safe-area-inset-right,0px));
-  width: 3.25rem; height: 3.25rem; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.9); background: rgba(0,0,0,0.55);
-  color: #fff; font-size: 2rem; font-weight: 700; line-height: 1;
-  display: grid; place-items: center; cursor: pointer; z-index: 120; padding: 0;
-  -webkit-tap-highlight-color: transparent; transition: background 0.15s, transform 0.1s;
+  top: max(0.85rem, env(safe-area-inset-top,0px));
+  right: max(0.85rem, env(safe-area-inset-right,0px));
+  width: 3rem; height: 3rem; border-radius: 50%;
+  border: none; background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  color: #fff; display: grid; place-items: center;
+  cursor: pointer; z-index: 120; padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s cubic-bezier(.2,0,0,1), transform 0.15s;
 }
-.alert__close:hover  { background: rgba(0,0,0,0.8); outline: none; }
-.alert__close:active { transform: scale(0.92); }
-.alert__close span   { display: block; font-size: 1.5rem; }
+.alert__close:hover  { background: rgba(0,0,0,0.6); }
+.alert__close:active { transform: scale(0.9); }
+.alert__close span   { display: block; font-size: 1.35rem; }
 
+/* Card central — M3 elevated surface */
 .alert__card {
-  position: relative; background: rgba(0,0,0,0.88);
-  border: 1px solid rgba(255,255,255,0.18); border-radius: var(--r-xl);
-  padding: 1.6rem 2rem 1.8rem; text-align: center;
-  max-width: min(92vw, 640px); z-index: 110;
-  box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+  position: relative; z-index: 110;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--r-xl, 28px);
+  padding: 2rem 2.5rem 2.2rem; text-align: center;
+  max-width: min(92vw, 560px);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.08);
 }
-.alert__tag  { font-size: clamp(1.1rem,3.5vw,2rem); font-weight: 800; letter-spacing: 0.4em; opacity: 0.9; color: #fecaca; }
+.alert__tag {
+  font-size: clamp(0.8rem,2.5vw,1rem);
+  font-weight: 600; letter-spacing: 0.3em;
+  text-transform: uppercase; color: #fecaca;
+  font-family: var(--font-ui);
+}
 .alert.is-simulacro .alert__tag { color: #bfdbfe; }
-.alert__type { font-size: clamp(2.4rem,10vw,7rem); font-weight: 900; line-height: 1; text-transform: uppercase; margin: 0.4rem 0 0.3rem; word-break: break-word; text-shadow: 0 4px 20px rgba(0,0,0,0.35); font-family: var(--font-display); }
-.alert__time { font-variant-numeric: tabular-nums; font-size: clamp(1.25rem,4vw,2rem); font-weight: 700; letter-spacing: 0.1em; color: rgba(255,255,255,0.92); }
+.alert__type {
+  font-size: clamp(2.8rem,12vw,7.5rem);
+  font-weight: 800; line-height: 0.95;
+  text-transform: uppercase;
+  margin: 0.5rem 0 0.4rem; word-break: break-word;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+.alert__time {
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.4rem,5vw,2.4rem);
+  font-weight: 300; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.88);
+  font-family: var(--font-display);
+}
 
+/* Hint de desbloqueo — M3 assist chip */
 .alert__unlock {
   position: absolute; left: 50%;
-  bottom: calc(env(safe-area-inset-bottom,0px) + 2rem);
+  bottom: calc(env(safe-area-inset-bottom,0px) + 2.5rem);
   transform: translateX(-50%); z-index: 115;
-  display: flex; align-items: center; gap: 0.6rem;
-  padding: 0.85rem 1.3rem; background: rgba(0,0,0,0.7);
-  border: 2px solid rgba(255,255,255,0.45); border-radius: var(--r-full);
-  color: #fff; font-weight: 800; font-size: clamp(0.95rem,2.5vw,1.15rem);
-  text-transform: uppercase; letter-spacing: 0.05em;
-  pointer-events: none; animation: unlock-pulse 1.4s ease-in-out infinite;
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.75rem 1.4rem;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: var(--r-full, 999px);
+  color: #fff; font-weight: 500;
+  font-size: clamp(0.85rem,2.2vw,1rem);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  animation: m3UnlockPulse 2s ease-in-out infinite;
   max-width: 92vw; text-align: center;
 }
-.alert__unlock-icon { font-size: 1.3em; line-height: 1; }
-.alert__unlock-text { line-height: 1.25; }
-@keyframes unlock-pulse {
-  0%,100% { transform: translateX(-50%) scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
-  50%     { transform: translateX(-50%) scale(1.04); box-shadow: 0 0 0 14px rgba(255,255,255,0); }
+.alert__unlock-icon { font-size: 1.2em; line-height: 1; }
+.alert__unlock-text { line-height: 1.3; }
+@keyframes m3UnlockPulse {
+  0%,100% { transform: translateX(-50%) scale(1); opacity: 1; }
+  50%     { transform: translateX(-50%) scale(1.03); opacity: 0.8; }
 }
 
+/* Recomendaciones — M3 surface card */
 .alert__recs {
-  position: relative; z-index: 110; margin-top: 1.2rem;
-  max-width: min(92vw, 640px); width: 100%;
-  background: rgba(0,0,0,0.82); border: 1px solid rgba(255,255,255,0.18);
-  border-radius: var(--r-lg); padding: 1rem 1.2rem; color: #fff;
-  max-height: 40vh; overflow-y: auto; box-shadow: 0 15px 50px rgba(0,0,0,0.5);
+  position: relative; z-index: 110; margin-top: 1rem;
+  max-width: min(92vw, 560px); width: 100%;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r-lg, 20px); padding: 1.1rem 1.3rem; color: #fff;
+  max-height: 35vh; overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
 }
 .alert__recs-title {
-  font-size: clamp(0.85rem,2.2vw,1rem); font-weight: 700;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: #fde68a; margin-bottom: 0.65rem; text-align: center;
+  font-size: clamp(0.72rem,1.8vw,0.85rem); font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: #fde68a; margin-bottom: 0.6rem; text-align: center;
+  font-family: var(--font-ui);
 }
-.alert__recs-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+.alert__recs-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
 .alert__recs-list li {
-  position: relative; padding-left: 1.5rem;
-  font-size: clamp(0.92rem,2.5vw,1.1rem); line-height: 1.35; font-weight: 500; color: #f9fafb;
+  position: relative; padding-left: 1.4rem;
+  font-size: clamp(0.88rem,2.2vw,1.05rem);
+  line-height: 1.4; font-weight: 400; color: rgba(255,255,255,0.92);
 }
 .alert__recs-list li::before {
-  content: "•"; position: absolute; left: 0.4rem; top: -0.05em;
-  font-size: 1.3em; color: #fde68a;
+  content: ""; position: absolute; left: 0; top: 0.55em;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #fde68a;
 }
 
 /* Placeholders */
