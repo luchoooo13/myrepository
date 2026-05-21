@@ -543,13 +543,28 @@ html, body {
  * ============================================================ */
 
 /* Variables Material You para el cliente */
-/* ── Agregá estos tokens a tu :root de la sección CLIENT v2 ── */
 :root {
-  /* ... tus variables actuales ... */
+  --md-bg:                        #0e0e11;
+  --md-surface:                   #16161a;
+  --md-surface-2:                 #1e1e24;
+  --md-surface-3:                 #26262f;
+  --md-surface-4:                 #2e2e38;
+  --md-outline:                   rgba(255, 255, 255, 0.14);
+  --md-outline-variant:           rgba(255, 255, 255, 0.06);
+  --md-on-surface:                #f0f0f5;
+  --md-on-surface-variant:        #a3a3b0;
+  --md-on-surface-muted:          #6e6e7a;
+  --md-primary:                   #bac8ff;
+  --md-primary-container:         rgba(124, 157, 255, 0.12);
+  --md-on-primary:                #0e0e11;
+  --md-on-primary-container:      #bac8ff;
+  --md-success:                   #69e0a5;
+  --md-error:                     #f27a7a;
+  --md-error-container:           rgba(242, 122, 122, 0.12);
+  --md-warning:                   #ffc84a;
   --md-surface-container:         #1d1d22;
   --md-surface-container-high:    #2b2b31;
   --md-surface-container-highest: #36363d;
-  --md-on-primary-container:      #bac8ff;
 }
 
 /* ── Bottom nav — MATERIAL YOU M3 ── */
