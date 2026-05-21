@@ -817,23 +817,23 @@
     return Promise.resolve(VOICE_BASE + alertObj.type + ".mp3");
   }
 
-  // Voz: Google TTS español (Susana Ballesteros). Se reproduce a
-  // velocidad y tono natural (playbackRate 1.0, preservesPitch true).
-  const VOICE_PLAYBACK_RATE = 1.0;
+  // Voz: Google TTS español con tono elevado para que suene más aguda
+  // y clara. playbackRate > 1 + preservesPitch false sube el pitch.
+  const VOICE_PLAYBACK_RATE = 1.2;
   function applyVoicePitch(audio) {
     if (!audio) return;
     try {
-      audio.preservesPitch = true;
+      audio.preservesPitch = false;
     } catch {
       /* ignore */
     }
     try {
-      audio.webkitPreservesPitch = true;
+      audio.webkitPreservesPitch = false;
     } catch {
       /* ignore */
     }
     try {
-      audio.mozPreservesPitch = true;
+      audio.mozPreservesPitch = false;
     } catch {
       /* ignore */
     }
