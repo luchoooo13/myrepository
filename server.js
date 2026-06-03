@@ -2100,13 +2100,18 @@ function getLanAddresses() {
 }
 
 process.on("uncaughtException", (err) => {
-
-    addMonitorLog(
-        "bad",
-        "CRASH: " + err.message
-    );
-
+    addMonitorLog("bad", "CRASH: " + err.message);
     console.error(err);
+});
+
+process.on("unhandledRejection", (err) => {
+    addMonitorLog("bad", "PROMISE ERROR: " + err);
+});
+
+// UN SOLO LISTEN LIMPIO PARA TODO EL SERVIDOR:
+server.listen(PORT, "0.0.0.0", () => {
+  const lan = getLanAddresses();
+  console.log("Servidor de Alertas de Emergencia iniciado con éxito en Render");
 });
 server.listen(3000, () => console.log('Servidor corriendo...'));
 process.on("unhandledRejection", (err) => {
