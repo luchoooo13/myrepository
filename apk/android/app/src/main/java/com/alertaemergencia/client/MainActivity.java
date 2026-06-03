@@ -1,3 +1,4 @@
+// Archivo: MainActivity.java
 package com.alertaemergencia.client;
 
 import android.Manifest;
@@ -15,6 +16,7 @@ import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.InputType;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -35,14 +37,16 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class MainActivity extends AppCompatActivity {
+
+    private TextView networkWarningChip;
 
     private static final String PREFS = "alerta_config";
     private static final String KEY_URL = "server_url";
@@ -52,19 +56,24 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
 
-    // Identificador de build visible en pantalla / notificación para que el
-    // usuario pueda confirmar de un vistazo que está corriendo el APK nuevo.
-    // Subir este valor cuando cambiamos algo importante del nativo para que
-    // sea obvio si el APK viejo quedó instalado por algún motivo.
     public static final String BUILD_TAG = "v4-antiphantom";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
-        // Pantalla siempre prendida (útil para recibir alertas en cualquier momento).
+        WebView myWebView = findViewById(R.id.webView);
+        if(myWebView != null) {
+            myWebView.getSettings().setJavaScriptEnabled(true);
+            myWebView.getSettings().setDomStorageEnabled(true);
+            Log.d("DEBUG_BRIDGE", "INTENTANDO REGISTRAR EL PUENTE...");
+            myWebView.addJavascriptInterface(new WebAppInterface(this), "AndroidInterface");
+            Log.d("DEBUG_BRIDGE", "PUENTE REGISTRADO. AHORA CARGAMOS LA URL.");
+            myWebView.loadUrl("https://raptorial-cecila-uncatastrophically.ngrok-free.dev/client");
+        }
+
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
         requestRuntimePermissions();
 
         String url = getSavedUrl();
@@ -75,46 +84,84 @@ public class MainActivity extends AppCompatActivity {
             startAlertService(url);
         }
 
-        // Para que el servicio sobreviva a "cerrar desde multitarea", la
-        // app necesita estar fuera del ahorro de batería. Pedimos la exención
-        // una sola vez; el usuario puede aceptar o rechazar.
         requestBatteryOptimizationExemption();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "Por favor, permití que SchoolAlerts se muestre sobre otras apps para las alertas.", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            }
+        }
+    }
+
+    private void createNetworkChip() {
+        ViewGroup root = findViewById(android.R.id.content);
+        networkWarningChip = new TextView(this);
+        networkWarningChip.setText("Mala conexión");
+        networkWarningChip.setTextColor(Color.WHITE);
+        networkWarningChip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        networkWarningChip.setPadding(dp(14), dp(6), dp(14), dp(6));
+        networkWarningChip.setGravity(Gravity.CENTER);
+        networkWarningChip.setVisibility(View.GONE);
+
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(Color.parseColor("#D32F2F"));
+        bg.setCornerRadius(dp(16));
+        networkWarningChip.setBackground(bg);
+
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        params.topMargin = dp(40);
+        root.addView(networkWarningChip, params);
+    }
+
+    private int dp(int value) {
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
+    }
+
+    public class WebAppInterface {
+        Context mContext;
+        WebAppInterface(Context c) { mContext = c; }
+
+        @JavascriptInterface
+        public void showNetworkWarning(String title, String message) {
+            // Implementación según UI de in-app
+        }
+
+        @JavascriptInterface
+        public void hideNetworkWarning() {
+            // Cancelar warning in-app
+        }
+
+        @JavascriptInterface
+        public void testBridge() {
+            Log.d("DEBUG_BRIDGE", "Puente AndroidInterface funcionando correctamente");
+        }
     }
 
     private void requestBatteryOptimizationExemption() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (pm == null) return;
-            if (pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+            if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
             @SuppressLint("BatteryLife")
-            Intent i = new Intent(
-                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
             i.setData(Uri.parse("package:" + getPackageName()));
             startActivity(i);
-        } catch (Exception ignored) {
-            // Algunos OEM no tienen esta intent; el usuario tendrá que
-            // hacerlo a mano desde Ajustes → Batería → SchoolAlerts.
-        }
+        } catch (Exception ignored) {}
     }
 
     private void requestRuntimePermissions() {
-        // Android 13+: notificaciones en runtime.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this,
-                    Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        REQ_NOTIF);
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
             }
         }
-        // Cámara: necesaria para el flash (torch).
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.CAMERA},
-                    REQ_CAMERA);
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
         }
     }
 
@@ -123,27 +170,19 @@ public class MainActivity extends AppCompatActivity {
         i.setAction(AlertService.ACTION_START);
         i.putExtra(AlertService.EXTRA_SERVER_URL, url);
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(i);
-            } else {
-                startService(i);
-            }
-        } catch (Exception ignored) {
-        }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i);
+            else startService(i);
+        } catch (Exception ignored) {}
     }
 
     private void stopAlertService() {
         Intent i = new Intent(this, AlertService.class);
         i.setAction(AlertService.ACTION_STOP);
-        try {
-            startService(i);
-        } catch (Exception ignored) {
-        }
+        try { startService(i); } catch (Exception ignored) {}
     }
 
     private String getSavedUrl() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        return prefs.getString(KEY_URL, "");
+        return getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_URL, "");
     }
 
     private void saveUrl(String url) {
@@ -185,12 +224,8 @@ public class MainActivity extends AppCompatActivity {
         input.setSingleLine(true);
         input.setPadding(dp(12), dp(12), dp(12), dp(12));
         String existing = getSavedUrl();
-        if (existing != null && !existing.isEmpty()) {
-            input.setText(existing);
-        }
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
+        if (existing != null && !existing.isEmpty()) input.setText(existing);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = dp(6);
         input.setLayoutParams(lp);
         root.addView(input);
@@ -206,11 +241,8 @@ public class MainActivity extends AppCompatActivity {
         errView.setTextColor(0xFFF87171);
         errView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         errView.setPadding(0, 0, 0, dp(12));
-        if (errorMsg != null) {
-            errView.setText(errorMsg);
-        } else {
-            errView.setVisibility(View.GONE);
-        }
+        if (errorMsg != null) errView.setText(errorMsg);
+        else errView.setVisibility(View.GONE);
         root.addView(errView);
 
         Button connect = new Button(this);
@@ -220,9 +252,7 @@ public class MainActivity extends AppCompatActivity {
         connect.setBackgroundColor(0xFFFFFFFF);
         connect.setTextColor(0xFF000000);
         connect.setPadding(dp(12), dp(14), dp(12), dp(14));
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         clp.topMargin = dp(8);
         connect.setLayoutParams(clp);
         connect.setOnClickListener(v -> {
@@ -243,34 +273,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String normalizeUrl(String raw) {
-        if (raw == null) return null;
-        raw = raw.trim();
-        if (raw.isEmpty()) return null;
-
-        String url = raw;
+        if (raw == null || raw.trim().isEmpty()) return null;
+        String url = raw.trim();
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            // Si no tiene :PUERTO, usamos 3000 por default.
-            if (!url.matches(".*:\\d+.*")) {
-                url = url + ":3000";
-            }
+            if (!url.matches(".*:\\d+.*")) url = url + ":3000";
             url = "http://" + url;
         }
-        // Quitamos / finales.
         while (url.endsWith("/")) url = url.substring(0, url.length() - 1);
-
-        // Si no tiene /client, /host u otra ruta, agregamos /client.
-        // Extraemos host:port para decidir.
         int schemeEnd = url.indexOf("://");
         int pathStart = url.indexOf('/', schemeEnd + 3);
-        if (pathStart == -1) {
-            url = url + "/client";
-        }
-
-        // Validación mínima.
-        if (!url.matches("^https?://[^/]+/.+")) {
-            return null;
-        }
-        return url;
+        if (pathStart == -1) url = url + "/client";
+        return url.matches("^https?://[^/]+/.+") ? url : null;
     }
 
     private void showWebView(String url) {
@@ -278,15 +291,7 @@ public class MainActivity extends AppCompatActivity {
         container.setBackgroundColor(0xFF000000);
 
         webView = new WebView(this);
-        // Forzamos que cada arranque baje los archivos frescos del server.
-        // Sin esto el WebView cachea agresivamente el client.js y se queda
-        // con la versión vieja aunque el server ya sirva una nueva (por ej.
-        // no tiene pushPausedUntilToBridge y entonces la pausa en APK no
-        // llega al servicio nativo).
-        try {
-            webView.clearCache(true);
-        } catch (Exception ignored) {
-        }
+        try { webView.clearCache(true); } catch (Exception ignored) {}
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -295,48 +300,20 @@ public class MainActivity extends AppCompatActivity {
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(false);
         s.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        // User-Agent custom (sin Mozilla/Chrome) por dos motivos:
-        //  1. Marcamos que corre dentro del APK para que el JS del /client
-        //     desactive sirena/flash/vibración en la web (lo hace el servicio
-        //     nativo para que funcione también en background).
-        //  2. ngrok muestra una página intersticial de "visit site" a cualquier
-        //     request cuyo User-Agent parezca un navegador. Usando un UA custom
-        //     ngrok no lo marca como browser y salteamos el warning.
-        try {
-            s.setUserAgentString("SchoolAlertsAPK/2.0 (Android)");
-        } catch (Exception ignored) {
-        }
+        try { s.setUserAgentString("SchoolAlertsAPK/2.0 (Android)"); } catch (Exception ignored) {}
         webView.setBackgroundColor(0xFF000000);
 
-        // Puente JS → nativo para que la pestaña "Ajustes" pueda:
-        //  - probar la alerta localmente (AlertBridge.testAlert)
-        //  - cambiar el volumen del stream de alarma (AlertBridge.setAlarmVolume)
-        // El JS del cliente detecta si `window.AlertBridge` existe y, si sí,
-        // delega en él; si no, cae a la simulación vieja dentro del webview.
-        try {
-            webView.addJavascriptInterface(new AlertBridge(), "AlertBridge");
-        } catch (Exception ignored) {
-        }
+        try { webView.addJavascriptInterface(new AlertBridge(), "AlertBridge"); } catch (Exception ignored) {}
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
-            public void onReceivedError(WebView view, int errorCode,
-                                        String description, String failingUrl) {
-                showConfigScreen("No se pudo conectar a " + failingUrl
-                        + "\n\n(" + description + ")\n\n"
-                        + "Revisá que el servidor esté corriendo y que estés en la misma WiFi.");
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                showConfigScreen("No se pudo conectar a " + failingUrl + "\n\n(" + description + ")\n\n" + "Revisá que el servidor esté corriendo y que estés en la misma WiFi.");
             }
-
-            // Si la URL es de ngrok y el usuario toca "Visit Site" en la
-            // página intersticial (o si por alguna razón aparece), le
-            // agregamos el header ngrok-skip-browser-warning a la recarga
-            // para que ngrok no la vuelva a mostrar.
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view,
-                                                     WebResourceRequest request) {
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
-                String u = request.getUrl() != null
-                        ? request.getUrl().toString() : "";
+                String u = request.getUrl() != null ? request.getUrl().toString() : "";
                 if (u.contains("ngrok") || u.contains("trycloudflare")) {
                     view.loadUrl(u, ngrokHeaders());
                     return true;
@@ -346,24 +323,12 @@ public class MainActivity extends AppCompatActivity {
         });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
-            public void onPermissionRequest(PermissionRequest request) {
-                // Permitimos por default (el cliente no usa cámara/mic, pero por las dudas).
-                request.grant(request.getResources());
-            }
+            public void onPermissionRequest(PermissionRequest request) { request.grant(request.getResources()); }
         });
 
-        // Cargamos la URL con el header ngrok-skip-browser-warning para evitar
-        // que ngrok muestre la página intersticial de "abuse warning".
         webView.loadUrl(url, ngrokHeaders());
+        container.addView(webView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        container.addView(webView, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT));
-
-        // Botón flotante chico para reconfigurar servidor. Lo mandamos al
-        // costado inferior derecho, apenas arriba de la barra de pestañas web
-        // (~84px desde el fondo), para no tapar el header ni el botón X de
-        // cerrar alerta (que vive arriba a la derecha).
         Button cfg = new Button(this);
         cfg.setText("⚙");
         cfg.setAllCaps(false);
@@ -384,292 +349,153 @@ public class MainActivity extends AppCompatActivity {
     private void confirmReconfigure() {
         new AlertDialog.Builder(this)
                 .setTitle("Cambiar servidor")
-                .setMessage("¿Querés conectarte a otro servidor? " +
-                        "Tu configuración actual se va a poder editar.")
-                .setPositiveButton("Sí", (d, w) -> {
-                    stopAlertService();
-                    showConfigScreen(null);
-                })
+                .setMessage("¿Querés conectarte a otro servidor? Tu configuración actual se va a poder editar.")
+                .setPositiveButton("Sí", (d, w) -> { stopAlertService(); showConfigScreen(null); })
                 .setNegativeButton("Cancelar", null)
                 .show();
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView != null && webView.canGoBack()) {
-            webView.goBack();
-            return true;
-        }
+        if (keyCode == KeyEvent.KEYCODE_BACK && webView != null && webView.canGoBack()) { webView.goBack(); return true; }
         return super.onKeyDown(keyCode, event);
-    }
-
-    private int dp(int v) {
-        float d = getResources().getDisplayMetrics().density;
-        return (int) (v * d + 0.5f);
     }
 
     private static Map<String, String> ngrokHeaders() {
         Map<String, String> h = new HashMap<>();
-        // Cualquier valor alcanza; ngrok solo chequea que el header exista.
         h.put("ngrok-skip-browser-warning", "true");
         return h;
     }
 
-    /**
-     * Puente JavaScript ↔ Java expuesto al webview del cliente. Los métodos
-     * marcados con @JavascriptInterface corren en un hilo binder, no el hilo
-     * de UI; para tocar cosas de UI las posteamos al main thread.
-     */
     private class AlertBridge {
-        private SharedPreferences prefs() {
-            return getSharedPreferences(
-                    AlertService.PREFS, Context.MODE_PRIVATE);
-        }
+        private SharedPreferences prefs() { return getSharedPreferences(AlertService.PREFS, Context.MODE_PRIVATE); }
 
-        /**
-         * Ajusta el volumen del stream de alarma (el que usa el servicio
-         * nativo para la sirena) a un porcentaje 0..100. Persistimos para
-         * que el servicio también lo aplique cuando dispare una alerta
-         * (en startSiren) aunque la UI no esté abierta.
-         */
         @JavascriptInterface
         public void setAlarmVolume(int percent) {
             final int clamped = Math.max(0, Math.min(100, percent));
             runOnUiThread(() -> {
                 try {
-                    AudioManager am = (AudioManager)
-                            getSystemService(Context.AUDIO_SERVICE);
-                    if (am == null) return;
-                    int max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
-                    int target = Math.round((clamped / 100f) * max);
-                    am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
-                } catch (Exception ignored) {
-                }
-                prefs().edit()
-                        .putInt(AlertService.KEY_SET_VOLUME, clamped)
-                        .apply();
+                    AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                    if (am != null) {
+                        int max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+                        int target = Math.round((clamped / 100f) * max);
+                        am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0);
+                    }
+                } catch (Exception ignored) {}
+                prefs().edit().putInt(AlertService.KEY_SET_VOLUME, clamped).apply();
             });
         }
 
-        /**
-         * Volumen aplicado al MediaPlayer de la sirena (0..100). Se cruza
-         * con el multiplicador por tipo en startSiren — el resultado va a
-         * MediaPlayer.setVolume(). Sirve para controlar el volumen de la
-         * sirena INDEPENDIENTE de la voz (antes era un solo slider para
-         * los dos).
-         */
         @JavascriptInterface
         public void setSirenVolume(int percent) {
-            int clamped = Math.max(0, Math.min(100, percent));
-            prefs().edit()
-                    .putInt(AlertService.KEY_SET_SIREN_VOLUME, clamped)
-                    .apply();
+            prefs().edit().putInt(AlertService.KEY_SET_SIREN_VOLUME, Math.max(0, Math.min(100, percent))).apply();
         }
 
-        /**
-         * Volumen aplicado al MediaPlayer de la voz (0..100). Igual que
-         * setSirenVolume pero para el player de voz / TTS.
-         */
         @JavascriptInterface
         public void setVoiceVolume(int percent) {
-            int clamped = Math.max(0, Math.min(100, percent));
-            prefs().edit()
-                    .putInt(AlertService.KEY_SET_VOICE_VOLUME, clamped)
-                    .apply();
+            prefs().edit().putInt(AlertService.KEY_SET_VOICE_VOLUME, Math.max(0, Math.min(100, percent))).apply();
         }
 
-        /**
-         * Guarda si el usuario quiere vibración durante la alerta. El
-         * servicio nativo lo lee antes de llamar a startVibrationLoop.
-         */
         @JavascriptInterface
         public void setVibrationEnabled(boolean enabled) {
-            prefs().edit()
-                    .putBoolean(AlertService.KEY_SET_VIBRATION, enabled)
-                    .apply();
+            prefs().edit().putBoolean(AlertService.KEY_SET_VIBRATION, enabled).apply();
         }
 
-        /**
-         * Guarda si el usuario quiere flash de cámara durante la alerta.
-         */
         @JavascriptInterface
         public void setStrobeEnabled(boolean enabled) {
-            prefs().edit()
-                    .putBoolean(AlertService.KEY_SET_STROBE, enabled)
-                    .apply();
+            prefs().edit().putBoolean(AlertService.KEY_SET_STROBE, enabled).apply();
         }
 
-        /**
-         * Guarda si el usuario quiere voz durante la alerta.
-         */
         @JavascriptInterface
         public void setVoiceEnabled(boolean enabled) {
-            prefs().edit()
-                    .putBoolean(AlertService.KEY_SET_VOICE, enabled)
-                    .apply();
+            prefs().edit().putBoolean(AlertService.KEY_SET_VOICE, enabled).apply();
         }
 
-        /**
-         * Guarda el timestamp (ms) hasta el que el usuario pausó las
-         * notificaciones en este dispositivo. El servicio nativo lo lee en
-         * onAlertStart y descarta las alertas mientras la pausa siga
-         * vigente. 0 = no pausado. Number.MAX_SAFE_INTEGER = indefinido.
-         */
+        @JavascriptInterface
+        public void setSirenTone(String tone) {
+            prefs().edit().putString(AlertService.KEY_SET_SIREN_TONE, tone == null || tone.isEmpty() ? "default" : tone).apply();
+        }
+
         @JavascriptInterface
         public void setPausedUntil(double ms) {
             final long value = ms < 0 ? 0L : (long) ms;
-            prefs().edit()
-                    .putLong(AlertService.KEY_PAUSED_UNTIL, value)
-                    .apply();
-            // Feedback visual: si el usuario activó/desactivó una pausa,
-            // mostramos un toast en el UI thread. Sirve también como
-            // confirmación de que el APK nuevo (con este bridge) está
-            // instalado y que el JS llegó al nativo.
+            prefs().edit().putLong(AlertService.KEY_PAUSED_UNTIL, value).apply();
             runOnUiThread(() -> {
                 try {
                     long now = System.currentTimeMillis();
                     String msg;
                     if (value > now) {
-                        if (value >= Long.MAX_VALUE / 2) {
-                            msg = "Notificaciones pausadas (indefinido)";
-                        } else {
+                        if (value >= Long.MAX_VALUE / 2) msg = "Notificaciones pausadas (indefinido)";
+                        else {
                             long mins = Math.max(1, (value - now) / 60000);
-                            if (mins >= 60) {
-                                long hours = mins / 60;
-                                msg = "Notificaciones pausadas por ~" + hours + " h";
-                            } else {
-                                msg = "Notificaciones pausadas por ~" + mins + " min";
-                            }
+                            msg = mins >= 60 ? "Notificaciones pausadas por ~" + (mins / 60) + " h" : "Notificaciones pausadas por ~" + mins + " min";
                         }
-                    } else {
-                        msg = "Notificaciones reactivadas";
-                    }
-                    Toast.makeText(
-                            getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
-                } catch (Exception ignored) {
-                }
+                    } else msg = "Notificaciones reactivadas";
+                    Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
+                } catch (Exception ignored) {}
             });
-            // Avisamos al servicio para que refresque la notificación
-            // persistente ("Conectado · esperando alertas" → "⏸ Pausado…").
             try {
-                Intent i = new Intent(
-                        MainActivity.this, AlertService.class);
-                i.setAction(AlertService.ACTION_REFRESH_PAUSE);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(i);
-                } else {
-                    startService(i);
-                }
-            } catch (Exception ignored) {
-            }
+                Intent i = new Intent(MainActivity.this, AlertService.class); i.setAction(AlertService.ACTION_REFRESH_PAUSE);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i); else startService(i);
+            } catch (Exception ignored) {}
         }
 
-        /**
-         * Guarda la configuración de silencio horario para que el servicio
-         * nativo descarte alertas mientras estemos en la franja. Igual que
-         * el cliente web (independiente de la pausa manual).
-         *  - enabled: true para activar la ventana de silencio
-         *  - from / to: "HH:MM" (24h)
-         *  - daysCsv: lista de días separados por coma "0,1,2..6" (0=Dom)
-         */
         @JavascriptInterface
-        public void setSilentWindow(boolean enabled, String from,
-                                    String to, String daysCsv) {
-            prefs().edit()
-                    .putBoolean(AlertService.KEY_SILENT_ENABLED, enabled)
+        public void setSilentWindow(boolean enabled, String from, String to, String daysCsv) {
+            prefs().edit().putBoolean(AlertService.KEY_SILENT_ENABLED, enabled)
                     .putString(AlertService.KEY_SILENT_FROM, from == null ? "" : from)
                     .putString(AlertService.KEY_SILENT_TO, to == null ? "" : to)
-                    .putString(AlertService.KEY_SILENT_DAYS, daysCsv == null ? "" : daysCsv)
-                    .apply();
+                    .putString(AlertService.KEY_SILENT_DAYS, daysCsv == null ? "" : daysCsv).apply();
         }
 
-        /**
-         * Guarda el nombre que el dispositivo le muestra al host. Lo usa
-         * el cliente web (vía socket "client:identify") y el JS lee este
-         * valor al arrancar para enviarlo al server.
-         */
         @JavascriptInterface
         public void setDeviceName(String name) {
-            String safe = name == null ? "" : name.trim();
-            if (safe.length() > 60) safe = safe.substring(0, 60);
-            prefs().edit()
-                    .putString(AlertService.KEY_DEVICE_NAME, safe)
-                    .apply();
+            prefs().edit().putString(AlertService.KEY_DEVICE_NAME, name == null ? "" : name.trim().substring(0, Math.min(name.trim().length(), 60))).apply();
         }
 
-        /**
-         * Guarda el clientId estable que el cliente web genera la primera
-         * vez (uuid persistido en localStorage). Lo persiste en
-         * SharedPreferences para que el AlertService nativo lo pueda leer
-         * y mandar el mismo clientId al server al hacer role:client.
-         * Sin esto, el server veía el socket nativo y el del webview como
-         * dos dispositivos distintos y los listaba duplicados en el panel.
-         */
         @JavascriptInterface
         public void setClientId(String id) {
-            String safe = id == null ? "" : id.trim();
-            if (safe.length() > 64) safe = safe.substring(0, 64);
-            String previous = prefs().getString(
-                    AlertService.KEY_CLIENT_ID, "");
-            prefs().edit()
-                    .putString(AlertService.KEY_CLIENT_ID, safe)
-                    .apply();
-            // Si el clientId cambió (típicamente: webview termina de
-            // levantarse y nos pasa el suyo), avisamos al AlertService
-            // para que reenvíe role:client al server con el clientId
-            // nuevo. Sin esto, la entrada anónima que el servicio creó
-            // al conectar quedaría sin clientId y aparecería como un
-            // "Cliente N" duplicado del webview.
+            String safe = id == null ? "" : id.trim().substring(0, Math.min(id.trim().length(), 64));
+            String previous = prefs().getString(AlertService.KEY_CLIENT_ID, "");
+            prefs().edit().putString(AlertService.KEY_CLIENT_ID, safe).apply();
             if (!safe.isEmpty() && !safe.equals(previous)) {
                 runOnUiThread(() -> {
                     try {
-                        Intent i = new Intent(
-                                MainActivity.this, AlertService.class);
-                        i.setAction(AlertService.ACTION_REFRESH_CLIENT_ID);
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(i);
-                        } else {
-                            startService(i);
-                        }
-                    } catch (Exception ignored) {
-                    }
+                        Intent i = new Intent(MainActivity.this, AlertService.class); i.setAction(AlertService.ACTION_REFRESH_CLIENT_ID);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i); else startService(i);
+                    } catch (Exception ignored) {}
                 });
             }
         }
 
-        /**
-         * Devuelve el nombre del dispositivo guardado (o "" si no se setteó).
-         * El JS del cliente web lo lee al arrancar para precargar el input.
-         */
         @JavascriptInterface
         public String getDeviceName() {
-            try {
-                return prefs().getString(AlertService.KEY_DEVICE_NAME, "");
-            } catch (Exception e) {
-                return "";
-            }
+            try { return prefs().getString(AlertService.KEY_DEVICE_NAME, ""); } catch (Exception e) { return ""; }
         }
 
-        /**
-         * Dispara una alerta de prueba local de 5 segundos en el servicio
-         * nativo — reproduce sirena + voz + flash + vibración sin pasar por
-         * el server, así el usuario puede validar que todo funciona.
-         */
         @JavascriptInterface
         public void testAlert() {
             runOnUiThread(() -> {
-                try {
-                    Intent i = new Intent(
-                            MainActivity.this, AlertService.class);
-                    i.setAction(AlertService.ACTION_TEST_ALERT);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(i);
-                    } else {
-                        startService(i);
-                    }
-                } catch (Exception ignored) {
-                }
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("Prueba de Sistema")
+                        .setMessage("Esto activará la sirena, la vibración y el flash de la cámara a máximo volumen durante 5 segundos para comprobar el funcionamiento.\n\n¿Querés continuar con la prueba?")
+                        .setPositiveButton("Sí, probar", (dialog, which) -> {
+                            try {
+                                Intent i = new Intent(MainActivity.this, AlertService.class); i.setAction(AlertService.ACTION_TEST_ALERT);
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i); else startService(i);
+                            } catch (Exception ignored) {}
+                        }).setNegativeButton("Cancelar", (dialog, which) -> dialog.dismiss()).setCancelable(true).show();
             });
+        }
+
+        @JavascriptInterface
+        public void setBadConnectionNotificationsEnabled(boolean enabled) {
+            try { prefs().edit().putBoolean(AlertService.KEY_BAD_CONNECTION_NOTIFS, enabled).apply(); } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public boolean getBadConnectionNotificationsEnabled() {
+            try { return prefs().getBoolean(AlertService.KEY_BAD_CONNECTION_NOTIFS, true); } catch (Exception ignored) { return true; }
         }
     }
 }
