@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SchoolAlerts · Monitor</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#080808;color:#e8e8f0;font-family:'Segoe UI',system-ui,sans-serif;padding:16px;min-height:100vh;}
+/* ── Topbar ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+.topbar__left{display:flex;align-items:center;gap:12px;}
+.title{font-size:1.3rem;font-weight:700;letter-spacing:.01em;}
+.badge{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .8rem;border-radius:999px;font-size:.75rem;font-weight:600;border:1px solid;}
+.badge--connecting{background:rgba(110,110,128,.12);border-color:rgba(110,110,128,.3);color:#9f9f9f;}
+.badge--online{background:rgba(105,224,165,.12);border-color:rgba(105,224,165,.3);color:#69e0a5;}
+.badge--offline{background:rgba(242,122,122,.12);border-color:rgba(242,122,122,.3);color:#f27a7a;animation:pulse 1.3s ease-in-out infinite;}
+.badge--alert{background:rgba(242,122,122,.18);border-color:rgba(242,122,122,.5);color:#f27a7a;animation:pulse .7s ease-in-out infinite;}
+.badge__dot{width:.45rem;height:.45rem;border-radius:50%;background:currentColor;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.clock{font-variant-numeric:tabular-nums;font-size:.85rem;color:#9f9f9f;font-family:monospace;}
+/* ── Cards ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px;}
+.card{background:#111;border:1px solid #1e1e1e;border-radius:16px;padding:16px;}
+.card--alert{border-color:rgba(242,122,122,.4);background:rgba(242,122,122,.07);}
+.card__label{font-size:.72rem;color:#6e6e80;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;}
+.card__value{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
+.card__sub{font-size:.75rem;color:#6e6e80;margin-top:4px;}
+.card__value--red{color:#f27a7a;}
+.card__value--green{color:#69e0a5;}
+.card__value--amber{color:#ffc84a;}
+/* ── Alert banner ── */
+.alert-banner{display:none;align-items:center;gap:.75rem;padding:.85rem 1.1rem;background:rgba(242,122,122,.13);border:1px solid rgba(242,122,122,.4);border-radius:14px;margin-bottom:14px;animation:pulse .8s ease-in-out infinite;}
+.alert-banner.is-active{display:flex;}
+.alert-banner__icon{font-size:1.3rem;}
+.alert-banner__text{font-weight:600;font-size:.95rem;}
+.alert-banner__type{color:#f27a7a;margin-left:.3rem;}
+/* ── Devices grid ── */
+.devices-section{margin-bottom:16px;}
+.section-title{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:#6e6e80;margin-bottom:8px;font-weight:600;}
+.devices{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+.dev-card{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;}
+.dev-card--alerting{border-color:rgba(242,122,122,.4);background:rgba(242,122,122,.07);}
+.dev-card--offline{opacity:.45;}
+.dev-card__name{font-size:.88rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dev-card__state{font-size:.72rem;color:#9f9f9f;}
+.dev-card__rtt{font-size:.72rem;font-variant-numeric:tabular-nums;margin-top:2px;}
+.dev-card__rtt--good{color:#69e0a5;}
+.dev-card__rtt--warn{color:#ffc84a;}
+.dev-card__rtt--bad{color:#f27a7a;}
+/* ── Log ── */
+.log-box{background:#0d0d0d;border:1px solid #1a1a1a;border-radius:16px;overflow:hidden;}
+.log-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1a1a1a;font-weight:600;font-size:.88rem;}
+.btn-clear{background:transparent;border:1px solid #2a2a2a;color:#6e6e80;border-radius:8px;padding:.25rem .65rem;font-size:.75rem;cursor:pointer;}
+.btn-clear:hover{background:#1a1a1a;color:#e8e8f0;}
+.logs{height:52vh;overflow:auto;padding:10px;}
+.log-item{padding:8px 12px;border-radius:10px;margin-bottom:6px;background:#141414;font-size:.8rem;line-height:1.4;word-break:break-word;border-left:3px solid #333;}
+.log-item--good{border-left-color:#69e0a5;}
+.log-item--warn{border-left-color:#ffc84a;}
+.log-item--bad{border-left-color:#f27a7a;}
+.log-item__time{color:#6e6e80;font-size:.7rem;font-family:monospace;margin-bottom:3px;}
+.log-item__msg{color:#e8e8f0;}
+.log-item__msg--good{color:#69e0a5;}
+.log-item__msg--warn{color:#ffc84a;}
+.log-item__msg--bad{color:#f27a7a;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar__left">
+    <span class="title">SchoolAlerts</span>
+    <span class="badge badge--connecting" id="serverBadge">
+      <span class="badge__dot"></span>
+      <span id="serverBadgeText">Conectando…</span>
+    </span>
+    <span class="badge badge--connecting" id="alertBadge" style="display:none">
+      <span class="badge__dot"></span>
+      <span id="alertBadgeText">ALERTA ACTIVA</span>
+    </span>
+  </div>
+  <span class="clock" id="clock">--:--:--</span>
+</div>
+
+<!-- Banner de alerta activa -->
+<div class="alert-banner" id="alertBanner">
+  <span class="alert-banner__icon">🚨</span>
+  <span class="alert-banner__text">Alerta activa:<span class="alert-banner__type" id="alertBannerType">—</span></span>
+  <span style="margin-left:auto;font-size:.8rem;color:#f27a7a;font-variant-numeric:tabular-nums" id="alertBannerTime"></span>
+</div>
+
+<!-- Tarjetas de métricas -->
+<div class="cards">
+  <div class="card">
+    <div class="card__label">Clientes conectados</div>
+    <div class="card__value card__value--green" id="clientsCount">0</div>
+    <div class="card__sub" id="clientsOnline">0 en línea</div>
+  </div>
+  <div class="card">
+    <div class="card__label">Alertas enviadas</div>
+    <div class="card__value" id="alertsCount">0</div>
+    <div class="card__sub" id="lastAlertTime">—</div>
+  </div>
+  <div class="card">
+    <div class="card__label">RTT promedio</div>
+    <div class="card__value" id="avgRtt">—</div>
+    <div class="card__sub" id="rttRange">—</div>
+  </div>
+  <div class="card">
+    <div class="card__label">Peor RTT</div>
+    <div class="card__value card__value--amber" id="maxRtt">—</div>
+    <div class="card__sub" id="maxRttClient">—</div>
+  </div>
+  <div class="card">
+    <div class="card__label">Offline / total</div>
+    <div class="card__value" id="offlineCount">0</div>
+    <div class="card__sub">dispositivos sin conexión</div>
+  </div>
+  <div class="card">
+    <div class="card__label">Uptime servidor</div>
+    <div class="card__value" id="uptime">—</div>
+    <div class="card__sub">desde el inicio</div>
+  </div>
+</div>
+
+<!-- Grid de dispositivos -->
+<div class="devices-section">
+  <div class="section-title">Dispositivos en tiempo real</div>
+  <div class="devices" id="devicesGrid">
+    <div style="color:#6e6e80;font-size:.85rem;padding:.5rem;">Sin dispositivos aún…</div>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="log-box">
+  <div class="log-header">
+    Logs del sistema
+    <button class="btn-clear" id="clearLogsBtn">Limpiar</button>
+  </div>
+  <div class="logs" id="logs"></div>
+</div>
+
+<script>
+// ── Reloj ──────────────────────────────────────────────────────────────
+const clockEl = document.getElementById("clock");
+setInterval(() => {
+  clockEl.textContent = new Date().toLocaleTimeString("es-AR", { hour12: false });
+}, 500);
+
+// ── Socket ─────────────────────────────────────────────────────────────
+const socket = io();
+
+// ── Estado local ────────────────────────────────────────────────────────
+let alertsCount = 0;
+let currentAlert = null;
+let alertStartTs = 0;
+let alertTimerInterval = null;
+const rttByClient = {};   // clientId → rttMs
+const startTime = Date.now();
+
+// ── DOM refs ────────────────────────────────────────────────────────────
+const serverBadge     = document.getElementById("serverBadge");
+const serverBadgeText = document.getElementById("serverBadgeText");
+const alertBadge      = document.getElementById("alertBadge");
+const alertBanner     = document.getElementById("alertBanner");
+const alertBannerType = document.getElementById("alertBannerType");
+const alertBannerTime = document.getElementById("alertBannerTime");
+const clientsCountEl  = document.getElementById("clientsCount");
+const clientsOnlineEl = document.getElementById("clientsOnline");
+const alertsCountEl   = document.getElementById("alertsCount");
+const lastAlertTimeEl = document.getElementById("lastAlertTime");
+const avgRttEl        = document.getElementById("avgRtt");
+const rttRangeEl      = document.getElementById("rttRange");
+const maxRttEl        = document.getElementById("maxRtt");
+const maxRttClientEl  = document.getElementById("maxRttClient");
+const offlineCountEl  = document.getElementById("offlineCount");
+const uptimeEl        = document.getElementById("uptime");
+const devicesGrid     = document.getElementById("devicesGrid");
+const logsEl          = document.getElementById("logs");
+const clearLogsBtn    = document.getElementById("clearLogsBtn");
+
+clearLogsBtn.addEventListener("click", () => { logsEl.innerHTML = ""; });
+
+// ── Uptime counter ──────────────────────────────────────────────────────
+setInterval(() => {
+  const sec = Math.floor((Date.now() - startTime) / 1000);
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  uptimeEl.textContent = (h > 0 ? h + "h " : "") + (m > 0 || h > 0 ? m + "m " : "") + s + "s";
+}, 1000);
+
+// ── Alert timer ─────────────────────────────────────────────────────────
+function startAlertTimer(startedAt) {
+  clearInterval(alertTimerInterval);
+  alertTimerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+    alertBannerTime.textContent = elapsed + "s";
+  }, 500);
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+function timeStr() {
+  return new Date().toLocaleTimeString("es-AR", { hour12: false });
+}
+
+function addLog(msg, type) {
+  const item = document.createElement("div");
+  item.className = "log-item log-item--" + (type || "good");
+  item.innerHTML =
+    '<div class="log-item__time">' + timeStr() + "</div>" +
+    '<div class="log-item__msg log-item__msg--' + (type || "good") + '">' + escHtml(msg) + "</div>";
+  logsEl.prepend(item);
+  while (logsEl.children.length > 300) logsEl.removeChild(logsEl.lastChild);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function rttColor(rtt) {
+  if (rtt == null) return "";
+  return rtt < 200 ? "good" : rtt < 600 ? "warn" : "bad";
+}
+
+function updateRttStats() {
+  const vals = Object.values(rttByClient).filter(v => v != null && v >= 0);
+  if (vals.length === 0) { avgRttEl.textContent = "—"; rttRangeEl.textContent = "—"; maxRttEl.textContent = "—"; maxRttClientEl.textContent = "—"; return; }
+  const avg = Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
+  const max = Math.max(...vals);
+  const min = Math.min(...vals);
+  avgRttEl.textContent = avg + "ms";
+  avgRttEl.className = "card__value card__value--" + (avg < 200 ? "green" : avg < 600 ? "amber" : "red");
+  rttRangeEl.textContent = "mín " + min + "ms · máx " + max + "ms";
+  maxRttEl.textContent = max + "ms";
+  const maxEntry = Object.entries(rttByClient).find(([,v])=>v===max);
+  maxRttClientEl.textContent = maxEntry ? maxEntry[0] : "—";
+}
+
+// ── Render devices ───────────────────────────────────────────────────────
+function renderDevices(clients) {
+  if (!clients || clients.length === 0) {
+    devicesGrid.innerHTML = '<div style="color:#6e6e80;font-size:.85rem;padding:.5rem;">Sin dispositivos aún…</div>';
+    return;
+  }
+  let offline = 0;
+  devicesGrid.innerHTML = "";
+  const sorted = clients.slice().sort((a,b) => {
+    const order = {alerting:0, idle:1, silenced:2, paused:3, offline:4};
+    return (order[a.state]??9) - (order[b.state]??9);
+  });
+  sorted.forEach(c => {
+    if (c.state === "offline") offline++;
+    const rtt = rttByClient[c.clientId || c.id];
+    const rttStr = rtt != null ? rtt + "ms" : "—";
+    const stateLabels = {alerting:"🔴 sonando", idle:"🟢 escuchando", silenced:"🌙 silenciado", paused:"⏸ pausado", offline:"⚫ offline"};
+    const div = document.createElement("div");
+    div.className = "dev-card" + (c.state === "alerting" ? " dev-card--alerting" : "") + (c.state === "offline" ? " dev-card--offline" : "");
+    div.innerHTML =
+      '<div class="dev-card__name">' + escHtml(c.name || c.id || "?") + "</div>" +
+      '<div class="dev-card__state">' + (stateLabels[c.state] || c.state) + "</div>" +
+      (rtt != null ? '<div class="dev-card__rtt dev-card__rtt--' + rttColor(rtt) + '">RTT ' + rttStr + "</div>" : "");
+    devicesGrid.appendChild(div);
+  });
+  const online = clients.filter(c => c.state !== "offline").length;
+  clientsCountEl.textContent = clients.length;
+  clientsOnlineEl.textContent = online + " en línea";
+  offlineCountEl.textContent = offline;
+}
+
+// ── Socket events ────────────────────────────────────────────────────────
+socket.on("connect", () => {
+  serverBadge.className = "badge badge--online";
+  serverBadgeText.textContent = "Servidor en línea";
+  addLog("Conectado al servidor de monitoreo", "good");
+  socket.emit("monitor:join"); // le pedimos al server que nos incluya en el room de monitor
+});
+
+socket.on("disconnect", () => {
+  serverBadge.className = "badge badge--offline";
+  serverBadgeText.textContent = "Sin conexión";
+  addLog("Conexión perdida con el servidor", "bad");
+});
+
+socket.on("alert:start", data => {
+  alertsCount++;
+  alertsCountEl.textContent = alertsCount;
+  currentAlert = data;
+  alertStartTs = data.startedAt || Date.now();
+  lastAlertTimeEl.textContent = timeStr();
+  alertBadge.style.display = "inline-flex";
+  alertBadge.className = "badge badge--alert";
+  alertBanner.classList.add("is-active");
+  alertBannerType.textContent = " " + (data.label || data.type || "Alerta");
+  startAlertTimer(alertStartTs);
+  addLog("🚨 ALERTA: " + (data.label || data.type || "desconocida"), "bad");
+});
+
+socket.on("alert:stop", () => {
+  currentAlert = null;
+  clearInterval(alertTimerInterval);
+  alertBadge.style.display = "none";
+  alertBanner.classList.remove("is-active");
+  alertBannerTime.textContent = "";
+  addLog("✅ Alerta finalizada", "good");
+});
+
+socket.on("clients:list", data => {
+  if (data && Array.isArray(data.clients)) renderDevices(data.clients);
+});
+
+socket.on("clients:count", data => {
+  // Ya manejado por clients:list, pero actualizamos el número rápido
+  if (data && typeof data.count === "number") {
+    clientsOnlineEl.textContent = data.count + " en línea";
+  }
+});
+
+// RTT de clientes — lo emite el cliente con client:netinfo
+socket.on("monitor:netinfo", data => {
+  if (!data) return;
+  const id = data.clientId || data.id;
+  if (id && typeof data.rttMs === "number") {
+    rttByClient[id] = data.rttMs;
+    updateRttStats();
+  }
+});
+
+// Logs del sistema (server los emite con monitor:* eventos)
+socket.on("monitor:newlog", data => {
+  addLog(data && data.message ? data.message : "Evento", data && data.type ? data.type : "good");
+});
+socket.on("monitor:log",     data => { addLog(data && data.message ? data.message : "Info",       "good"); });
+socket.on("monitor:warning", data => { addLog(data && data.message ? data.message : "Advertencia","warn"); });
+socket.on("monitor:error",   data => { addLog(data && data.message ? data.message : "Error",      "bad");  });
+
+socket.on("monitor:stats", data => {
+  if (!data) return;
+  if (typeof data.clients === "number") { clientsCountEl.textContent = data.clients; }
+  if (typeof data.avgPing === "number") {
+    avgRttEl.textContent = data.avgPing + "ms";
+    avgRttEl.className = "card__value card__value--" + (data.avgPing < 200 ? "green" : data.avgPing < 600 ? "amber" : "red");
+  }
+});
+
+socket.on("monitor:alertState", data => {
+  if (!data) return;
+  if (data.active) {
+    alertBanner.classList.add("is-active");
+    alertBannerType.textContent = " " + (data.label || data.type || "Alerta");
+  } else {
+    alertBanner.classList.remove("is-active");
+  }
+});
+
+// Eventos de cliente individuales que manda el server
+socket.on("client:connected",    data => { addLog("📱 Cliente conectado: "     + (data && (data.name || data.id) || "?"), "good"); });
+socket.on("client:disconnected", data => { addLog("📴 Cliente desconectado: "  + (data && (data.name || data.id) || "?"), "warn"); });
+socket.on("client:netinfo",      data => {
+  if (!data) return;
+  const id = data.clientId || data.id;
+  if (id && typeof data.rttMs === "number") {
+    rttByClient[id] = data.rttMs;
+    updateRttStats();
+  }
+  addLog("📶 RTT " + (data.name || id || "?") + ": " + data.rttMs + "ms",
+    data.rttMs > 3000 ? "bad" : data.rttMs > 1200 ? "warn" : "good");
+});
+</script>
+</body>
+</html>

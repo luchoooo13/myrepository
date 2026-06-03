@@ -1,0 +1,274 @@
+{
+  "devices": [
+    {
+      "clientId": "ea5f0301-1e44-4e91-8913-317c6f164f41",
+      "name": "cell",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780505815898,
+      "ip": "127.0.0.1"
+    },
+    {
+      "clientId": "c-mpd5lj2r-d6nm21e8",
+      "name": "Samsung",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780244641171,
+      "ip": "192.168.1.45"
+    },
+    {
+      "clientId": "c-mple940y-u2mxmtki",
+      "name": "Amazon",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780524551322,
+      "ip": "192.168.1.39"
+    },
+    {
+      "clientId": "b857ad6f-755a-4220-b306-69941493df83",
+      "name": "ipad",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780497034948,
+      "ip": "127.0.0.1"
+    },
+    {
+      "clientId": "996d52f4-e045-4357-8d43-f3ea3239b3aa",
+      "name": "Cliente 8",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780155287841,
+      "ip": "::1"
+    },
+    {
+      "clientId": "c-mpsihv1q-c7xa3toc",
+      "name": "Cliente 12",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780178396233,
+      "ip": "192.168.1.55"
+    },
+    {
+      "clientId": "c-mohd544p-8ujq5251",
+      "name": "aula 2dob",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780176282153,
+      "ip": "192.168.1.51"
+    },
+    {
+      "clientId": "c-mpd8jh4a-ef2peye3",
+      "name": "samsung webb",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780181051955,
+      "ip": "192.168.1.36"
+    },
+    {
+      "clientId": "ecb6877e-0e61-407e-a1f6-bf0fa7c564a5",
+      "name": "santo",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780331777871,
+      "ip": "::1"
+    },
+    {
+      "clientId": "2dc417d3-c6bc-4aed-8176-c2f3a38d2538",
+      "name": "vito",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780331704110,
+      "ip": "::1"
+    },
+    {
+      "clientId": "8e5250f1-6d39-42b9-83f5-00d601536822",
+      "name": "Celu",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780333401285,
+      "ip": "::1"
+    },
+    {
+      "clientId": "83d3b6cc-5201-4913-ac23-86b68f6684ca",
+      "name": "Amazon",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780450364936,
+      "ip": "::1"
+    },
+    {
+      "clientId": "c-mpxe5i1v-sutun0hd",
+      "name": "Cliente 15",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780450323459,
+      "ip": "192.168.1.50"
+    },
+    {
+      "clientId": "4c4a127c-4f59-4d45-b472-3acf4d4ee13a",
+      "name": "Amazon",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780505684618,
+      "ip": "127.0.0.1"
+    },
+    {
+      "clientId": "c-mpxepndn-yosqf7bx",
+      "name": "Cliente 29",
+      "silentWindow": {
+        "enabled": false,
+        "from": "22:00",
+        "to": "07:00",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "lastSeen": 1780451274457,
+      "ip": "192.168.1.35"
+    }
+  ]
+}

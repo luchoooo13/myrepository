@@ -1,0 +1,98 @@
+{
+  "sismo": {
+    "label": "Sismo",
+    "icon": "🌐",
+    "lines": [
+      "Agachate, cubrite y sostenete. Debajo de una mesa resistente si hay.",
+      "Alejate de ventanas, espejos y objetos que puedan caer.",
+      "En la calle, andá a un espacio abierto lejos de cables y paredes.",
+      "No uses el ascensor. Esperá a que pare el movimiento para evacuar."
+    ]
+  },
+  "incendio": {
+    "label": "Incendio",
+    "icon": "🔥",
+    "lines": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  "evacuacion": {
+    "label": "Evacuación",
+    "icon": "🚪",
+    "lines": [
+      "Salí con calma siguiendo las señales de evacuación.",
+      "No vuelvas por objetos personales.",
+      "Ayudá a quienes necesiten asistencia.",
+      "Dirigite al punto de reunión y esperá instrucciones."
+    ]
+  },
+  "medica": {
+    "label": "Emergencia médica",
+    "icon": "⛑️",
+    "lines": [
+      "Llamá al 107 (SAME) o al 911.",
+      "No muevas al paciente si no es imprescindible.",
+      "Si es posible, hacer maniobra del RCP.",
+      "Mantené la calma y seguí las instrucciones del operador."
+    ]
+  },
+  "intruso": {
+    "label": "Intruso / Amenaza",
+    "icon": "🚨",
+    "lines": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  "gas": {
+    "label": "Fuga de gas",
+    "icon": "☣️",
+    "lines": [
+      "No prendas ni apagues luces ni artefactos eléctricos.",
+      "Abrí puertas y ventanas para ventilar.",
+      "Evacuá el edificio y llamá al 911 desde afuera.",
+      "No uses el ascensor."
+    ]
+  },
+  "bomba": {
+    "label": "Amenaza de bomba",
+    "icon": "💣",
+    "lines": [
+      "No toques objetos sospechosos.",
+      "Evacuá con calma siguiendo indicaciones del personal.",
+      "Una vez afuera, alejate al menos 100 metros del edificio.",
+      "No uses el celular cerca del objeto sospechoso."
+    ]
+  },
+  "tormenta": {
+    "label": "Tormenta severa",
+    "icon": "⛈️",
+    "lines": [
+      "Mantenete adentro, lejos de ventanas.",
+      "Desenchufá equipos eléctricos sensibles.",
+      "No te refugies debajo de árboles ni estructuras metálicas si estás afuera.",
+      "Seguí las indicaciones de Defensa Civil (103)."
+    ]
+  },
+  "simulacro": {
+    "label": "Simulacro",
+    "icon": "🧪",
+    "lines": [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado."
+    ]
+  },
+  "custom": {
+    "label": "Mensaje personalizado",
+    "icon": "✏️",
+    "lines": [
+      "Seguí las instrucciones del personal del establecimiento."
+    ]
+  }
+}

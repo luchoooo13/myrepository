@@ -1,5 +1,4 @@
 const path = require("path");
-const os = require("os");
 const fs = require("fs");
 const crypto = require("crypto");
 const http = require("http");
@@ -7,16 +6,79 @@ const express = require("express");
 const { Server } = require("socket.io");
 const googleTTS = require("google-tts-api");
 const webpush = require("web-push");
-
+const os = require("os");
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
-const ALERT_DURATION_MS = 60 * 1000; // 1 minuto
+const ALERT_DURATION_MS = 60 * 1000; // 1 minuto (default si el host no elige)
+const ALERT_DURATION_MIN_MS = 10 * 1000;   // mínimo: 10 segundos
+const ALERT_DURATION_MAX_MS = 10 * 60 * 1000; // máximo: 10 minutos
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
+setInterval(() => {
+
+    let totalPing = 0;
+    let pingCount = 0;
+
+    for (const client of clientsInfo.values()) {
+
+        if (typeof client.rttMs === "number") {
+            totalPing += client.rttMs;
+            pingCount++;
+        }
+    }
+
+    const avgPing =
+        pingCount > 0
+            ? Math.round(totalPing / pingCount)
+            : 0;
+
+    io.emit("monitor:stats", {
+        clients: clientsInfo.size,
+        avgPing
+    });
+
+}, 2000);
+
+// Esta función está "afuera", es global. 
+// Cuando la llames, hará el trabajo de disparar la alerta.
+function triggerFullAlert(payload) {
+    // Aquí replicamos exactamente lo que el Host envía
+    io.emit("alert:start", {
+        type: payload.type,
+        label: payload.label,
+        duration: 60000,
+        timestamp: Date.now()
+    });
+    
+    // Logueamos la acción para que la veas en la consola
+    console.log(`Alerta disparada: ${payload.label}`);
+    addMonitorLog("warn", `ALERTA DISPARADA: ${payload.label}`);
+}
 
 app.use(express.json({ limit: "200kb" }));
+// --- PUERTA PARA DISPARAR ALERTAS DESDE CMD ---
+// --- RUTA CMD CORREGIDA ---
+// --- RUTA ÚNICA Y DEFINITIVA PARA CMD ---
+app.post('/api/cmd-alert', (req, res) => {
+    const data = req.body;
+    console.log("Servidor: Recibí comando, emitiendo a todos...", data); // <-- ESTO DEBE SALIR EN LA CONSOLA NEGRA DEL SERVIDOR
+    
+    // Emitir a todos los clientes conectados
+    io.emit("alert:start", data); 
+    
+    res.status(200).send("Alerta disparada");
+});
 
+app.use((req, res, next) => {
+
+    addMonitorLog(
+        "good",
+        `${req.method} ${req.url}`
+    );
+
+    next();
+});
 // --- Auth del /host ---------------------------------------------------
 // El /host (panel que dispara alertas) está protegido por contraseña. Hay
 // dos roles: "admin" (ve todo: scheduler, mensajes personalizados, etc.)
@@ -59,6 +121,29 @@ try {
       err.message,
     );
   }
+}
+
+const monitorLogs = [];
+
+function addMonitorLog(type, message) {
+
+    const log = {
+        type,
+        message,
+        time: Date.now()
+    };
+
+    monitorLogs.unshift(log);
+
+    if (monitorLogs.length > 300) {
+        monitorLogs.pop();
+    }
+
+    console.log(
+        `[MONITOR] ${type.toUpperCase()} | ${message}`
+    );
+
+    io.emit("monitor:newlog", log);
 }
 
 const hostSessions = new Map(); // token -> { role, createdAt }
@@ -318,11 +403,38 @@ function serializeRecommendations() {
   return out;
 }
 
+app.get("/voice-texts", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ voiceTexts, defaults: DEFAULT_VOICE_TEXTS });
+});
+
+app.post("/voice-texts", (req, res) => {
+  // Tanto admin como operator pueden editar textos de voz.
+  const cookies = parseCookies(req);
+  const sess = getSessionByToken(cookies.hostToken);
+  if (!sess) { res.status(403).json({ error: "Sin sesión activa" }); return; }
+  const { type, text } = req.body || {};
+  if (!type || typeof type !== "string") return res.status(400).json({ error: "type requerido" });
+  if (type === "simulacro" || type === "custom") return res.status(400).json({ error: "No se puede editar simulacro ni custom" });
+  if (text === null || text === undefined || String(text).trim() === "") {
+    delete voiceTexts[type];
+  } else {
+    voiceTexts[type] = String(text).trim().slice(0, 400);
+  }
+  saveVoiceTexts();
+  // Emitimos a todos los hosts para que actualicen su UI
+  io.emit("voice-texts:update", { voiceTexts, defaults: DEFAULT_VOICE_TEXTS });
+  res.json({ ok: true, voiceTexts });
+});
+
 app.get("/recommendations", (_req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({ recommendations: serializeRecommendations() });
 });
 
+app.get("/monitor", (req, res) => {
+    res.sendFile(__dirname + "/monitor.html");
+});
 // Sólo admin puede editar. No usamos el socket para esto porque el admin
 // podría estar editando desde una tab sin socket conectado, y la cookie
 // ya tenemos la del /host.
@@ -446,7 +558,7 @@ app.get("/alerts-history", (_req, res) => {
 // alerta ahora mismo), o "silenced" (en silent window). Mantenemos un
 // Map socket.id -> info y se lo broadcastleemos a los hosts cada vez que
 // cambia, así pueden ver quién está sonando ahora.
-const clientsInfo = new Map(); // socket.id -> {id, clientId, name, state, silentWindow, lastSeen, ip}
+const clientsInfo = new Map();  // socket.id -> {id, clientId, name, state, silentWindow, lastSeen, ip}
 // Cache de netinfo por clientId estable, con TTL. Sin esto, si el celu
 // reconecta el socket (cambio de socket.id), por unos segundos no hay
 // netinfo para ese clientId y la UI muestra "Sin datos" → titilea.
@@ -566,6 +678,19 @@ function sanitizeDeviceName(raw) {
   if (typeof raw !== "string") return "";
   const t = raw.trim().slice(0, 60);
   return t;
+}
+
+// Extrae y valida el clientId estable desde un payload de socket.
+// Acepta tanto { clientId: "..." } (client:identify) como la string directa.
+function sanitizeClientId(payload) {
+  let id = null;
+  if (payload && typeof payload === "object") {
+    id = payload.clientId || payload.id || null;
+  } else if (typeof payload === "string") {
+    id = payload;
+  }
+  if (typeof id !== "string" || !id.trim()) return null;
+  return id.trim().slice(0, 64);
 }
 
 function sanitizeSilentWindow(raw) {
@@ -869,6 +994,36 @@ app.get("/host", (req, res) => {
   res.send(withMeta);
 });
 
+// /client y /client.html → sirven client.html sin auth.
+app.get("/client", (_req, res) => {
+  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.sendFile(path.join(__dirname, "public", "client.html"));
+});
+app.get("/client.html", (_req, res) => {
+  res.redirect("/client");
+});
+
+// / → redirige a /client
+app.get("/", (_req, res) => {
+  res.redirect("/client");
+});
+
+setInterval(() => {
+
+    const mem =
+        process.memoryUsage();
+
+    addMonitorLog(
+        mem.heapUsed > 250000000
+            ? "warn"
+            : "good",
+
+        `RAM Node: ${
+            Math.round(mem.heapUsed / 1024 / 1024)
+        }MB`
+    );
+
+}, 30000);
 // Servimos los archivos del cliente sin caché en el navegador para que los
 // profes no queden atascados con una versión vieja del HTML/JS después de un
 // update. Los mp3 / png sí se pueden cachear (no cambian seguido).
@@ -885,6 +1040,15 @@ app.use(
     index: false,
   }),
 );
+
+app.post('/api/cmd-alert', (req, res) => {
+    const data = req.body;
+    console.log("DEBUG: Recibido por API. Emitiendo a clientes..."); 
+    
+    io.emit("alert:start", data); // Esta es la línea que debe llegar al cliente
+    
+    res.status(200).send("OK");
+});
 
 
 // --- Web Push (VAPID) --------------------------------------------------
@@ -1034,12 +1198,6 @@ async function sendPushToAll(payload) {
   }
 }
 
-// Rutas amigables (sin extensión) para usar desde los otros dispositivos.
-// /host está definido arriba (con auth); acá sólo el /client.
-app.get("/client", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "client.html"));
-});
-
 // Proxy a Google TTS para alertas con mensaje personalizado.
 // Devuelve un MP3 con la voz de Google leyendo el texto pedido.
 const ttsCache = new Map(); // text -> Buffer
@@ -1157,9 +1315,36 @@ app.get("/time", (_req, res) => {
 });
 
 // Estado actual de la alerta (permite sincronizar clientes que se conectan tarde)
-let currentAlert = null; // { type, label, startedAt, endsAt }
-let alertTimer = null;
+// ── Textos de voz personalizados por tipo de alerta ───────────────────────
+// El host puede editar qué dice la voz para cada tipo de alerta.
+// Se persisten en el mismo directorio de datos que el historial.
+// clave: tipo de alerta ("incendio", "sismo", etc.)
+// valor: string con el texto que leerá el TTS en el APK y el webview
+const VOICE_TEXTS_FILE = path.join(__dirname, "voice-texts.json");
+let voiceTexts = {};
+try {
+  const raw = fs.readFileSync(VOICE_TEXTS_FILE, "utf8");
+  const parsed = JSON.parse(raw);
+  if (parsed && typeof parsed === "object") voiceTexts = parsed;
+} catch { voiceTexts = {}; }
 
+function saveVoiceTexts() {
+  try { fs.writeFileSync(VOICE_TEXTS_FILE, JSON.stringify(voiceTexts, null, 2)); } catch {}
+}
+
+// Defaults para cada tipo (igual que buildVoiceText en AlertService.java)
+const DEFAULT_VOICE_TEXTS = {
+  incendio:   "Atención. Alerta de incendio. Seguir instrucciones.",
+  sismo:      "Alerta sísmica. Intensidad estimada moderado.",
+  evacuacion: "Atención. Alerta de evacuación. Evacuar de inmediato.",
+  intruso:    "Atención. Intruso detectado. Permanezcan en sus aulas y aseguren las puertas.",
+  medica:     "Atención. Emergencia médica. Solicitar asistencia de inmediato.",
+  gas:        "Atención. Fuga de gas. Evacuar el edificio.",
+  bomba:      "Atención. Amenaza de bomba. Evacuar el edificio de inmediato.",
+  tormenta:   "Atención. Tormenta severa. Permanezcan en interiores alejados de ventanas.",
+};
+let alertTimer = null;
+let currentAlert = null;
 // --- Programación de alertas (hora Buenos Aires) -----------------------
 // schedule: { id, hour, minute, type, label, fireAt }
 const schedules = [];
@@ -1312,6 +1497,9 @@ function stopAlert(reason = "manual") {
     if (info.state === "alerting") {
       info.state = "idle";
       info.lastSeen = Date.now();
+      io.emit("monitor:alertState", {
+    active: false
+});
     }
   }
   broadcastClients();
@@ -1362,6 +1550,10 @@ function startAlert(payload) {
   // server está corrido varios segundos, el cliente igual ve el
   // countdown correcto.
   const now = realNow();
+  // Duración configurable: el host puede elegirla al disparar la alerta.
+  // Se clampea entre 10s y 10 minutos para evitar valores absurdos.
+  const requestedDuration = payload.durationMs != null ? Number(payload.durationMs) : ALERT_DURATION_MS;
+  const effectiveDuration = Math.min(ALERT_DURATION_MAX_MS, Math.max(ALERT_DURATION_MIN_MS, requestedDuration));
   const override = ALERT_OVERRIDES[payload.type] || {};
   const recForType = recommendations[payload.type] || null;
   // Contamos cuántos clientes estaban escuchando (no en pausa ni en
@@ -1408,21 +1600,21 @@ function startAlert(payload) {
     type: payload.type,
     label: payload.label,
     startedAt: now,
-    endsAt: now + ALERT_DURATION_MS,
-    durationMs: ALERT_DURATION_MS,
+    endsAt: now + effectiveDuration,
+    durationMs: effectiveDuration,
     sirenUrl: override.sirenUrl || null,
     skipVoice: !!override.skipVoice,
     historyId,
     triggeredBy: payload.triggeredBy || "system",
-    // Incluimos las recomendaciones vigentes en el mismo payload para que
-    // el cliente las pueda mostrar debajo del cartel negro sin tener que
-    // volver a pegar el GET /recommendations (además así gana el snapshot
-    // exacto al momento del disparo: si después el admin edita mientras
-    // la alerta está activa, la pantalla no cambia de recs a mitad).
     recommendations:
       recForType && Array.isArray(recForType.lines)
         ? recForType.lines.slice()
         : [],
+    // Texto de voz personalizado: primero el editado por el host, luego el default.
+    // Para simulacro no mandamos voiceText para que use el default hardcodeado del APK.
+    voiceText: payload.type !== "simulacro" && payload.type !== "custom"
+      ? (voiceTexts[payload.type] || DEFAULT_VOICE_TEXTS[payload.type] || "")
+      : "",
   };
   pushAlertHistory({
     id: historyId,
@@ -1454,9 +1646,19 @@ function startAlert(payload) {
   });
   alertTimer = setTimeout(() => {
     stopAlert("timeout");
-  }, ALERT_DURATION_MS);
+  }, effectiveDuration);
+  addMonitorLog(
+    "bad",
+    `ALERTA ENVIADA`
+);
+io.emit("monitor:alertState", {
+    active: true,
+    type: payload.type
+});
 }
-
+// FORMA CORRECTA EN SERVER.JS
+// Al emitir la lista de clientes, convertí el Map a un Array de objetos
+io.emit("monitor:clients", Array.from(clientsInfo.values()));
 // --- Contador de clientes conectados (solo /client) --------------------
 const clientSockets = new Set();
 function broadcastClientCount() {
@@ -1484,138 +1686,62 @@ function isHost(socket) {
   return socket.data.role === "admin" || socket.data.role === "operator";
 }
 
+// Devuelve (o crea) la entrada en clientsInfo para este socket.
+// Asigna automáticamente un nombre "Cliente N" si el clientId es nuevo.
+function ensureClientInfo(clientId) {
+  // Buscamos si ya hay una entrada con este socket.id
+  // (puede que ya la haya creado role:client antes de client:identify)
+  // Usamos socket.id del closure externo via el caller.
+  return null; // placeholder — se resuelve inline en el handler
+}
+
+// Elimina entradas viejas del mismo clientId que NO sean el socket actual.
+// Evita que un reconect deje fantasmas en clientsInfo con el socket.id viejo.
+function dropStaleEntriesForClientId(clientId, currentSocketId) {
+  for (const [sid, info] of clientsInfo) {
+    if (info.clientId === clientId && sid !== currentSocketId) {
+      clientsInfo.delete(sid);
+    }
+  }
+}
+
 io.on("connection", (socket) => {
-  // Al conectarse, sincronizar con la alerta activa si existe.
-  // Comparamos contra realNow() para ser consistentes con startAlert().
-  if (currentAlert && realNow() < currentAlert.endsAt) {
+  // ── Sync inicial ───────────────────────────────────────────────────────
+  if (currentAlert) {
+    console.log("[sync] Nuevo socket", socket.id, "— enviando alert:start activo:", currentAlert.type);
     socket.emit("alert:start", currentAlert);
+  } else {
+    console.log("[sync] Nuevo socket", socket.id, "— sin alerta activa");
   }
-  // Sincronizar lista de programaciones, contadores y estado de
-  // dispositivos. Los hosts también reciben la lista completa de clients
-  // y el historial reciente al conectarse.
-  socket.emit("schedule:list", serializeSchedules());
-  socket.emit("clients:count", { count: clientSockets.size });
-  if (isHost(socket)) {
+  addMonitorLog(
+    "good",
+    `Socket conectado ${socket.id}`
+);
+
+  // ── host:register / role:host ──────────────────────────────────────────
+  // El panel /host emite uno de estos al conectar. Le mandamos el estado
+  // completo: dispositivos, historial y schedules.
+  function syncHost() {
+    if (currentAlert) socket.emit("alert:start", currentAlert);
+    socket.emit("clients:list",   { clients: serializeClients() });
+    socket.emit("clients:count",  { count: clientSockets.size });
+    socket.emit("alerts:history", { history: alertsHistory });
+    socket.emit("schedule:list", schedules.map((s) => ({
+      id: s.id, hour: s.hour, minute: s.minute,
+      type: s.type, label: s.label,
+      recurring: s.recurring, fireAt: s.fireAt,
+    })));
+  }
+  socket.on("host:register", syncHost);
+  socket.on("role:host",     syncHost);
+
+  // ── Monitor ───────────────────────────────────────────────────────────
+  socket.on("monitor:join", () => {
+    socket.join("monitor");
+    // Mandamos estado inicial
+    if (currentAlert) socket.emit("alert:start", currentAlert);
     socket.emit("clients:list", { clients: serializeClients() });
-  }
-  // Tanto hosts como clientes reciben el historial al conectar (el cliente
-  // lo usa para llenar la pestaña Historial sin esperar la próxima alerta).
-  socket.emit("alerts:history", { history: alertsHistory });
-
-  // Devuelve el clientId estable que mandó el cliente. Si no mandó (APK
-  // viejo, page legacy, etc.) usamos el socket.id como fallback — eso da
-  // el comportamiento viejo (cada reconexión = cliente nuevo) pero por
-  // lo menos no tira nada.
-  function sanitizeClientId(payload) {
-    if (!payload || typeof payload !== "object") return null;
-    const raw = payload.clientId;
-    if (typeof raw !== "string") return null;
-    const v = raw.trim().slice(0, 64);
-    return v.length > 0 ? v : null;
-  }
-
-  // Si ya había una entrada en clientsInfo para este clientId pero con
-  // otro socket.id (reconexión: el socket viejo todavía no terminó de
-  // hacer cleanup), la borramos para no duplicar. Los detalles
-  // (state/name) los traerá el nuevo identify.
-  //
-  // OJO: en el APK conviven webview + AlertService nativo, ambos con el
-  // mismo clientId y AMBOS sockets vivos al mismo tiempo. Por eso, antes
-  // de borrar la entrada del otro socket, validamos que esté muerto. Si
-  // sigue vivo es legítimo y la dedupe se hace en serializeClients() (un
-  // único item en el panel pero contamos los dos en clientSockets para
-  // que clients:count refleje el estado real).
-  function dropStaleEntriesForClientId(clientId, currentSocketId) {
-    if (!clientId) return;
-    for (const [sid, info] of clientsInfo) {
-      if (sid !== currentSocketId && info.clientId === clientId) {
-        if (io.sockets.sockets.has(sid)) continue;
-        clientsInfo.delete(sid);
-        clientSockets.delete(sid);
-      }
-    }
-  }
-
-  // Crea / actualiza la entrada de clientsInfo para este socket. Reusa el
-  // nombre auto-asignado si ya conocíamos al clientId, o asigna uno
-  // nuevo. No pisa el nombre si el cliente ya nos había mandado uno
-  // custom — eso lo hace identify.
-  //
-  // OJO: SOLO creamos la entrada si tenemos clientId. Sin clientId no
-  // podemos deduplicar al socket con sus hermanos (ej. webview +
-  // AlertService nativo del APK comparten clientId pero usan dos sockets
-  // distintos). Si creamos un entry "anónimo" para el socket que llegó
-  // primero, en el panel se ve como un "Cliente N" extra al lado del
-  // real — el famoso "phantom client". Por eso, si todavía no tenemos
-  // clientId, devolvemos null y no registramos nada en clientsInfo. El
-  // socket SÍ se cuenta en clientSockets para clients:count.
-  function ensureClientInfo(clientId) {
-    let info = clientsInfo.get(socket.id);
-    if (info) return info;
-    if (!clientId) return null;
-    const ip = shortenIp(
-      (socket.handshake && socket.handshake.address) || "",
-    );
-    let name;
-    if (clientNameByClientId.has(clientId)) {
-      name = clientNameByClientId.get(clientId);
-    } else {
-      name = "Cliente " + nextClientNum++;
-      clientNameByClientId.set(clientId, name);
-    }
-    info = {
-      id: socket.id,
-      clientId,
-      name,
-      state: "idle",
-      silentWindow: { enabled: false, from: "", to: "", days: [] },
-      lastSeen: Date.now(),
-      ip,
-    };
-    clientsInfo.set(socket.id, info);
-    return info;
-  }
-
-  socket.on("role:client", (payload) => {
-    const clientId = sanitizeClientId(payload);
-    dropStaleEntriesForClientId(clientId, socket.id);
-    if (!clientSockets.has(socket.id)) {
-      clientSockets.add(socket.id);
-      broadcastClientCount();
-    }
-    // Si todavía no tenemos clientId, no creamos entrada. El AlertService
-    // del APK suele emitir role:client (sin clientId) antes de que el
-    // webview termine de cargar y le pase el suyo por bridge. Cuando eso
-    // pase, vamos a recibir un segundo role:client con clientId y ahí
-    // recién registramos. Mientras tanto, el socket queda contado en
-    // clientSockets pero invisible en el panel — exactamente lo que
-    // queremos para que no aparezca un "Cliente N" fantasma.
-    if (!clientId) return;
-    const created = !clientsInfo.has(socket.id);
-    const info = ensureClientInfo(clientId);
-    if (!info) return;
-    // Caso típico del APK: el AlertService nativo se conecta y emite
-    // role:client antes de que el webview termine de cargar y pueda
-    // pasarle el clientId por el bridge. Más tarde el bridge le dice
-    // al servicio "ahora sí tenés clientId, reenviá role:client". Acá
-    // refrescamos info.clientId al valor nuevo (incluso si ya teníamos
-    // uno viejo: puede pasar si el webview rotó su CLIENT_ID — distinto
-    // origen, localStorage limpio — pero las prefs del servicio nativo
-    // todavía tenían el clientId anterior). Sin esto, la entrada del
-    // socket nativo y la del webview quedaban con clientIds distintos
-    // y se mostraban como dos dispositivos en el panel.
-    if (info.clientId !== clientId) {
-      info.clientId = clientId;
-      if (clientNameByClientId.has(clientId)) {
-        // Ya teníamos un nombre asignado para este clientId (otra
-        // socket del mismo dispositivo, p.ej. el webview): usamos ese
-        // así las dos entradas dedupean limpio en serializeClients().
-        info.name = clientNameByClientId.get(clientId);
-      } else {
-        clientNameByClientId.set(clientId, info.name);
-      }
-    }
-    if (created) broadcastClients();
+    socket.emit("clients:count", { count: clientSockets.size });
   });
 
   // El cliente nos manda su nombre custom + silent window apenas se conecta
@@ -1626,7 +1752,22 @@ io.on("connection", (socket) => {
     const clientId = sanitizeClientId(payload);
     if (!clientId) return; // sin clientId no registramos (anti-phantom)
     dropStaleEntriesForClientId(clientId, socket.id);
-    const info = ensureClientInfo(clientId);
+    // Obtenemos o creamos la entrada en clientsInfo para este socket
+    if (!clientsInfo.has(socket.id)) {
+      const autoName = clientNameByClientId.get(clientId) ||
+        ("Cliente " + nextClientNum++);
+      clientsInfo.set(socket.id, {
+        id: socket.id,
+        clientId,
+        name: autoName,
+        state: "idle",
+        silentWindow: { enabled: false, from: "", to: "", days: [] },
+        lastSeen: Date.now(),
+        ip: shortenIp(socket.handshake.address || ""),
+        rttMs: 0
+      });
+    }
+    const info = clientsInfo.get(socket.id);
     if (!info) return;
     // El identify puede traer (o no) un clientId. Aceptamos updates
     // (no sólo el primer set) por la misma razón que en role:client:
@@ -1693,37 +1834,60 @@ io.on("connection", (socket) => {
   // navigator.connection.effectiveType si está disponible). La
   // guardamos en clientsInfo y la mandamos a los hosts en
   // serializeClients() para mostrar 📶 fuerte/medio/débil.
-  socket.on("client:netinfo", (payload) => {
-    const info = clientsInfo.get(socket.id);
-    if (!info) {
-      console.log("[netinfo] DROP — no clientsInfo para socket", socket.id);
-      return;
+socket.on("client:netinfo", (data = {}) => {
+    addMonitorLog("good", `NETINFO ${socket.id}`); 
+    const client = clientsInfo.get(socket.id);
+    if (!client) return;
+
+    client.rttMs = data.rttMs || 0;
+
+    // --- NUEVO: Construimos el objeto netinfo para el Host ---
+    if (!client.netinfo) {
+      client.netinfo = { effectiveType: "WiFi/Ethernet" };
     }
-    if (!payload || typeof payload !== "object") {
-      console.log("[netinfo] DROP — payload inválido", payload);
-      return;
+    client.netinfo.rttMs = client.rttMs;
+    client.netinfo.at = Date.now();
+
+    if (client.clientId) {
+      netinfoByClientId.set(client.clientId, client.netinfo);
     }
-    const rttMs = Number.isFinite(payload.rttMs)
-      ? Math.max(0, Math.min(60000, Math.round(payload.rttMs)))
-      : null;
-    const effectiveType =
-      typeof payload.effectiveType === "string"
-        ? payload.effectiveType.slice(0, 16)
-        : null;
-    if (rttMs == null && !effectiveType) {
-      console.log("[netinfo] DROP — sin rttMs ni effectiveType", payload);
-      return;
+    broadcastClients(); // Avisamos al panel que hay nuevos datos
+    // ---------------------------------------------------------
+
+    if (client.rttMs > 3500) {
+        addMonitorLog("bad", `MALA CONEXIÓN ${client.clientId || socket.id} (${client.rttMs}ms)`);
+    } else if (client.rttMs > 1200) {
+        addMonitorLog("warn", `Conexión lenta ${client.clientId || socket.id} (${client.rttMs}ms)`);
+    } else {
+        addMonitorLog("good", `Ping OK ${client.clientId || socket.id} (${client.rttMs}ms)`);
     }
-    const sample = { rttMs, effectiveType, at: Date.now() };
-    info.netinfo = sample;
-    info.lastSeen = Date.now();
-    if (info.clientId) {
-      netinfoByClientId.set(info.clientId, sample);
+    // Reenviar al monitor con identificación del dispositivo
+    io.to("monitor").emit("client:netinfo", {
+      rttMs: client.rttMs,
+      effectiveType: client.netinfo && client.netinfo.effectiveType,
+      clientId: client.clientId,
+      name: client.name,
+      id: socket.id,
+    });
+  });
+
+  // --- NUEVO: Escuchamos el reporte de red que agregaste en el cliente ---
+  socket.on("client:report", (data) => {
+    const client = clientsInfo.get(socket.id);
+    if (!client) return;
+
+    if (!client.netinfo) {
+      client.netinfo = { rttMs: client.rttMs || 0, at: Date.now() };
     }
-    console.log("[netinfo] OK clientId=" + (info.clientId || "?") +
-      " sock=" + socket.id + " rtt=" + rttMs + "ms eff=" + (effectiveType || "-"));
+    client.netinfo.effectiveType = data.netType;
+    client.netinfo.at = Date.now();
+
+    if (client.clientId) {
+      netinfoByClientId.set(client.clientId, client.netinfo);
+    }
     broadcastClients();
   });
+  // -----------------------------------------------------------------------
 
   socket.on("client:state", (payload) => {
     if (!payload || typeof payload.state !== "string") return;
@@ -1746,11 +1910,16 @@ io.on("connection", (socket) => {
       clientsInfo.delete(socket.id);
       broadcastClients();
     }
+    addMonitorLog(
+    "warn",
+    `Socket desconectado ${socket.id}`
+);
   });
 
   socket.on("alert:trigger", (payload) => {
     // Sólo admin y operator pueden disparar alertas. Operator además no
     // puede disparar mensajes personalizados — eso es sólo de admin.
+    console.log("DURACION RECIBIDA:", payload.durationMs);
     if (!isHost(socket)) return;
     if (!payload || typeof payload.type !== "string") return;
     if (socket.data.role === "operator" && payload.type === "custom") return;
@@ -1761,7 +1930,9 @@ io.on("connection", (socket) => {
     startAlert({
       type: payload.type,
       label,
+      durationMs: payload.durationMs,   // duración elegida por el host
       triggeredBy: socket.data.role || "host",
+      triggeredByName: payload.triggeredByName || null,
     });
   });
 
@@ -1867,6 +2038,15 @@ io.on("connection", (socket) => {
     broadcastClients();
   });
 
+ socket.on("host:alert", (payload) => {
+        if (socket.data.role !== "admin") return;
+        
+        startAlert({
+            type: payload.type,
+            label: payload.label,
+            triggeredBy: "host"
+        });
+  });
   socket.on("schedule:add", (payload) => {
     // Scheduler es sólo para admin.
     if (socket.data.role !== "admin") return;
@@ -1902,6 +2082,8 @@ io.on("connection", (socket) => {
     if (!Number.isInteger(id)) return;
     removeSchedule(id);
   });
+  
+  
 });
 
 function getLanAddresses() {
@@ -1917,6 +2099,24 @@ function getLanAddresses() {
   return result;
 }
 
+process.on("uncaughtException", (err) => {
+
+    addMonitorLog(
+        "bad",
+        "CRASH: " + err.message
+    );
+
+    console.error(err);
+});
+server.listen(3000, () => console.log('Servidor corriendo...'));
+process.on("unhandledRejection", (err) => {
+
+    addMonitorLog(
+        "bad",
+        "PROMISE ERROR: " + err
+    );
+});
+// Dentro de tu io.on('connection', (socket) => { ... })
 server.listen(PORT, "0.0.0.0", () => {
   const lan = getLanAddresses();
   console.log("Servidor de Alertas de Emergencia iniciado");

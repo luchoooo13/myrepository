@@ -1,0 +1,1215 @@
+[
+  {
+    "id": 1458,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780496775269,
+    "endedAt": 1780496778025,
+    "endedReason": "manual",
+    "durationMs": 2756,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1457,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780496680586,
+    "endedAt": 1780496686416,
+    "endedReason": "manual",
+    "durationMs": 5830,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1456,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780496661402,
+    "endedAt": 1780496678172,
+    "endedReason": "manual",
+    "durationMs": 16770,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1455,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780496613726,
+    "endedAt": 1780496618954,
+    "endedReason": "manual",
+    "durationMs": 5228,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1454,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780496563342,
+    "endedAt": 1780496586119,
+    "endedReason": "manual",
+    "durationMs": 22777,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1453,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780496537345,
+    "endedAt": 1780496560380,
+    "endedReason": "manual",
+    "durationMs": 23035,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1452,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780493964320,
+    "endedAt": 1780493994409,
+    "endedReason": "timeout",
+    "durationMs": 30089,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1451,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780492175500,
+    "endedAt": 1780492177908,
+    "endedReason": "manual",
+    "durationMs": 2408,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1450,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780492169687,
+    "endedAt": 1780492171878,
+    "endedReason": "manual",
+    "durationMs": 2191,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1449,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780492147966,
+    "endedAt": 1780492153269,
+    "endedReason": "manual",
+    "durationMs": 5303,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1448,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780491605253,
+    "endedAt": 1780491635291,
+    "endedReason": "timeout",
+    "durationMs": 30038,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1447,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780490047610,
+    "endedAt": 1780490051425,
+    "endedReason": "manual",
+    "durationMs": 3815,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1446,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780490027815,
+    "endedAt": 1780490030450,
+    "endedReason": "manual",
+    "durationMs": 2635,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1445,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780489852743,
+    "endedAt": 1780489882868,
+    "endedReason": "timeout",
+    "durationMs": 30125,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "ipad",
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1444,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780453678142,
+    "endedAt": 1780453679840,
+    "endedReason": "manual",
+    "durationMs": 1698,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1443,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780453672213,
+    "endedAt": 1780453673941,
+    "endedReason": "manual",
+    "durationMs": 1728,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 4,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon",
+      "ipad"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1442,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780453666874,
+    "endedAt": 1780453668415,
+    "endedReason": "manual",
+    "durationMs": 1541,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1441,
+    "type": "simulacro",
+    "label": "Simulacro",
+    "startedAt": 1780451280916,
+    "endedAt": 1780451341182,
+    "endedReason": "timeout",
+    "durationMs": 60266,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 4,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "ipad",
+      "Amazon",
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado."
+    ]
+  },
+  {
+    "id": 1440,
+    "type": "simulacro",
+    "label": "Simulacro",
+    "startedAt": 1780451159429,
+    "endedAt": 1780451219472,
+    "endedReason": "timeout",
+    "durationMs": 60043,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 4,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "ipad",
+      "Amazon",
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado."
+    ]
+  },
+  {
+    "id": 1439,
+    "type": "simulacro",
+    "label": "Simulacro",
+    "startedAt": 1780451052798,
+    "endedAt": 1780451112856,
+    "endedReason": "timeout",
+    "durationMs": 60058,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado."
+    ]
+  },
+  {
+    "id": 1438,
+    "type": "simulacro",
+    "label": "Simulacro",
+    "startedAt": 1780451018804,
+    "endedAt": 1780451049522,
+    "endedReason": "manual",
+    "durationMs": 30718,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado."
+    ]
+  },
+  {
+    "id": 1437,
+    "type": "evacuacion",
+    "label": "Evacuación",
+    "startedAt": 1780450870055,
+    "endedAt": 1780450990088,
+    "endedReason": "timeout",
+    "durationMs": 120033,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 4,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "ipad",
+      "Amazon",
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Salí con calma siguiendo las señales de evacuación.",
+      "No vuelvas por objetos personales.",
+      "Ayudá a quienes necesiten asistencia.",
+      "Dirigite al punto de reunión y esperá instrucciones."
+    ]
+  },
+  {
+    "id": 1436,
+    "type": "simulacro",
+    "label": "Simulacro",
+    "startedAt": 1780450740629,
+    "endedAt": 1780450770725,
+    "endedReason": "timeout",
+    "durationMs": 30096,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon",
+      "Cliente 22"
+    ],
+    "recommendations": [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado."
+    ]
+  },
+  {
+    "id": 1435,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450692955,
+    "endedAt": 1780450723147,
+    "endedReason": "timeout",
+    "durationMs": 30192,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Cliente 18",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1434,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450637248,
+    "endedAt": 1780450640676,
+    "endedReason": "manual",
+    "durationMs": 3428,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 1,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1433,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450612875,
+    "endedAt": 1780450614609,
+    "endedReason": "manual",
+    "durationMs": 1734,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 1,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1432,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450585121,
+    "endedAt": 1780450599310,
+    "endedReason": "manual",
+    "durationMs": 14189,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 1,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1431,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450564931,
+    "endedAt": 1780450571969,
+    "endedReason": "manual",
+    "durationMs": 7038,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 1,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1430,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450542030,
+    "endedAt": 1780450544663,
+    "endedReason": "manual",
+    "durationMs": 2633,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 1,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1429,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450526422,
+    "endedAt": 1780450536002,
+    "endedReason": "manual",
+    "durationMs": 9580,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 1,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1428,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450333598,
+    "endedAt": null,
+    "endedReason": null,
+    "durationMs": null,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Cliente 14",
+      "Cliente 15",
+      "cell"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1427,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780450267645,
+    "endedAt": 1780450327783,
+    "endedReason": "timeout",
+    "durationMs": 60138,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1426,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780339995686,
+    "endedAt": 1780339998735,
+    "endedReason": "manual",
+    "durationMs": 3049,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1425,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780339983835,
+    "endedAt": 1780339992249,
+    "endedReason": "manual",
+    "durationMs": 8414,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1424,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780339970402,
+    "endedAt": 1780339980880,
+    "endedReason": "manual",
+    "durationMs": 10478,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 1,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1423,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780339421769,
+    "endedAt": 1780339443064,
+    "endedReason": "manual",
+    "durationMs": 21295,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1422,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780339116531,
+    "endedAt": 1780339146587,
+    "endedReason": "timeout",
+    "durationMs": 30056,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1421,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780338976944,
+    "endedAt": 1780339006979,
+    "endedReason": "timeout",
+    "durationMs": 30035,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1420,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780338930967,
+    "endedAt": 1780338933881,
+    "endedReason": "manual",
+    "durationMs": 2914,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1419,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780338910264,
+    "endedAt": 1780338930964,
+    "endedReason": "replaced",
+    "durationMs": 20700,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1418,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780338433297,
+    "endedAt": 1780338523298,
+    "endedReason": "timeout",
+    "durationMs": 90001,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1417,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780338389316,
+    "endedAt": 1780338410959,
+    "endedReason": "manual",
+    "durationMs": 21643,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  },
+  {
+    "id": 1416,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780333920768,
+    "endedAt": 1780333960430,
+    "endedReason": "manual",
+    "durationMs": 39662,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1415,
+    "type": "simulacro",
+    "label": "Simulacro",
+    "startedAt": 1780333824965,
+    "endedAt": 1780333884988,
+    "endedReason": "timeout",
+    "durationMs": 60023,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado."
+    ]
+  },
+  {
+    "id": 1414,
+    "type": "bomba",
+    "label": "Amenaza de Bomba",
+    "startedAt": 1780333594960,
+    "endedAt": 1780333654984,
+    "endedReason": "timeout",
+    "durationMs": 60024,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "No toques objetos sospechosos.",
+      "Evacuá con calma siguiendo indicaciones del personal.",
+      "Una vez afuera, alejate al menos 100 metros del edificio.",
+      "No uses el celular cerca del objeto sospechoso."
+    ]
+  },
+  {
+    "id": 1413,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780333531399,
+    "endedAt": 1780333591426,
+    "endedReason": "timeout",
+    "durationMs": 60027,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1412,
+    "type": "incendio",
+    "label": "Incendio",
+    "startedAt": 1780333487178,
+    "endedAt": 1780333517205,
+    "endedReason": "timeout",
+    "durationMs": 30027,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si hay humo, agachate y avanzá lo más bajo posible.",
+      "Cerrá las puertas detrás tuyo para frenar el fuego.",
+      "No uses el ascensor, salí por la escalera.",
+      "Tocá las puertas con el dorso de la mano antes de abrirlas."
+    ]
+  },
+  {
+    "id": 1411,
+    "type": "custom",
+    "label": "Quiero queque",
+    "startedAt": 1780333396118,
+    "endedAt": 1780333482739,
+    "endedReason": "manual",
+    "durationMs": 86621,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Celu",
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Seguí las instrucciones del personal del establecimiento."
+    ]
+  },
+  {
+    "id": 1410,
+    "type": "simulacro",
+    "label": "Simulacro",
+    "startedAt": 1780333282209,
+    "endedAt": 1780333342262,
+    "endedReason": "timeout",
+    "durationMs": 60053,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 3,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Celu",
+      "cell",
+      "Amazon"
+    ],
+    "recommendations": [
+      "Esto es un simulacro: seguí el protocolo como si fuera una emergencia real.",
+      "Respetá los tiempos y rutas marcadas.",
+      "Reportá al referente cualquier inconveniente detectado."
+    ]
+  },
+  {
+    "id": 1409,
+    "type": "intruso",
+    "label": "Intruso",
+    "startedAt": 1780331808981,
+    "endedAt": 1780331839005,
+    "endedReason": "timeout",
+    "durationMs": 30024,
+    "triggeredBy": "admin",
+    "triggeredByName": null,
+    "recipients": 2,
+    "silenced": 0,
+    "paused": 0,
+    "deviceNames": [
+      "Amazon",
+      "cell"
+    ],
+    "recommendations": [
+      "Si podés huir con seguridad, hacelo.",
+      "Si no, escondete. Trabá puertas, apagá luces y silenciá el celular.",
+      "Llamá al 911 apenas sea seguro.",
+      "Seguí las indicaciones del personal de seguridad."
+    ]
+  }
+]
