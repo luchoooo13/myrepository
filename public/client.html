@@ -2,13 +2,232 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width,initial-scale=1,viewport-fit=cover"
+  <meta 
+      name="viewport" 
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" 
     />
-    <meta name="theme-color" content="#0b1220" />
-    <title>SchoolAlerts · Cliente</title>
+    <meta name="theme-color" content="#0e0e11" />
+    <title>SchoolAlerts</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" />
     <link rel="stylesheet" href="/styles.css" />
+    
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SchoolAlerts" />
+
+    <meta name="theme-color" content="#0e0e11" />
+    <title>SchoolAlerts</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" />
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      /* ════════════════════════════════════════════════════════════
+         ACCORDION — cada ítem de ajustes
+         ════════════════════════════════════════════════════════════ */
+
+      /* Wrapper que agrupa el botón + el panel */
+      .acc-item {
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+      }
+      .acc-item:last-child { border-bottom: 0; }
+
+      /* ── Botón disparador ── */
+      .scat-row {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        width: 100%;
+        padding: 1.05rem 0;
+        background: transparent;
+        border: 0;
+        color: var(--md-on-surface, #e8e8f0);
+        text-align: left;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;               /* para el ripple */
+        -webkit-tap-highlight-color: transparent;
+        transition: background .18s;
+      }
+      .scat-row:active { background: rgba(255,255,255,0.05); }
+
+      /* Estado abierto: fondo sutil */
+      .scat-row.is-open {
+        color: #fff;
+      }
+      .scat-row.is-open .scat-row__icon {
+        color: #a8c0ff;
+      }
+
+      /* Ripple */
+      .scat-row__ripple {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.12);
+        transform: scale(0);
+        animation: acc-ripple .5s linear;
+        pointer-events: none;
+      }
+      @keyframes acc-ripple {
+        to { transform: scale(4); opacity: 0; }
+      }
+
+      .scat-row__icon {
+        font-size: 1.25rem;
+        color: var(--md-primary, #7c9dff);
+        flex-shrink: 0;
+        transition: color .2s;
+      }
+      .scat-row__body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+        min-width: 0;
+      }
+      .scat-row__title  { font-size: .95rem; font-weight: 600; }
+      .scat-row__hint   { font-size: .74rem; color: var(--md-on-surface-variant, #9090a8); }
+
+      /* Chevron — rota 180° cuando se abre */
+      .scat-row__chevron {
+        font-size: 1.15rem;
+        color: var(--md-on-surface-muted, #6e6e80);
+        transition: transform .28s cubic-bezier(.4,0,.2,1),
+                    color .2s;
+        flex-shrink: 0;
+      }
+      .scat-row.is-open .scat-row__chevron {
+        transform: rotate(180deg);
+        color: #7c9dff;
+      }
+
+      /* ── Panel expandible con animación de altura ── */
+      .scat-panel {
+        display: grid;
+        grid-template-rows: 0fr;         /* colapsado */
+        transition: grid-template-rows .28s cubic-bezier(.4,0,.2,1);
+        /* No usamos overflow:hidden aquí para no cortar dropdowns dentro */
+      }
+      .scat-panel.is-open {
+        grid-template-rows: 1fr;         /* expandido */
+      }
+      /* El hijo directo necesita overflow:hidden para que el grid funcione */
+      .scat-panel__inner {
+        overflow: hidden;
+      }
+      /* Contenido con padding que aparece al expandir */
+      .scat-panel__content {
+        padding: .5rem 0 .75rem;
+        border-left: 2px solid rgba(124,157,255,0.20);
+        margin-left: .1rem;
+        padding-left: .9rem;
+      }
+      .scat-panel__content .setting   { padding-left: 0; padding-right: 0; }
+      .scat-panel__content .btn--block { margin-bottom: .5rem; }
+      .scat-panel__content .card      { border-radius: 12px; }
+    </style>
+
+    <script>
+      /* ── Accordion engine ─────────────────────────────────────────
+         Usa grid-template-rows 0fr↔1fr para animar la altura sin JS
+         measureHeight, compatible con todos los browsers modernos.
+         ─────────────────────────────────────────────────────────── */
+      (function () {
+        function ripple(btn, e) {
+          var r = btn.getBoundingClientRect();
+          var d = Math.max(r.width, r.height) * 1.5;
+          var el = document.createElement("span");
+          el.className = "scat-row__ripple";
+          el.style.cssText = [
+            "width:" + d + "px",
+            "height:" + d + "px",
+            "left:" + (e.clientX - r.left - d / 2) + "px",
+            "top:"  + (e.clientY - r.top  - d / 2) + "px",
+          ].join(";");
+          btn.appendChild(el);
+          el.addEventListener("animationend", function () { el.remove(); });
+        }
+
+        function toggleAccordion(btn, e) {
+          ripple(btn, e);
+          var targetId = btn.dataset.scat;
+          var panel    = document.getElementById(targetId);
+          if (!panel) return;
+          var opening  = !panel.classList.contains("is-open");
+
+          /* Cierra todos */
+          document.querySelectorAll(".scat-panel").forEach(function (p) {
+            p.classList.remove("is-open");
+          });
+          document.querySelectorAll(".scat-row").forEach(function (b) {
+            b.classList.remove("is-open");
+            b.setAttribute("aria-expanded", "false");
+          });
+
+          /* Abre el tocado */
+          if (opening) {
+            panel.classList.add("is-open");
+            btn.classList.add("is-open");
+            btn.setAttribute("aria-expanded", "true");
+            /* Scroll suave para que el panel quede visible */
+            setTimeout(function () {
+              panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }, 60);
+          }
+        }
+
+        document.addEventListener("click", function (e) {
+          var btn = e.target.closest(".scat-row");
+          if (btn) toggleAccordion(btn, e);
+        });
+      })();
+    </script>
+    <style>
+      .settings-group {
+        margin: 1.25rem 0 0;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 18px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.02);
+      }
+      .settings-group__title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.1rem 0.65rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--md-primary, #7c9dff);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        background: rgba(124,157,255,0.04);
+      }
+      .settings-group__title .material-symbols-outlined {
+        font-size: 1rem;
+        opacity: 0.8;
+      }
+      .settings-group .setting,
+      .settings-group .setting--column,
+      .settings-group .card {
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        border-top: 0;
+      }
+      .settings-group .btn--block,
+      .settings-group .tone-picker,
+      .settings-group .tab__hint,
+      .settings-group .tab__subtitle,
+      .settings-group .setting__footer {
+        padding-left: 1.1rem;
+        padding-right: 1.1rem;
+      }
+      .settings-group .btn--block { margin: 0.75rem 1.1rem 0; width: calc(100% - 2.2rem); }
+      .settings-group .setting__footer { padding-bottom: 0.75rem; }
+      .settings-group .tone-picker { padding-bottom: 0.5rem; }
+    </style>
     <!-- PWA / iOS -->
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -16,17 +235,31 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="SchoolAlerts" />
+	<link rel="apple-touch-startup-image" href="/splashes/apple-launch-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)">
+
+<link rel="apple-touch-startup-image" href="/splashes/apple-launch-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)">
+
+<link rel="apple-touch-startup-image" href="/splashes/apple-launch-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)">
+
+<link rel="apple-touch-startup-image" href="/splashes/apple-launch-1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)">
+
+<link rel="apple-touch-startup-image" href="/splashes/apple-launch-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)">
   </head>
   <body class="client">
     <div class="app" id="app">
       <header class="app__topbar">
         <div class="app__brand">
-          <span class="app__brand-icon" aria-hidden="true">⚠️</span>
+          <span class="material-symbols-outlined app__brand-icon" aria-hidden="true">crisis_alert</span>
           <span class="app__brand-text">SchoolAlerts</span>
         </div>
         <div class="app__status">
           <span class="app__status-dot" id="statusDot" aria-hidden="true"></span>
           <span class="app__status-text" id="statusText">Conectando…</span>
+        </div>
+        <!-- Chip de mala conexión: visible solo cuando RTT es alto o socket offline -->
+        <div class="conn-chip" id="connChip" hidden>
+          <span class="material-symbols-outlined conn-chip__icon" aria-hidden="true">signal_disconnected</span>
+          <span class="conn-chip__text" id="connChipText">Conexión débil</span>
         </div>
       </header>
 
@@ -49,6 +282,7 @@
                 voz cuando llegue una alerta.
               </p>
               <button class="btn btn--primary btn--block" id="enableBtn">
+                <span class="material-symbols-outlined" aria-hidden="true">volume_up</span>
                 Activar sonido y voz
               </button>
             </div>
@@ -62,6 +296,7 @@
                 celular bloqueado o la app cerrada.
               </p>
               <button class="btn btn--primary btn--block" id="pushEnableBtn">
+                <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
                 Activar notificaciones
               </button>
               <p class="card__text" id="pushStatus" hidden></p>
@@ -69,7 +304,7 @@
           </div>
 
           <div class="card" id="deviceCard">
-            <div class="card__title">Nombre de este dispositivo</div>
+            <div class="card__title">Nombre del dispositivo</div>
             <div class="card__body">
               <p class="card__text">
                 Aparece en el panel del host para que sepan qué celular es éste.
@@ -83,6 +318,7 @@
                   placeholder="Ej: Aula 5to A"
                 />
                 <button class="btn btn--primary" id="deviceNameSaveBtn" type="button">
+                  <span class="material-symbols-outlined" aria-hidden="true">save</span>
                   Guardar
                 </button>
               </div>
@@ -101,7 +337,7 @@
               </p>
               <label class="switch switch--row" for="silentEnabled">
                 <span class="switch__row-text">
-                  <strong>Silenciar en este horario</strong>
+                  <strong>Silenciar por horario</strong>
                   <small id="silentSummary">Desactivado</small>
                 </span>
                 <span class="switch__row-toggle">
@@ -166,9 +402,10 @@
         <!-- Historial -->
         <section class="tab" data-tab="history" hidden>
           <div class="tab__header">
-            <h2 class="tab__title">Historial</h2>
+            <h2 class="tab__title">Eventos</h2>
             <button class="btn btn--ghost btn--small" id="clearHistoryBtn">
-              Borrar local
+              <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1em">delete_sweep</span>
+              Borrar historial
             </button>
           </div>
           <p class="tab__hint">
@@ -225,123 +462,177 @@
         <section class="tab" data-tab="settings" hidden>
           <h2 class="tab__title">Ajustes</h2>
 
-          <div class="card" id="pauseCard">
-            <div class="card__title">Pausar notificaciones</div>
-            <div class="card__body">
-              <p class="card__text">
-                No vas a recibir alertas (ni sirena ni notificaciones push) hasta
-                que termine la pausa. Se reactiva solo.
-              </p>
-              <div class="setting setting--column">
-                <select id="pauseSelect" class="range" style="padding: 8px;">
-                  <option value="0">No pausar — recibir alertas normalmente</option>
-                  <option value="4h">Por 4 horas</option>
-                  <option value="12h">Por 12 horas</option>
-                  <option value="tomorrow6">Hasta mañana 6:00 AM</option>
-                  <option value="forever">Indefinido (hasta que desactive)</option>
-                </select>
+          <!-- Fila de categoría: Notificaciones y pausas -->
+          <button class="scat-row" data-scat="scat-notif" type="button" aria-expanded="false" aria-controls="scat-notif">
+            <span class="scat-row__icon material-symbols-outlined" aria-hidden="true">notifications_active</span>
+            <span class="scat-row__body">
+              <span class="scat-row__title">Notificaciones y pausas</span>
+              <span class="scat-row__hint">Pausa, horario silencioso, alertas de conexión</span>
+            </span>
+            <span class="scat-row__chevron material-symbols-outlined" aria-hidden="true">chevron_right</span>
+          </button>
+          <div class="scat-panel" id="scat-notif" role="region"><div class="scat-panel__inner"><div class="scat-panel__content">
+            <div class="card" id="pauseCard">
+              <div class="card__title">Pausar notificaciones</div>
+              <div class="card__body">
+                <p class="card__text">No vas a recibir alertas hasta que termine la pausa. Se reactiva solo.</p>
+                <div class="setting setting--column">
+                  <select id="pauseSelect" class="range" style="padding:8px;">
+                    <option value="0">No pausar — recibir alertas normalmente</option>
+                    <option value="4h">Por 4 horas</option>
+                    <option value="12h">Por 12 horas</option>
+                    <option value="tomorrow6">Hasta mañana 6:00 AM</option>
+                    <option value="forever">Indefinido (hasta que desactive)</option>
+                  </select>
+                </div>
+                <p class="card__text" id="pauseStatus" hidden></p>
+              </div></div></div>
+            <div class="setting">
+              <div class="setting__label">
+                <span class="setting__label-title">Notificar mala conexión</span>
+                <span class="setting__label-hint">Recibí una notificación cuando la conexión sea débil o se pierda.</span>
               </div>
-              <p class="card__text" id="pauseStatus" hidden></p>
+              <label class="switch">
+                <input type="checkbox" id="setConnNotif" checked />
+                <span class="switch__slider" aria-hidden="true"></span>
+              </label>
             </div>
           </div>
 
-          <div class="setting">
-            <div class="setting__label">
-              <span class="setting__label-title">Vibración</span>
-              <span class="setting__label-hint">Vibra mientras dura la alerta.</span>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="setVibration" checked />
-              <span class="switch__slider" aria-hidden="true"></span>
-            </label>
-          </div>
-
-          <div class="setting">
-            <div class="setting__label">
-              <span class="setting__label-title">Flash en pantalla</span>
-              <span class="setting__label-hint">Parpadeo rojo/blanco durante la alerta.</span>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="setStrobe" checked />
-              <span class="switch__slider" aria-hidden="true"></span>
-            </label>
-          </div>
-
-          <div class="setting">
-            <div class="setting__label">
-              <span class="setting__label-title">Voz</span>
-              <span class="setting__label-hint">Repetir por voz el tipo de alerta.</span>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="setVoice" checked />
-              <span class="switch__slider" aria-hidden="true"></span>
-            </label>
-          </div>
-
-          <div class="setting setting--column">
-            <div class="setting__label">
-              <span class="setting__label-title">Volumen sirena</span>
-              <span class="setting__label-hint" id="sirenVolumeLabel">100 %</span>
-            </div>
-            <input
-              type="range"
-              class="range"
-              id="setSirenVolume"
-              min="0"
-              max="100"
-              value="100"
-            />
-          </div>
-
-          <div class="setting setting--column">
-            <div class="setting__label">
-              <span class="setting__label-title">Volumen voz</span>
-              <span class="setting__label-hint" id="voiceVolumeLabel">100 %</span>
-            </div>
-            <input
-              type="range"
-              class="range"
-              id="setVoiceVolume"
-              min="0"
-              max="100"
-              value="100"
-            />
-          </div>
-
-          <button class="btn btn--primary btn--block" id="testAlertBtn">
-            Probar alerta (5 seg)
+          <!-- Fila de categoría: Configuración de alertas -->
+          <button class="scat-row" data-scat="scat-alerts" type="button" aria-expanded="false" aria-controls="scat-alerts">
+            <span class="scat-row__icon material-symbols-outlined" aria-hidden="true">crisis_alert</span>
+            <span class="scat-row__body">
+              <span class="scat-row__title">Configuración de alertas</span>
+              <span class="scat-row__hint">Vibración, flash, voz</span>
+            </span>
+            <span class="scat-row__chevron material-symbols-outlined" aria-hidden="true">chevron_right</span>
           </button>
-          <p class="setting__footer">
-            Simula una alerta local de simulacro durante 5 segundos para
-            verificar sonido, voz, flash y vibración. No notifica al servidor.
-          </p>
+          <div class="scat-panel" id="scat-alerts" role="region"><div class="scat-panel__inner"><div class="scat-panel__content">
+            <div class="setting">
+              <div class="setting__label">
+                <span class="setting__label-title">Vibración</span>
+                <span class="setting__label-hint">Vibra el dispositivo durante una alerta.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setVibration" checked />
+                <span class="switch__slider" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="setting">
+              <div class="setting__label">
+                <span class="setting__label-title">Flash</span>
+                <span class="setting__label-hint">Activa el flash de cámara o parpadeo en pantalla.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setStrobe" checked />
+                <span class="switch__slider" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="setting">
+              <div class="setting__label">
+                <span class="setting__label-title">Alerta en voz alta</span>
+                <span class="setting__label-hint">Repite el tipo de alerta en voz alta.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setVoice" checked />
+                <span class="switch__slider" aria-hidden="true"></span>
+              </label>
+            </div></div></div>
 
-          <button class="btn btn--danger btn--block" id="resetDataBtn">
-            Borrar historial y preferencias
+          <!-- Fila de categoría: Volumen -->
+          <button class="scat-row" data-scat="scat-volume" type="button" aria-expanded="false" aria-controls="scat-volume">
+            <span class="scat-row__icon material-symbols-outlined" aria-hidden="true">volume_up</span>
+            <span class="scat-row__body">
+              <span class="scat-row__title">Volumen</span>
+              <span class="scat-row__hint">Sirena, voz y tono de alerta</span>
+            </span>
+            <span class="scat-row__chevron material-symbols-outlined" aria-hidden="true">chevron_right</span>
           </button>
+          <div class="scat-panel" id="scat-volume" role="region"><div class="scat-panel__inner"><div class="scat-panel__content">
+            <div class="setting setting--column">
+              <div class="setting__label">
+                <span class="setting__label-title">Volumen sirena</span>
+                <span class="setting__label-hint" id="sirenVolumeLabel">100 %</span>
+              </div>
+              <input type="range" class="range" id="setSirenVolume" min="0" max="100" value="100" />
+            </div>
+            <div class="setting setting--column">
+              <div class="setting__label">
+                <span class="setting__label-title">Volumen voz</span>
+                <span class="setting__label-hint" id="voiceVolumeLabel">100 %</span>
+              </div>
+              <input type="range" class="range" id="setVoiceVolume" min="0" max="100" value="100" />
+            </div>
+            <div class="tab__subtitle" style="margin-top:.75rem">Tono de sirena</div>
+            <p class="tab__hint" style="margin-top:0">Elegí qué sirena suena en todas las alertas (excepto simulacro).</p>
+            <div class="tone-picker" id="tonePicker">
+              <label class="tone-option">
+                <input type="radio" name="sirenTone" value="default" checked />
+                <span class="tone-option__card">
+                  <span class="material-symbols-outlined tone-option__icon" aria-hidden="true">campaign</span>
+                  <span class="tone-option__name">Sirena estándar</span>
+                </span>
+              </label>
+              <label class="tone-option">
+                <input type="radio" name="sirenTone" value="eas" />
+                <span class="tone-option__card">
+                  <span class="material-symbols-outlined tone-option__icon" aria-hidden="true">warning</span>
+                  <span class="tone-option__name">Alerta</span>
+                </span>
+              </label>
+            </div></div></div>
 
-          <p class="tab__hint app__credit" style="margin-top: 1.5rem">
-            Creado con <span class="app__credit-heart" aria-hidden="true">💖</span>, Lucho
-            2026 app SchoolAlerts
+          <!-- Fila de categoría: Herramientas -->
+          <button class="scat-row" data-scat="scat-tools" type="button" aria-expanded="false" aria-controls="scat-tools">
+            <span class="scat-row__icon material-symbols-outlined" aria-hidden="true">build</span>
+            <span class="scat-row__body">
+              <span class="scat-row__title">Herramientas</span>
+              <span class="scat-row__hint">Probar alerta, borrar datos</span>
+            </span>
+            <span class="scat-row__chevron material-symbols-outlined" aria-hidden="true">chevron_right</span>
+          </button>
+          <div class="scat-panel" id="scat-tools" role="region"><div class="scat-panel__inner"><div class="scat-panel__content">
+            <button class="btn btn--primary btn--block" id="testAlertBtn">
+              <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
+              Probar alerta (5 seg)
+            </button>
+            <p class="setting__footer">Simula una alerta local de simulacro durante 5 segundos. No notifica al servidor.</p>
+            <button class="btn btn--danger btn--block" id="resetDataBtn" style="margin-top:.75rem">
+              <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+              Borrar historial y preferencias
+            </button>
+          </div>
+
+          <p class="tab__hint app__credit" style="margin-top:1.5rem;text-align:center">
+            Creado con <span class="material-symbols-outlined app__credit-heart" aria-hidden="true" style="font-size:1em;vertical-align:middle;color:#f27a7a">favorite</span>, Lucho · 2026 · SchoolAlerts
           </p>
         </section>
       </main>
 
       <nav class="tabs" role="tablist">
         <button class="tabs__btn is-active" data-tab-target="home" type="button">
-          <span class="tabs__icon" aria-hidden="true">🏠</span>
+          <div class="tabs__icon-wrapper">
+            <span class="material-symbols-outlined tabs__icon">warning</span>
+          </div>
           <span class="tabs__label">Inicio</span>
         </button>
         <button class="tabs__btn" data-tab-target="history" type="button">
-          <span class="tabs__icon" aria-hidden="true">📋</span>
-          <span class="tabs__label">Historial</span>
+          <div class="tabs__icon-wrapper">
+            <span class="material-symbols-outlined tabs__icon">view_timeline</span>
+          </div>
+          <span class="tabs__label">Eventos</span>
         </button>
         <button class="tabs__btn" data-tab-target="info" type="button">
-          <span class="tabs__icon" aria-hidden="true">ℹ️</span>
+          <div class="tabs__icon-wrapper">
+            <span class="material-symbols-outlined tabs__icon">info</span>
+          </div>
           <span class="tabs__label">Info</span>
         </button>
         <button class="tabs__btn" data-tab-target="settings" type="button">
-          <span class="tabs__icon" aria-hidden="true">⚙️</span>
+          <div class="tabs__icon-wrapper">
+            <span class="material-symbols-outlined tabs__icon">settings</span>
+          </div>
           <span class="tabs__label">Ajustes</span>
         </button>
       </nav>
@@ -356,9 +647,9 @@
         aria-label="Cerrar alerta en este dispositivo"
         title="Cerrar alerta en este dispositivo"
       >
-        <span aria-hidden="true">×</span>
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
       </button>
-      <div class="alert__clock">
+    <div class="alert__clock">
         <div class="clock__time" data-clock-time>--:--:--</div>
       </div>
       <div class="alert__card">
@@ -382,15 +673,49 @@
            arrancar la sirena. El click en cualquier parte del overlay
            (excepto la X) dispara unlockAudioAndPlayCurrent(). -->
       <div class="alert__unlock" id="alertUnlockHint" hidden>
-        <span class="alert__unlock-icon" aria-hidden="true">🔊</span>
+        <span class="material-symbols-outlined alert__unlock-icon" aria-hidden="true">volume_up</span>
         <span class="alert__unlock-text">
           Tocá la pantalla para escuchar la sirena
         </span>
       </div>
     </div>
+<script>  activarWakeLock();
 
+        // Función para mantener pantalla encendida
+        async function activarWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    let wakeLock = await navigator.wakeLock.request('screen');
+                    console.log("Pantalla mantenida encendida (WakeLock activo)");
+                    
+                    // Si el usuario minimiza y vuelve, reactivar
+                    document.addEventListener('visibilitychange', async () => {
+                        if (wakeLock !== null && document.visibilityState === 'visible') {
+                            wakeLock = await navigator.wakeLock.request('screen');
+                        }
+                    });
+                } else {
+                    console.warn("Este navegador no soporta WakeLock (La pantalla podría apagarse)");
+                }
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+            }
+        }  </script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/clock.js"></script>
     <script src="/client.js"></script>
+<script>
+  // Creamos un escuchador global que se activa con el primer toque
+  function unlockAudio() {
+    const audio = new Audio();
+    audio.play().catch(() => {}); // Intento silencioso para desbloquear el navegador
+    document.removeEventListener('click', unlockAudio);
+    document.removeEventListener('touchstart', unlockAudio);
+    console.log("Audio desbloqueado por interacción del usuario");
+  }
+
+  document.addEventListener('click', unlockAudio);
+  document.addEventListener('touchstart', unlockAudio);
+</script>
   </body>
 </html>

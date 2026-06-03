@@ -3,8 +3,62 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>HOST · Panel de Alertas</title>
+    <title>Panel de Alertas</title>
     <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .host__tabs {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 0.5rem;
+      }
+      .host__tab-btn {
+        background: transparent;
+        color: var(--muted);
+        border: none;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0.5rem;
+        transition: color 0.2s;
+      }
+	
+      .host__tab-btn.is-active {
+        color: var(--accent);
+        border-bottom: 2px solid var(--accent);
+      }
+      /* Chip de conexión del panel host */
+      .host-conn-chip {
+        display: inline-flex; align-items: center; gap: .4rem;
+        padding: .28rem .75rem; border-radius: 999px;
+        font-size: .75rem; font-weight: 600; letter-spacing: .02em;
+        border: 1px solid; white-space: nowrap;
+        transition: background .3s, border-color .3s, color .3s;
+      }
+      .host-conn-chip__dot {
+        width: .45rem; height: .45rem; border-radius: 50%;
+        background: currentColor; flex-shrink: 0;
+      }
+      .host-conn-chip--connecting {
+        background: rgba(110,110,128,.12); border-color: rgba(110,110,128,.3);
+        color: #6e6e80;
+      }
+      .host-conn-chip--online {
+        background: rgba(105,224,165,.13); border-color: rgba(105,224,165,.35);
+        color: #69e0a5;
+        animation: none;
+      }
+      .host-conn-chip--offline {
+        background: rgba(242,122,122,.13); border-color: rgba(242,122,122,.4);
+        color: #f27a7a;
+        animation: host-chip-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes host-chip-pulse {
+        0%,100% { opacity:1; } 50% { opacity:.55; }
+      }
+      .host__msg-textarea:focus { outline: none; border-color: var(--accent); background: var(--surface-3); }
+    </style>
   </head>
   <body class="host">
     <header class="host__header">
@@ -14,11 +68,10 @@
           <div class="clock__time" data-clock-time>--:--:--</div>
           <div class="clock__date" data-clock-date>—</div>
         </div>
-        <div class="host__status" id="status">Conectando…</div>
-        <div class="host__clients" id="clients" title="Dispositivos cliente conectados">
-          <span class="host__clients-icon" aria-hidden="true">📺</span>
-          <span class="host__clients-count" id="clientsCount">0</span>
-          <span class="host__clients-label">clientes</span>
+        <!-- Chip de estado de conexión del panel host -->
+        <div id="hostConnChip" class="host-conn-chip host-conn-chip--connecting" title="Estado de conexión con el servidor">
+          <span class="host-conn-chip__dot" aria-hidden="true"></span>
+          <span class="host-conn-chip__text" id="hostConnText">Conectando…</span>
         </div>
         <div class="host__user">
           <span class="host__role" id="roleBadge" title="Rol de la sesión">—</span>
@@ -29,116 +82,175 @@
       </div>
     </header>
 
-    <section class="host__current" id="current" hidden>
-      <div class="host__current-label">ALERTA ACTIVA</div>
-      <div class="host__current-type" id="currentType">—</div>
-      <div class="host__current-time" id="currentTime">—</div>
-      <button class="btn btn--stop" id="stopBtn">DETENER ALERTA</button>
-    </section>
+    <nav class="host__tabs">
+       <button class="host__tab-btn is-active" data-target="tab-inicio">Inicio</button>
+       <button class="host__tab-btn" data-target="tab-devices">Dispositivos</button>
+       <button class="host__tab-btn" data-target="tab-history">Historial</button>
+       <button class="host__tab-btn" data-target="tab-settings">Ajustes</button>
+    </nav>
 
-    <section class="host__grid" id="buttons">
-      <!-- botones inyectados por host.js -->
-    </section>
+    <div id="tab-inicio" class="host__tab-content">
+      <section class="host__current" id="current" hidden>
+        <div class="host__current-label">ALERTA ACTIVA</div>
+        <div class="host__current-type" id="currentType">—</div>
+        <div class="host__current-time" id="currentTime">—</div>
+        <button class="btn btn--stop" id="stopBtn">DETENER ALERTA</button>
+      </section>
 
-    <section class="host__devices" id="devicesSection">
-      <h2 class="host__devices-title">Dispositivos conectados</h2>
-      <p class="host__devices-hint">
-        Todos los celulares / PCs / TVs que están escuchando alertas en este
-        momento. El estado se actualiza solo: 🟢 escuchando, 🔴 alerta sonando,
-        🌙 silenciado por horario, ⏸ pausado por el usuario.
-        <span id="devicesAdminHint" hidden>
-          Como admin, podés tocar el lápiz para renombrar un dispositivo.
-        </span>
-      </p>
-      <div class="host__devices-list" id="devicesList">
-        <div class="host__devices-empty">No hay dispositivos conectados.</div>
-      </div>
-    </section>
+      <section class="host__grid" id="buttons">
+        </section>
+    </div>
 
-    <section class="host__history" id="historySection">
-      <h2 class="host__history-title">Historial de alertas</h2>
-      <p class="host__history-hint">
-        Las últimas alertas que se dispararon en el sistema (max. 50). Tocá
-        una para ver quién la disparó, cuántos dispositivos la recibieron y
-        cuáles estaban silenciados.
-      </p>
-      <div class="host__history-list" id="historyList">
-        <div class="host__history-empty">Todavía no se registraron alertas.</div>
-      </div>
-    </section>
+    <div id="tab-mensajes" class="host__tab-content" hidden>
+      <section style="padding: 0.5rem 0;">
+        <h2 class="host__devices-title">Mensajes a dispositivos</h2>
+        <p class="host__devices-hint">
+          Enviá un aviso de texto silencioso a todos los dispositivos conectados.
+          Aparece como notificación en la pestaña "Notificaciones" de cada cliente
+          y como notificación del sistema en celulares y iPads.
+        </p>
+        <form id="msgForm" autocomplete="off" style="display:flex;flex-direction:column;gap:.75rem;">
+          <textarea
+            id="msgText"
+            class="host__msg-textarea"
+            rows="3"
+            maxlength="500"
+            placeholder="Ej: Reunión de personal en sala de profesores a las 14:00"
+          ></textarea>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+            <span style="font-size:.78rem;color:var(--muted,#6e6e80)"><span id="msgCharCount">0</span>/500</span>
+            <button class="btn btn--primary" type="submit" id="msgSendBtn">Enviar mensaje</button>
+          </div>
+        </form>
+        <div id="msgStatus" hidden style="margin-top:.6rem;padding:.5rem .8rem;border-radius:10px;font-size:.87rem;background:rgba(105,224,165,0.12);border:1px solid rgba(105,224,165,0.3);color:#69e0a5;"></div>
+        <div style="margin-top:1.5rem;">
+          <div style="font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#6e6e80);margin-bottom:.7rem;font-weight:600;">Enviados recientes</div>
+          <div id="msgSentList"><div id="msgSentEmpty" style="font-size:.85rem;color:var(--muted,#6e6e80);">Ningún mensaje enviado aún.</div></div>
+        </div>
+      </section>
+    </div>
 
-    <section class="host__scheduler">
-      <h2 class="host__scheduler-title">Programar alerta (hora Buenos Aires)</h2>
-      <form class="host__scheduler-form" id="scheduleForm" autocomplete="off">
-        <label class="host__scheduler-field">
-          <span>Hora</span>
-          <input type="time" id="scheduleTime" required />
-        </label>
-        <label class="host__scheduler-field">
-          <span>Tipo de alerta</span>
-          <select id="scheduleType" required>
-            <!-- opciones inyectadas por host.js -->
-          </select>
-        </label>
-        <label class="host__scheduler-field host__scheduler-field--check">
-          <input type="checkbox" id="scheduleRecurring" />
-          <span>Repetir todos los días</span>
-        </label>
-        <button class="btn btn--schedule" type="submit">Programar</button>
-      </form>
-      <ul class="host__scheduler-list" id="scheduleList">
-        <li class="host__scheduler-empty">No hay alertas programadas.</li>
-      </ul>
-    </section>
+    <div id="tab-devices" class="host__tab-content" hidden>
+      <section class="host__devices" id="devicesSection">
+        <h2 class="host__devices-title">Dispositivos conectados</h2>
+        <p class="host__devices-hint">
+          Todos los celulares / PCs / TVs que están escuchando alertas en este
+          momento. El estado se actualiza solo: 🟢 escuchando, 🔴 alerta sonando,
+          🌙 silenciado por horario, ⏸ pausado por el usuario.
+          <span id="devicesAdminHint" hidden>
+            Como admin, podés tocar el lápiz para renombrar un dispositivo.
+          </span>
+        </p>
+        <div class="host__devices-list" id="devicesList">
+          <div class="host__devices-empty">No hay dispositivos conectados.</div>
+        </div>
+      </section>
+    </div>
 
-    <section class="host__recs" id="recsSection" hidden>
-      <h2 class="host__recs-title">Recomendaciones por tipo de alerta</h2>
-      <p class="host__recs-hint">
-        Las líneas que escribas acá son las que ven los profes en la pestaña
-        "Guía rápida" de la app, y también aparecen debajo del cartel negro
-        cuando suena una alerta de ese tipo. Una línea = una recomendación.
-        Los cambios se sincronizan solos con todos los dispositivos.
-      </p>
-      <div class="host__recs-status" id="recsStatus" hidden></div>
-      <div class="host__recs-list" id="recsList">
-        <!-- inyectado por host.js -->
-      </div>
-    </section>
+    <div id="tab-history" class="host__tab-content" hidden>
+      <section class="host__history" id="historySection">
+        <h2 class="host__history-title">Historial de alertas</h2>
+        <p class="host__history-hint">
+          Las últimas alertas que se dispararon en el sistema (max. 50). Tocá
+          una para ver quién la disparó, cuántos dispositivos la recibieron y
+          cuáles estaban silenciados.
+        </p>
+        <div class="host__history-list" id="historyList">
+          <div class="host__history-empty">Todavía no se registraron alertas.</div>
+        </div>
+      </section>
+    </div>
+	
+	<div id="monitor-card" style="display: none; border: 1px solid #ccc; padding: 15px; margin-top: 20px;">
+    <h3>Estado de la Alerta: <span id="monitor-type"></span></h3>
+    <div id="monitor-progress">Confirmados: 0 / 0</div>
+    <ul id="monitor-list"></ul> </div>
 
-    <section class="host__pwd" id="pwdSection">
-      <h2 class="host__pwd-title">Cambiar contraseña</h2>
-      <p class="host__pwd-hint">
-        Cambiás la contraseña de tu usuario actual
-        (<span id="pwdRoleLabel">—</span>). Para confirmar pedimos la
-        contraseña que usás hoy. Los otros dispositivos logueados con esa
-        misma cuenta van a tener que volver a entrar.
-      </p>
-      <form class="host__pwd-form" id="pwdForm" autocomplete="off">
-        <label class="host__pwd-field">
-          <span>Contraseña actual</span>
-          <input type="password" id="pwdCurrent" autocomplete="current-password" required />
-        </label>
-        <label class="host__pwd-field">
-          <span>Nueva contraseña (mín. 6)</span>
-          <input type="password" id="pwdNext" autocomplete="new-password" required minlength="6" />
-        </label>
-        <label class="host__pwd-field">
-          <span>Repetir nueva</span>
-          <input type="password" id="pwdConfirm" autocomplete="new-password" required minlength="6" />
-        </label>
-        <button class="btn btn--schedule" type="submit" id="pwdSubmit">
-          Guardar contraseña
-        </button>
-      </form>
-      <div class="host__pwd-status" id="pwdStatus" hidden></div>
-    </section>
+    <div id="tab-settings" class="host__tab-content" hidden>
+      <section class="host__scheduler">
+        <h2 class="host__scheduler-title">Programar alerta (hora Buenos Aires)</h2>
+        <form class="host__scheduler-form" id="scheduleForm" autocomplete="off">
+          <label class="host__scheduler-field">
+            <span>Hora</span>
+            <input type="time" id="scheduleTime" required />
+          </label>
+          <label class="host__scheduler-field">
+            <span>Tipo de alerta</span>
+            <select id="scheduleType" required>
+              </select>
+          </label>
+          <label class="host__scheduler-field host__scheduler-field--check">
+            <input type="checkbox" id="scheduleRecurring" />
+            <span>Repetir todos los días</span>
+          </label>
+          <button class="btn btn--schedule" type="submit">Programar</button>
+        </form>
+        <ul class="host__scheduler-list" id="scheduleList">
+          <li class="host__scheduler-empty">No hay alertas programadas.</li>
+        </ul>
+      </section>
+	
+      <section class="host__recs" id="recsSection" hidden>
+        <h2 class="host__recs-title">Recomendaciones por tipo de alerta</h2>
+        <p class="host__recs-hint">
+          Las líneas que escribas acá son las que ven los profes en la pestaña
+          "Guía rápida" de la app, y también aparecen debajo del cartel negro
+          cuando suena una alerta de ese tipo. Una línea = una recomendación.
+          Los cambios se sincronizan solos con todos los dispositivos.
+        </p>
+        <div class="host__recs-status" id="recsStatus" hidden></div>
+        <div class="host__recs-list" id="recsList">
+          </div>
+      </section>
 
+      <section class="host__recs" id="voiceTextsSection" hidden>
+        <h2 class="host__recs-title">Textos de voz por tipo de alerta</h2>
+        <p class="host__recs-hint">
+          Editá qué dice la voz cuando suena cada alerta en el APK y en la web.
+          Simulacro y Mensaje personalizado no son editables. Si borrás el texto
+          de un tipo, vuelve al mensaje predeterminado.
+        </p>
+        <div class="host__recs-status" id="voiceTextsStatus" hidden></div>
+        <div id="voiceTextsList" class="host__recs-list"></div>
+      </section>
+
+      <section class="host__pwd" id="pwdSection">
+        <h2 class="host__pwd-title">Cambiar contraseña</h2>
+        <p class="host__pwd-hint">
+          Cambiás la contraseña de tu usuario actual
+          (<span id="pwdRoleLabel">—</span>). Para confirmar pedimos la
+          contraseña que usás hoy. Los otros dispositivos logueados con esa
+          misma cuenta van a tener que volver a entrar.
+        </p>
+        <form class="host__pwd-form" id="pwdForm" autocomplete="off">
+          <label class="host__pwd-field">
+            <span>Contraseña actual</span>
+            <input type="password" id="pwdCurrent" autocomplete="current-password" required />
+          </label>
+          <label class="host__pwd-field">
+            <span>Nueva contraseña (mín. 6)</span>
+            <input type="password" id="pwdNext" autocomplete="new-password" required minlength="6" />
+          </label>
+          <label class="host__pwd-field">
+            <span>Repetir nueva</span>
+            <input type="password" id="pwdConfirm" autocomplete="new-password" required minlength="6" />
+          </label>
+          <button class="btn btn--schedule" type="submit" id="pwdSubmit">
+            Guardar contraseña
+          </button>
+        </form>
+        <div class="host__pwd-status" id="pwdStatus" hidden></div>
+      </section>
+    </div>
+
+        
     <footer class="host__footer">
       <p>
-        Al presionar un botón, todos los dispositivos cliente conectados a esta
-        red recibirán la alerta durante 1 minuto.
+        Al presionar un botón, todos los dispositivos conectados a SchoolAlerts
+        recibirán la alerta durante 1 minuto.
       </p>
     </footer>
+    <h2 style="text-align:center;font-size:.9rem;color:var(--muted,#6e6e80);font-weight:400;margin:1rem 0 2rem;">Creado con 💖, Lucho</h2>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/clock.js"></script>
