@@ -1278,17 +1278,12 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 
   isolation: isolate;
 
-  /* Fondo */
+  /* Fondo táctico oscuro — rojo contenido en las esquinas */
   background:
-    linear-gradient(
-      180deg,
-      #b91c1c 0%,
-      #991b1b 100%
-    );
+    radial-gradient(ellipse 100% 70% at 50% 50%, #1a0303 0%, #0a0000 100%);
 
-  /* Animación */
-  animation:
-    m3AlertPulse 2.6s ease-in-out infinite;
+  /* Animación de pulso de fondo */
+  animation: m3AlertPulse 2.6s ease-in-out infinite;
 
   transition:
     background 400ms ease,
@@ -1297,66 +1292,46 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 
 .alert.is-simulacro {
   background:
-    linear-gradient(
-      180deg,
-      #1d4ed8 0%,
-      #1e3a8a 100%
-    );
+    radial-gradient(ellipse 100% 70% at 50% 50%, #00081a 0%, #000508 100%);
 
-  animation:
-    m3AlertPulseBlue 2.6s ease-in-out infinite;
+  animation: m3AlertPulseBlue 2.6s ease-in-out infinite;
 }
-/* Strobe activo: pulso más agresivo con flash blanco */
+
 /* ============================================================
- * ALERTA MODERNA — PULSO PREMIUM
+ * ALERTA — PULSO TÁCTICO OSCURO
  * ============================================================ */
 
 @keyframes m3AlertPulse {
-
   0%,100% {
     background:
-      linear-gradient(
-        180deg,
-        #b91c1c 0%,
-        #991b1b 100%
-      );
+      radial-gradient(ellipse 100% 70% at 50% 50%, #1a0303 0%, #0a0000 100%);
+    box-shadow: inset 0 0 120px rgba(220,38,38,0.18);
   }
-
   50% {
     background:
-      linear-gradient(
-        180deg,
-        #dc2626 0%,
-        #b91c1c 100%
-      );
+      radial-gradient(ellipse 110% 80% at 50% 50%, #260606 0%, #0e0000 100%);
+    box-shadow: inset 0 0 160px rgba(220,38,38,0.28);
   }
 }
+
 /* ============================================================
- * SIMULACRO — AZUL
+ * SIMULACRO — AZUL TÁCTICO
  * ============================================================ */
 
 @keyframes m3AlertPulseBlue {
-
   0%,100% {
     background:
-      linear-gradient(
-        180deg,
-        #1d4ed8 0%,
-        #1e3a8a 100%
-      );
+      radial-gradient(ellipse 100% 70% at 50% 50%, #00081a 0%, #000508 100%);
+    box-shadow: inset 0 0 120px rgba(29,78,216,0.18);
   }
-
   50% {
     background:
-      linear-gradient(
-        180deg,
-        #2563eb 0%,
-        #1d4ed8 100%
-      );
+      radial-gradient(ellipse 110% 80% at 50% 50%, #000e26 0%, #00070e 100%);
+    box-shadow: inset 0 0 160px rgba(29,78,216,0.28);
   }
 }
 
-/* Sin strobe: pulso suave sin flash blanco */
+/* Sin strobe: variante sin flash */
 .alert.is-nostrobe {
   animation: m3AlertSoft 2.5s ease-in-out infinite;
 }
@@ -1364,19 +1339,38 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   animation: m3AlertSoftBlue 2.5s ease-in-out infinite;
 }
 @keyframes m3AlertSoft {
-  0%, 100% { background: linear-gradient(160deg, #b91c1c 0%, #dc2626 40%, #991b1b 100%); }
-  50%      { background: linear-gradient(160deg, #7f1d1d 0%, #991b1b 40%, #7f1d1d 100%); }
+  0%, 100% {
+    background: radial-gradient(ellipse 100% 70% at 50% 50%, #1a0303 0%, #080000 100%);
+    box-shadow: inset 0 0 100px rgba(185,28,28,0.15);
+  }
+  50% {
+    background: radial-gradient(ellipse 110% 80% at 50% 50%, #220505 0%, #0c0000 100%);
+    box-shadow: inset 0 0 140px rgba(185,28,28,0.22);
+  }
 }
 @keyframes m3AlertSoftBlue {
-  0%, 100% { background: linear-gradient(160deg, #1e40af 0%, #3b82f6 40%, #1e3a8a 100%); }
-  50%      { background: linear-gradient(160deg, #1e3a8a 0%, #1e40af 40%, #1e3a8a 100%); }
+  0%, 100% {
+    background: radial-gradient(ellipse 100% 70% at 50% 50%, #00071a 0%, #000408 100%);
+    box-shadow: inset 0 0 100px rgba(30,64,175,0.15);
+  }
+  50% {
+    background: radial-gradient(ellipse 110% 80% at 50% 50%, #000c22 0%, #00060e 100%);
+    box-shadow: inset 0 0 140px rgba(30,64,175,0.22);
+  }
 }
 
-/* Fondo animado con gradiente radial */
+/* Fondo: viñeta de color en los bordes */
 .alert__bg {
   display: block; position: absolute; inset: 0;
-  background: radial-gradient(ellipse 120% 80% at 50% 30%, rgba(255,255,255,0.08) 0%, transparent 70%);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(220,38,38,0.22) 0%, transparent 65%),
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(220,38,38,0.15) 0%, transparent 55%);
   pointer-events: none; z-index: 101;
+}
+.alert.is-simulacro .alert__bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(29,78,216,0.25) 0%, transparent 65%),
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(29,78,216,0.18) 0%, transparent 55%);
 }
 
 /* Reloj (esquina superior izquierda) */
@@ -1409,18 +1403,18 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 .alert__close:active { transform: scale(0.9); }
 .alert__close span   { display: block; font-size: 1.35rem; }
 
-/* Card central — M3 elevated surface */
+/* Card central — glass oscuro táctico */
 .alert__card {
   position: relative;
   z-index: 110;
 
-  background: rgba(12,12,12,0.68);
+  background: rgba(6,6,8,0.82);
 
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
 
-  border: 1px solid rgba(255,255,255,0.08);
-  border-top: 4px solid rgba(255,255,255,0.16);
+  border: 1px solid rgba(220,38,38,0.25);
+  border-top: none; /* lo reemplaza el ::before de 3px */
 
   border-radius: var(--r-xl, 28px);
 
@@ -1431,8 +1425,11 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   max-width: min(92vw, 560px);
 
   box-shadow:
-    0 10px 40px rgba(0,0,0,0.38),
-    inset 0 1px 0 rgba(255,255,255,0.05);
+    0 10px 40px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.alert.is-simulacro .alert__card {
+  border-color: rgba(29,78,216,0.3);
 }
 /* =========================================================
  * ALERTA CLIENT — ENHANCED
@@ -1442,28 +1439,36 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   isolation: isolate;
 }
 
-/* glow gigante */
+/* glow táctico — desplazado hacia arriba, color del acento */
 .alert::before {
   content: "";
 
   position: absolute;
-  inset: -40%;
+  inset: -30%;
 
   background:
     radial-gradient(
-      circle,
-      rgba(255,255,255,0.12) 0%,
-      transparent 55%
+      ellipse 60% 40% at 50% 30%,
+      rgba(220,38,38,0.18) 0%,
+      transparent 65%
     );
 
-  animation: emergencyRotate 10s linear infinite;
+  animation: emergencyRotate 14s linear infinite;
 
-  opacity: 0.7;
+  opacity: 1;
 
   z-index: 1;
 }
+.alert.is-simulacro::before {
+  background:
+    radial-gradient(
+      ellipse 60% 40% at 50% 30%,
+      rgba(29,78,216,0.22) 0%,
+      transparent 65%
+    );
+}
 
-/* scanlines */
+/* scanlines más pronunciadas — estética HUD/broadcast */
 .alert::after {
   content: "";
 
@@ -1473,15 +1478,15 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   background:
     repeating-linear-gradient(
       to bottom,
-      rgba(255,255,255,0.035) 0px,
-      rgba(255,255,255,0.035) 2px,
-      transparent 2px,
-      transparent 7px
+      rgba(0,0,0,0.18) 0px,
+      rgba(0,0,0,0.18) 1px,
+      transparent 1px,
+      transparent 4px
     );
 
-  mix-blend-mode: overlay;
+  mix-blend-mode: multiply;
 
-  opacity: 0.45;
+  opacity: 0.6;
 
   pointer-events: none;
 
@@ -1489,7 +1494,7 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 }
 
 /* =========================================================
- * CARD
+ * CARD — glass táctico oscuro
  * ========================================================= */
 
 .alert__card {
@@ -1499,46 +1504,75 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   alertCardPulse 2.4s cubic-bezier(.22,.61,.36,1) infinite;
 
   box-shadow:
-    0 0 0 1px rgba(255,255,255,0.06),
-    0 0 40px rgba(255,0,0,0.18),
-    0 0 120px rgba(255,0,0,0.12),
-    inset 0 1px 0 rgba(255,255,255,0.08);
+    0 0 0 1px rgba(220,38,38,0.35),
+    0 0 30px rgba(220,38,38,0.2),
+    0 0 80px rgba(220,38,38,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.alert.is-simulacro .alert__card {
+  box-shadow:
+    0 0 0 1px rgba(29,78,216,0.4),
+    0 0 30px rgba(29,78,216,0.22),
+    0 0 80px rgba(29,78,216,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
-/* brillo arriba */
+/* línea superior de acento — rojo intenso para emergencia */
 .alert__card::before {
   content: "";
 
   position: absolute;
-  inset: 0;
+  top: 0; left: 0; right: 0;
+  height: 3px;
 
   background:
     linear-gradient(
-      145deg,
-      rgba(255,255,255,0.12),
-      transparent 40%
+      90deg,
+      transparent 0%,
+      rgba(220,38,38,0.9) 20%,
+      #ef4444 50%,
+      rgba(220,38,38,0.9) 80%,
+      transparent 100%
     );
 
   pointer-events: none;
 }
+.alert.is-simulacro .alert__card::before {
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(29,78,216,0.9) 20%,
+      #3b82f6 50%,
+      rgba(29,78,216,0.9) 80%,
+      transparent 100%
+    );
+}
 
 /* =========================================================
- * TEXTO
+ * TEXTO — alto contraste, táctico
  * ========================================================= */
 
 .alert__type {
   text-shadow:
-    0 0 20px rgba(255,255,255,0.15),
-    0 0 50px rgba(255,0,0,0.3);
+    0 0 12px rgba(255,255,255,0.1),
+    0 0 40px rgba(220,38,38,0.5),
+    0 2px 0 rgba(0,0,0,0.6);
 
   animation: titlePulse 1.5s ease-in-out infinite;
 }
+.alert.is-simulacro .alert__type {
+  text-shadow:
+    0 0 12px rgba(255,255,255,0.1),
+    0 0 40px rgba(29,78,216,0.55),
+    0 2px 0 rgba(0,0,0,0.6);
+}
 
 .alert__time {
-  background: rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.45);
 
   border:
-    1px solid rgba(255,255,255,0.08);
+    1px solid rgba(255,255,255,0.1);
 
   border-radius: 999px;
 
@@ -1551,7 +1585,33 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   margin-top: 1rem;
 
   box-shadow:
-    inset 0 0 18px rgba(255,255,255,0.05);
+    inset 0 0 12px rgba(0,0,0,0.3);
+}
+
+.alert__tag {
+  font-size: clamp(0.7rem,2.2vw,0.88rem);
+  font-weight: 700; letter-spacing: 0.45em;
+  text-transform: uppercase; color: #fca5a5;
+  font-family: var(--font-ui);
+  opacity: 0.9;
+}
+.alert.is-simulacro .alert__tag { color: #93c5fd; }
+
+.alert__type {
+ font-size: clamp(3.5rem, 14vw, 9rem);
+  font-weight: 900; line-height: 0.95;
+  text-transform: uppercase;
+  margin: 0.5rem 0 0.4rem; word-break: break-word;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.alert__time {
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.4rem,5vw,2.4rem);
+  font-weight: 300; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.75);
+  font-family: var(--font-display);
 }
 
 /* =========================================================
@@ -1560,92 +1620,37 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 
 .alert__unlock {
   box-shadow:
-    0 0 25px rgba(255,255,255,0.08);
+    0 0 20px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(255,255,255,0.08);
 }
 
 /* =========================================================
- * ANIMACIONES
+ * ANIMACIONES — se mantienen exactas
  * ========================================================= */
 
 @keyframes emergencyRotate {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 @keyframes alertCardPulse {
-  0%,100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.015);
-  }
+  0%,100% { transform: scale(1); }
+  50%     { transform: scale(1.015); }
 }
 
 @keyframes emergencyShake {
-  0%,100% {
-    transform: translateX(0);
-  }
-
-  2% {
-    transform: translateX(-2px);
-  }
-
-  4% {
-    transform: translateX(2px);
-  }
-
-  6% {
-    transform: translateX(-1px);
-  }
-
-  8% {
-    transform: translateX(1px);
-  }
-
-  10% {
-    transform: translateX(0);
-  }
+  0%,100% { transform: translateX(0); }
+  2%      { transform: translateX(-2px); }
+  4%      { transform: translateX(2px); }
+  6%      { transform: translateX(-1px); }
+  8%      { transform: translateX(1px); }
+  10%     { transform: translateX(0); }
 }
 
 @keyframes titlePulse {
-  0%,100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.03);
-  }
+  0%,100% { transform: scale(1); }
+  50%     { transform: scale(1.03); }
 }
-.alert__tag {
-  font-size: clamp(0.8rem,2.5vw,1rem);
-  font-weight: 600; letter-spacing: 0.3em;
-  text-transform: uppercase; color: #fecaca;
-  font-family: var(--font-ui);
-}
-.alert.is-simulacro .alert__tag { color: #bfdbfe; }
-.alert__type {
- font-size: clamp(3.5rem, 14vw, 9rem);
-  font-weight: 800; line-height: 0.95;
-  text-transform: uppercase;
-  margin: 0.5rem 0 0.4rem; word-break: break-word;
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
-}
-.alert__time {
-  font-variant-numeric: tabular-nums;
-  font-size: clamp(1.4rem,5vw,2.4rem);
-  font-weight: 300; letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.88);
-  font-family: var(--font-display);
-}
-
-/* Hint de desbloqueo — M3 assist chip */
 .alert__unlock {
   position: absolute; left: 50%;
   bottom: calc(env(safe-area-inset-bottom,0px) + 2.5rem);
