@@ -236,8 +236,9 @@ html, body {
     0 0 80px rgba(255,0,0,0.15);
 
   animation:
-    alertPulse 1.8s ease-in-out infinite,
+    alertPulse 1.45s ease-in-out infinite,
     alertShake 5s ease-in-out infinite;
+  will-change: transform, filter, box-shadow;
 }
 
 .host__current::before {
@@ -260,14 +261,22 @@ html, body {
 .host__current-label {
   position: relative; z-index: 2; font-size: 0.78rem;
   letter-spacing: 0.25em; font-weight: 800; text-transform: uppercase;
-  color: rgba(255,255,255,0.9);
+  color: rgba(255,255,255,0.95);
+  animation: alertTextBlink 1s steps(2, end) infinite;
+  will-change: opacity, filter;
 }
 
 .host__current-type {
   position: relative; z-index: 2; font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 900; text-transform: uppercase; line-height: 1;
   letter-spacing: -0.03em; color: white;
-  text-shadow: 0 0 10px rgba(255,255,255,0.25), 0 0 25px rgba(255,100,100,0.35);
+  transform-origin: center;
+  text-shadow:
+    0 0 10px rgba(255,255,255,0.35),
+    0 0 25px rgba(255,100,100,0.55),
+    0 0 45px rgba(255,0,0,0.35);
+  animation: alertTextZoom 1.05s cubic-bezier(.22,.61,.36,1) infinite;
+  will-change: transform, filter, text-shadow;
 }
 
 .host__current-time {
@@ -285,9 +294,34 @@ html, body {
 .host__current .btn:hover { background: rgba(0,0,0,0.5); transform: scale(1.03); }
 .host__current .btn:active { transform: scale(0.98); }
 
-@keyframes alertCardPulse {
-  0%,100% { transform: scale(1); box-shadow: 0 10px 40px rgba(0,0,0,0.38), 0 0 0 rgba(255,0,0,0); }
-  50% { transform: scale(2.54); filter: brightness(1.08); box-shadow: 0 18px 60px rgba(0,0,0,0.45), 0 0 50px rgba(255,0,0,0.18); }
+@keyframes alertPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.05),
+      0 0 30px rgba(255,50,50,0.25),
+      0 0 80px rgba(255,0,0,0.15);
+  }
+  50% {
+    transform: scale(1.015);
+    filter: brightness(1.12) saturate(1.15);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.1),
+      0 0 45px rgba(255,70,70,0.42),
+      0 0 110px rgba(255,0,0,0.28);
+  }
+}
+
+@keyframes alertTextZoom {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  35% { transform: scale(1.11); filter: brightness(1.45); }
+  55% { transform: scale(1.04); filter: brightness(1.18); }
+}
+
+@keyframes alertTextBlink {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.45; filter: brightness(1.8); }
 }
 
 @keyframes rotateGlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -763,6 +797,8 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   box-shadow: 0 0 20px rgba(220,38,38,0.6);
   margin-bottom: 2rem;
   font-family: var(--font-ui);
+  animation: alertTextBlink 1s steps(2, end) infinite;
+  will-change: opacity, filter;
 }
 
 .alert.is-simulacro .alert__tag {
@@ -784,11 +820,14 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   
   /* Efecto Neón y Text-Stroke */
   color: #ffffff;
+  transform-origin: center;
   text-shadow: 
     0 0 20px rgba(255,255,255,0.4),
     0 0 60px rgba(220,38,38,0.8),
     0 0 100px rgba(220,38,38,1);
   -webkit-text-stroke: 1px rgba(255,200,200,0.5);
+  animation: alertTextZoom 0.95s cubic-bezier(.22,.61,.36,1) infinite;
+  will-change: transform, filter, text-shadow;
 }
 
 .alert.is-simulacro .alert__type {
@@ -797,6 +836,7 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
     0 0 60px rgba(29,78,216,0.8),
     0 0 100px rgba(29,78,216,1);
   -webkit-text-stroke: 1px rgba(200,220,255,0.5);
+  animation-name: alertTextZoomBlue;
 }
 
 /* Reloj grande centrado bajo el tipo */
@@ -936,6 +976,12 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   100% { left: 200%; }
 }
 
+@keyframes alertTextZoomBlue {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  35% { transform: scale(1.11); filter: brightness(1.45) drop-shadow(0 0 18px rgba(59,130,246,0.75)); }
+  55% { transform: scale(1.04); filter: brightness(1.18); }
+}
+
 /* Esconder el botón close tradicional si existe en este HUD full-screen, 
    o estilizarlo agresivamente en la esquina superior derecha */
 .alert__close {
@@ -965,7 +1011,12 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 @media (prefers-reduced-motion: reduce) {
   .alert, .alert.is-simulacro { animation-duration: 1s; background: #000; }
   .alert::before, .alert__unlock::after { animation: none; display: none; }
-  .alert__card { animation: none; }
+  .alert__card,
+  .alert__tag,
+  .alert__type,
+  .host__current,
+  .host__current-label,
+  .host__current-type { animation: none; }
   .tabs__btn::before { transition: none; }
   .switch__slider, .switch__slider::before { transition: none; }
 }
