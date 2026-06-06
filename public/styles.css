@@ -857,23 +857,15 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   gap: 0.75rem;
   position: relative;
   overflow: hidden;
+  animation: cardZoomIntermittent 4s ease-in-out infinite;
 }
 
-.alert__card::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
-  animation: scanline 3s linear infinite;
+@keyframes cardZoomIntermittent {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
 }
 
-@keyframes scanline {
-  0% { transform: translateY(-10px); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateY(400px); opacity: 0; }
-}
+/* Eliminada la línea de escaneo por petición del usuario */
 
 .alert__tag {
   font-size: 0.75rem;
@@ -894,7 +886,12 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   letter-spacing: -0.02em;
   color: #fff;
   text-shadow: 0 0 20px rgba(255,255,255,0.3);
-  animation: textZoomSlight 2s ease-in-out infinite alternate;
+  animation: textZoomIntermittent 2s ease-in-out infinite;
+}
+
+@keyframes textZoomIntermittent {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.1); filter: brightness(1.2); }
 }
 
 @keyframes textZoomSlight {
