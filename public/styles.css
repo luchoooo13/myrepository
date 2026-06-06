@@ -755,61 +755,26 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 .host__msg-sent-text { font-size: .9rem; color: #e8e8f0; line-height: 1.4; }
 .host__msg-sent-meta { font-size: .74rem; color: #6e6e80; }
 /* ============================================================
- * CLIENT — ALERT OVERLAY  (v2 — Tactical Flash + Deep Glow)
+<<<<<<< HEAD
+  .alert,
+  .alert.is-simulacro,
+  .alert__type,
+  .alert__tag,
+  .alert__unlock,
+  .alert::before { animation: none; }
+=======
+  .alert__card, .alert__recs { width: 95%; padding: 1.5rem 1rem; }
+  .alert__type { font-size: 3rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert, .alert__type { animation: none; }
+>>>>>>> 54da59b (Rediseño de alerta basado en imagen original con decoraciones vibrantes)
+}
+/* ============================================================
+ * CLIENT — ALERT OVERLAY (IMAGE-BASED DECORATED - NO SCROLL)
  * ============================================================ */
 
-/* ── Keyframes generales del overlay ── */
-
-/* Flash principal: encendido rápido + pausa larga (más real, menos molesto) */
-@keyframes alertFlashRed {
-  0%   { background-color: #c0000a; }
-  8%   { background-color: #ff1a2e; }
-  16%  { background-color: #c0000a; }
-  24%  { background-color: #ff1a2e; }
-  32%  { background-color: #8a0008; }
-  100% { background-color: #8a0008; }
-}
-@keyframes alertFlashBlue {
-  0%   { background-color: #0033b3; }
-  8%   { background-color: #1a6eff; }
-  16%  { background-color: #0033b3; }
-  24%  { background-color: #1a6eff; }
-  32%  { background-color: #001f80; }
-  100% { background-color: #001f80; }
-}
-
-/* Glow radial que rota lentamente detrás del contenido */
-@keyframes alertGlowRotate {
-  from { transform: rotate(0deg) scale(1); }
-  50%  { transform: rotate(180deg) scale(1.1); }
-  to   { transform: rotate(360deg) scale(1); }
-}
-
-/* Zoom suave del título — más lento, ease-out pronunciado */
-@keyframes alertTypeBreath {
-  0%   { transform: scale(1);    text-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 60px rgba(255,80,80,0.4); }
-  50%  { transform: scale(1.06); text-shadow: 0 0 35px rgba(255,255,255,0.55), 0 0 90px rgba(255,80,80,0.7); }
-  100% { transform: scale(1);    text-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 60px rgba(255,80,80,0.4); }
-}
-@keyframes alertTypeBreathBlue {
-  0%   { transform: scale(1);    text-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 60px rgba(80,140,255,0.4); }
-  50%  { transform: scale(1.06); text-shadow: 0 0 35px rgba(255,255,255,0.55), 0 0 90px rgba(80,140,255,0.7); }
-  100% { transform: scale(1);    text-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 60px rgba(80,140,255,0.4); }
-}
-
-/* Blink del tag tipo "ALERTA DE EMERGENCIA" — steps para efecto digital */
-@keyframes alertTagBlink {
-  0%, 45%, 55%, 100% { opacity: 1; }
-  50%                 { opacity: 0; }
-}
-
-/* Blink del botón de desbloqueo — late al ritmo del flash */
-@keyframes alertUnlockPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.5), 0 8px 24px rgba(0,0,0,0.35); transform: scale(1); }
-  50%       { box-shadow: 0 0 0 10px rgba(255,255,255,0), 0 8px 24px rgba(0,0,0,0.35); transform: scale(1.03); }
-}
-
-/* ── Overlay principal ── */
 .alert {
   position: fixed;
   inset: 0;
@@ -821,224 +786,195 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   overflow: hidden;
   height: 100vh;
   height: 100dvh;
-  padding: env(safe-area-inset-top) 1.5rem env(safe-area-inset-bottom);
-
-  /* Color base + animación de flash */
-  background-color: #c0000a;
-  animation: alertFlashRed 1.8s ease-in-out infinite;
-
+  padding: 1rem;
+  background-color: #0055ff; /* Default blue for simulacro */
   color: #fff;
   font-family: var(--font-ui);
   text-align: center;
+  animation: bgPulseBlueImage 1.5s infinite alternate;
 }
 
-.alert.is-simulacro {
-  background-color: #0033b3;
-  animation: alertFlashBlue 1.8s ease-in-out infinite;
+.alert:not(.is-simulacro) {
+  background-color: #cc0000; /* Default red for other alerts */
+  animation: bgPulseRedImage 1.5s infinite alternate;
 }
 
-/* Glow orb que rota detrás del card */
+@keyframes bgPulseRedImage {
+  from { background-color: #cc0000; }
+  to { background-color: #ff3333; }
+}
+
+@keyframes bgPulseBlueImage {
+  from { background-color: #0044cc; }
+  to { background-color: #0066ff; }
+}
+
+/* Overlay de brillo sutil para el fondo */
 .alert::before {
   content: "";
   position: absolute;
-  inset: -40%;
-  background: radial-gradient(ellipse 55% 40% at 50% 50%,
-    rgba(255,255,255,0.18) 0%,
-    rgba(255,100,100,0.12) 30%,
-    transparent 70%);
-  animation: alertGlowRotate 12s linear infinite;
+  inset: -50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%);
+  animation: rotateSubtle 15s linear infinite;
   z-index: 1;
   pointer-events: none;
-  will-change: transform;
-}
-.alert.is-simulacro::before {
-  background: radial-gradient(ellipse 55% 40% at 50% 50%,
-    rgba(255,255,255,0.18) 0%,
-    rgba(80,160,255,0.12) 30%,
-    transparent 70%);
 }
 
-/* Vignette en los bordes — da profundidad */
-.alert::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 90% 90% at 50% 50%, transparent 50%, rgba(0,0,0,0.5) 100%);
-  z-index: 2;
-  pointer-events: none;
+@keyframes rotateSubtle {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-/* ── Card central ── */
-.alert__card {
-  position: relative;
-  z-index: 10;
-  width: 100%;
-  max-width: 800px;
+/* Contenedor principal de la alerta */
+.alert__container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
-  background: rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(30px) saturate(1.4);
-  -webkit-backdrop-filter: blur(30px) saturate(1.4);
-  padding: 3rem 2rem;
-  border-radius: 36px;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.06),
-    0 30px 60px rgba(0,0,0,0.45),
-    inset 0 1px 0 rgba(255,255,255,0.15);
+  gap: 1rem;
+  width: 90%;
+  max-width: 500px;
+  position: relative;
+  z-index: 10;
 }
 
-/* ── Tag "ALERTA DE EMERGENCIA" ── */
+/* Tarjeta Principal (Simulacro/Alerta) */
+.alert__card {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(15px);
+  border-radius: 24px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .alert__tag {
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.45em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255,255,255,0.3);
-  padding: 0.55rem 1.75rem;
-  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.8);
   margin-bottom: 0.5rem;
-  animation: alertTagBlink 1.8s steps(1, end) infinite;
-}
-.alert.is-simulacro .alert__tag {
-  background: rgba(255,255,255,0.12);
-  border-color: rgba(255,255,255,0.25);
-  animation-duration: 2.2s;
 }
 
-/* ── Nombre del tipo de alerta (el texto grande) ── */
 .alert__type {
-  font-size: clamp(3rem, 12vw, 7rem);
+  font-size: clamp(3rem, 10vw, 5rem);
   font-weight: 900;
-  line-height: 1;
+  line-height: 0.9;
   text-transform: uppercase;
   margin: 0;
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: 0.05em;
   color: #fff;
-  animation: alertTypeBreath 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  will-change: transform, text-shadow;
-}
-.alert.is-simulacro .alert__type {
-  animation-name: alertTypeBreathBlue;
+  animation: textZoomSlight 3s ease-in-out infinite alternate;
 }
 
-/* ── Reloj / hora activa ── */
+@keyframes textZoomSlight {
+  from { transform: scale(1); }
+  to { transform: scale(1.05); }
+}
+
 .alert__time {
-  font-size: 1.35rem;
+  display: inline-block;
+  font-size: 1.8rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255,255,255,0.18);
-  padding: 0.45rem 1.5rem;
-  border-radius: 12px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.5rem 2rem;
+  border-radius: 50px;
+  margin-top: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* ── Recomendaciones ── */
+/* Panel de Recomendaciones (Qué Hacer) */
 .alert__recs {
   width: 100%;
-  margin-top: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 1rem;
 }
 
 .alert__recs-title {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: rgba(255,255,255,0.75);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.6);
   text-transform: uppercase;
   letter-spacing: 0.2em;
   margin-bottom: 1rem;
 }
 
 .alert__recs-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.65rem;
   list-style: none;
   padding: 0;
   margin: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
 .alert__recs-list li {
-  background: rgba(255,255,255,0.12);
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.25);
-  padding: 0.7rem 1.25rem;
-  border-radius: 50px;
-  font-size: 0.92rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.9);
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  backdrop-filter: blur(8px);
+  align-items: flex-start;
+  gap: 0.6rem;
 }
 
 .alert__recs-list li::before {
-  content: "▸";
-  font-size: 0.8em;
-  opacity: 0.7;
+  content: "●";
+  color: #fff;
+  font-size: 0.7rem;
+  margin-top: 0.2rem;
 }
 
-/* ── Botón desbloquear / cerrar ── */
-.alert__unlock {
-  position: absolute;
-  bottom: 2.5rem;
-  padding: 1rem 3.5rem;
-  background: #fff;
-  color: #1a0002;
-  border-radius: 50px;
-  font-weight: 800;
-  font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  border: none;
-  cursor: pointer;
-  animation: alertUnlockPulse 1.8s ease-in-out infinite;
-  will-change: transform, box-shadow;
-}
-.alert__unlock:active { transform: scale(0.96) !important; }
-
-.alert.is-simulacro .alert__unlock {
-  color: #00103f;
-}
-
+/* Botón de cierre */
 .alert__close {
   position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
-  width: 3rem;
-  height: 3rem;
-  background: rgba(0, 0, 0, 0.3);
-  color: rgba(255,255,255,0.85);
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
   border-radius: 50%;
   display: grid;
   place-items: center;
   cursor: pointer;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: background 0.15s ease;
+  border: none;
+  backdrop-filter: blur(10px);
 }
-.alert__close:hover { background: rgba(0,0,0,0.5); }
 
-/* ── Responsive ── */
+/* Reloj superior izquierdo como en la imagen */
+.alert__top-left-time {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Ocultar botón de desbloqueo si no es parte del diseño original */
+.alert__unlock {
+  display: none;
+}
+
 @media (max-width: 600px) {
-  .alert__card { padding: 2rem 1.25rem; border-radius: 24px; gap: 1.15rem; }
-  .alert__type { font-size: clamp(2.5rem, 14vw, 4rem); }
-  .alert__recs-list li { font-size: 0.82rem; padding: 0.6rem 1rem; }
-  .alert__unlock { padding: 0.9rem 2.5rem; font-size: 0.88rem; }
+  .alert__container { width: 95%; }
+  .alert__card, .alert__recs { padding: 1.5rem 1rem; }
+  .alert__type { font-size: 3rem; }
+  .alert__top-left-time, .alert__close { top: 1rem; right: 1rem; left: 1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .alert,
-  .alert.is-simulacro,
-  .alert__type,
-  .alert__tag,
-  .alert__unlock,
-  .alert::before { animation: none; }
+  .alert, .alert__type, .alert::before { animation: none; }
 }
