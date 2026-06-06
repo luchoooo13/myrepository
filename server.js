@@ -182,6 +182,11 @@ function getSessionByToken(token) {
   return sess;
 }
 
+app.get('/radio', (_req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, 'public', 'radio.html'));
+});
+
 // --- Recomendaciones editables por el admin ---------------------------
 // Las recomendaciones que se muestran en la pestaña "Guía rápida" del
 // cliente y abajo del cartel negro durante una alerta. Vive en
