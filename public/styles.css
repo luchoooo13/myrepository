@@ -787,26 +787,29 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   height: 100vh;
   height: 100dvh;
   padding: 1rem;
-  background-color: #0055ff; /* Default blue for simulacro */
+  background-color: #0044cc;
   color: #fff;
   font-family: var(--font-ui);
   text-align: center;
-  animation: bgPulseBlueImage 1.5s infinite alternate;
+  animation: bgPulseBlueImage 1.2s infinite alternate cubic-bezier(0.45, 0, 0.55, 1);
+  /* Textura de ruido sutil */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3BaseFilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/feTurbulence%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-blend-mode: overlay;
 }
 
 .alert:not(.is-simulacro) {
-  background-color: #cc0000; /* Default red for other alerts */
-  animation: bgPulseRedImage 1.5s infinite alternate;
+  background-color: #b30000;
+  animation: bgPulseRedImage 1.2s infinite alternate cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 @keyframes bgPulseRedImage {
-  from { background-color: #cc0000; }
-  to { background-color: #ff3333; }
+  from { background-color: #990000; box-shadow: inset 0 0 150px rgba(0,0,0,0.5); }
+  to { background-color: #e60000; box-shadow: inset 0 0 100px rgba(255,0,0,0.3); }
 }
 
 @keyframes bgPulseBlueImage {
-  from { background-color: #0044cc; }
-  to { background-color: #0066ff; }
+  from { background-color: #003399; box-shadow: inset 0 0 150px rgba(0,0,0,0.5); }
+  to { background-color: #0055ff; box-shadow: inset 0 0 100px rgba(0,0,255,0.3); }
 }
 
 /* Overlay de brillo sutil para el fondo */
@@ -839,17 +842,37 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 
 /* Tarjeta Principal (Simulacro/Alerta) */
 .alert__card {
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(15px);
-  border-radius: 24px;
-  padding: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(25px) saturate(180%);
+  border-radius: 32px;
+  padding: 2.5rem 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(255, 255, 255, 0.05);
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.alert__card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  animation: scanline 3s linear infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-10px); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(400px); opacity: 0; }
 }
 
 .alert__tag {
@@ -862,15 +885,16 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 }
 
 .alert__type {
-  font-size: clamp(3rem, 10vw, 5rem);
+  font-size: clamp(3.5rem, 12vw, 6rem);
   font-weight: 900;
-  line-height: 0.9;
+  line-height: 0.85;
   text-transform: uppercase;
-  margin: 0;
+  margin: 0.2rem 0;
   font-family: var(--font-display);
-  letter-spacing: 0.05em;
+  letter-spacing: -0.02em;
   color: #fff;
-  animation: textZoomSlight 3s ease-in-out infinite alternate;
+  text-shadow: 0 0 20px rgba(255,255,255,0.3);
+  animation: textZoomSlight 2s ease-in-out infinite alternate;
 }
 
 @keyframes textZoomSlight {
