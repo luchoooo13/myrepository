@@ -236,8 +236,8 @@ html, body {
     0 0 80px rgba(255,0,0,0.15);
 
   animation:
-    alertPulse 1.45s ease-in-out infinite,
-    alertShake 5s ease-in-out infinite;
+    alertPulse 2s ease-in-out infinite,
+    alertShake 7s ease-in-out infinite;
   will-change: transform, filter, box-shadow;
 }
 
@@ -262,7 +262,7 @@ html, body {
   position: relative; z-index: 2; font-size: 0.78rem;
   letter-spacing: 0.25em; font-weight: 800; text-transform: uppercase;
   color: rgba(255,255,255,0.95);
-  animation: alertTextBlink 1s steps(2, end) infinite;
+  animation: alertTextBlink 1.8s steps(1, end) infinite;
   will-change: opacity, filter;
 }
 
@@ -275,7 +275,7 @@ html, body {
     0 0 10px rgba(255,255,255,0.35),
     0 0 25px rgba(255,100,100,0.55),
     0 0 45px rgba(255,0,0,0.35);
-  animation: alertTextZoom 1.05s cubic-bezier(.22,.61,.36,1) infinite;
+  animation: alertTextZoom 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   will-change: transform, filter, text-shadow;
 }
 
@@ -294,38 +294,54 @@ html, body {
 .host__current .btn:hover { background: rgba(0,0,0,0.5); transform: scale(1.03); }
 .host__current .btn:active { transform: scale(0.98); }
 
+/* ── Keyframes host__current ── */
+
+/* Pulso del card: escala mínima + glow cambiante */
 @keyframes alertPulse {
   0%, 100% {
-    transform: scale(1);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.05),
+      0 0 20px rgba(255,0,0,0.15),
+      0 0 55px rgba(255,0,0,0.08);
     filter: brightness(1);
-    box-shadow: 0 0 40px rgba(255,0,0,0.1);
   }
   50% {
-    transform: scale(1.008);
-    filter: brightness(1.05);
-    box-shadow: 0 0 60px rgba(255,0,0,0.2);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.08),
+      0 0 40px rgba(255,50,50,0.35),
+      0 0 90px rgba(255,0,0,0.2);
+    filter: brightness(1.06);
   }
 }
 
+/* Zoom del tipo — más suave, usa ease pronunciado */
 @keyframes alertTextZoom {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.04); opacity: 0.85; }
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%       { transform: scale(1.05); opacity: 0.9; }
 }
 
+/* Blink del label "ALERTA ACTIVA" — digital, con pausa */
 @keyframes alertTextBlink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%, 42%, 58%, 100% { opacity: 1; }
+  50%                 { opacity: 0; }
 }
 
-@keyframes rotateGlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+/* Glow rotante del ::before */
+@keyframes rotateGlow {
+  from { transform: rotate(0deg) scale(1); }
+  50%  { transform: rotate(180deg) scale(1.08); }
+  to   { transform: rotate(360deg) scale(1); }
+}
 
+/* Shake ocasional — vibración breve cada ~6s */
 @keyframes alertShake {
-  0%,100% { transform: translateX(0); }
-  2% { transform: translateX(-2px); }
-  4% { transform: translateX(2px); }
-  6% { transform: translateX(-1px); }
-  8% { transform: translateX(1px); }
-  10% { transform: translateX(0); }
+  0%, 92%, 100% { transform: translateX(0); }
+  93%  { transform: translateX(-3px) rotate(-0.3deg); }
+  94%  { transform: translateX(3px)  rotate(0.3deg); }
+  95%  { transform: translateX(-2px); }
+  96%  { transform: translateX(2px); }
+  97%  { transform: translateX(-1px); }
+  98%  { transform: translateX(0); }
 }
 
 /* Grid de botones de alerta */
@@ -666,9 +682,9 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 .tone-option__name { font-size: 0.82rem; font-weight: 500; letter-spacing: 0.01em; }
 
 
-/* ============================================================
-  .alert, .alert.is-simulacro { animation-duration: 1s; background: #000; }
-  .alert::before, .alert__unlock::after { animation: none; display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .alert, .alert.is-simulacro { animation: none; }
+  .alert::before, .alert__unlock { animation: none; }
   .alert__card,
   .alert__tag,
   .alert__type,
@@ -739,18 +755,61 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
 .host__msg-sent-text { font-size: .9rem; color: #e8e8f0; line-height: 1.4; }
 .host__msg-sent-meta { font-size: .74rem; color: #6e6e80; }
 /* ============================================================
-  .alert::before, .alert__tag, .alert__type { animation: none; }
-}
-/* ============================================================
-  .alert::before, .alert__tag, .alert__type { animation: none; }
-}
-/* ============================================================
-  .alert, .alert__type { animation: none; }
-}
-/* ============================================================
- * CLIENT — ALERT OVERLAY (COLORFUL & VIBRANT DESIGN)
+ * CLIENT — ALERT OVERLAY  (v2 — Tactical Flash + Deep Glow)
  * ============================================================ */
 
+/* ── Keyframes generales del overlay ── */
+
+/* Flash principal: encendido rápido + pausa larga (más real, menos molesto) */
+@keyframes alertFlashRed {
+  0%   { background-color: #c0000a; }
+  8%   { background-color: #ff1a2e; }
+  16%  { background-color: #c0000a; }
+  24%  { background-color: #ff1a2e; }
+  32%  { background-color: #8a0008; }
+  100% { background-color: #8a0008; }
+}
+@keyframes alertFlashBlue {
+  0%   { background-color: #0033b3; }
+  8%   { background-color: #1a6eff; }
+  16%  { background-color: #0033b3; }
+  24%  { background-color: #1a6eff; }
+  32%  { background-color: #001f80; }
+  100% { background-color: #001f80; }
+}
+
+/* Glow radial que rota lentamente detrás del contenido */
+@keyframes alertGlowRotate {
+  from { transform: rotate(0deg) scale(1); }
+  50%  { transform: rotate(180deg) scale(1.1); }
+  to   { transform: rotate(360deg) scale(1); }
+}
+
+/* Zoom suave del título — más lento, ease-out pronunciado */
+@keyframes alertTypeBreath {
+  0%   { transform: scale(1);    text-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 60px rgba(255,80,80,0.4); }
+  50%  { transform: scale(1.06); text-shadow: 0 0 35px rgba(255,255,255,0.55), 0 0 90px rgba(255,80,80,0.7); }
+  100% { transform: scale(1);    text-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 60px rgba(255,80,80,0.4); }
+}
+@keyframes alertTypeBreathBlue {
+  0%   { transform: scale(1);    text-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 60px rgba(80,140,255,0.4); }
+  50%  { transform: scale(1.06); text-shadow: 0 0 35px rgba(255,255,255,0.55), 0 0 90px rgba(80,140,255,0.7); }
+  100% { transform: scale(1);    text-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 60px rgba(80,140,255,0.4); }
+}
+
+/* Blink del tag tipo "ALERTA DE EMERGENCIA" — steps para efecto digital */
+@keyframes alertTagBlink {
+  0%, 45%, 55%, 100% { opacity: 1; }
+  50%                 { opacity: 0; }
+}
+
+/* Blink del botón de desbloqueo — late al ritmo del flash */
+@keyframes alertUnlockPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.5), 0 8px 24px rgba(0,0,0,0.35); transform: scale(1); }
+  50%       { box-shadow: 0 0 0 10px rgba(255,255,255,0), 0 8px 24px rgba(0,0,0,0.35); transform: scale(1.03); }
+}
+
+/* ── Overlay principal ── */
 .alert {
   position: fixed;
   inset: 0;
@@ -763,44 +822,53 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   height: 100vh;
   height: 100dvh;
   padding: env(safe-area-inset-top) 1.5rem env(safe-area-inset-bottom);
-  background: linear-gradient(135deg, #ff0055, #ff5500);
+
+  /* Color base + animación de flash */
+  background-color: #c0000a;
+  animation: alertFlashRed 1.8s ease-in-out infinite;
+
   color: #fff;
   font-family: var(--font-ui);
   text-align: center;
-  animation: colorfulFlashRed 0.8s infinite alternate;
 }
 
 .alert.is-simulacro {
-  background: linear-gradient(135deg, #0055ff, #00ffcc);
-  animation: colorfulFlashBlue 0.8s infinite alternate;
+  background-color: #0033b3;
+  animation: alertFlashBlue 1.8s ease-in-out infinite;
 }
 
-@keyframes colorfulFlashRed {
-  from { background: linear-gradient(135deg, #ff0055, #ff5500); }
-  to { background: linear-gradient(135deg, #ff5500, #ffaa00); }
-}
-
-@keyframes colorfulFlashBlue {
-  from { background: linear-gradient(135deg, #0055ff, #00ffcc); }
-  to { background: linear-gradient(135deg, #00aaff, #00ffff); }
-}
-
-/* Efecto de partículas/brillo de fondo */
+/* Glow orb que rota detrás del card */
 .alert::before {
   content: "";
   position: absolute;
-  inset: -50%;
-  background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 60%);
-  animation: rotateColorful 10s linear infinite;
+  inset: -40%;
+  background: radial-gradient(ellipse 55% 40% at 50% 50%,
+    rgba(255,255,255,0.18) 0%,
+    rgba(255,100,100,0.12) 30%,
+    transparent 70%);
+  animation: alertGlowRotate 12s linear infinite;
   z-index: 1;
+  pointer-events: none;
+  will-change: transform;
+}
+.alert.is-simulacro::before {
+  background: radial-gradient(ellipse 55% 40% at 50% 50%,
+    rgba(255,255,255,0.18) 0%,
+    rgba(80,160,255,0.12) 30%,
+    transparent 70%);
+}
+
+/* Vignette en los bordes — da profundidad */
+.alert::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 90% 90% at 50% 50%, transparent 50%, rgba(0,0,0,0.5) 100%);
+  z-index: 2;
   pointer-events: none;
 }
 
-@keyframes rotateColorful {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
+/* ── Card central ── */
 .alert__card {
   position: relative;
   z-index: 10;
@@ -810,27 +878,39 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   flex-direction: column;
   align-items: center;
   gap: 1.5rem;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
   padding: 3rem 2rem;
-  border-radius: 40px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+  border-radius: 36px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.06),
+    0 30px 60px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.15);
 }
 
+/* ── Tag "ALERTA DE EMERGENCIA" ── */
 .alert__tag {
-  font-size: 1rem;
+  font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.4em;
+  letter-spacing: 0.45em;
   text-transform: uppercase;
   color: #fff;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.6rem 2rem;
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 0.55rem 1.75rem;
+  border-radius: 999px;
   margin-bottom: 0.5rem;
+  animation: alertTagBlink 1.8s steps(1, end) infinite;
+}
+.alert.is-simulacro .alert__tag {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.25);
+  animation-duration: 2.2s;
 }
 
+/* ── Nombre del tipo de alerta (el texto grande) ── */
 .alert__type {
   font-size: clamp(3rem, 12vw, 7rem);
   font-weight: 900;
@@ -840,114 +920,125 @@ body.client .btn--danger:hover { background: var(--md-error-container); }
   font-family: var(--font-display);
   letter-spacing: -0.02em;
   color: #fff;
-  text-shadow: 0 10px 30px rgba(0,0,0,0.2);
-  animation: smoothZoom 2s ease-in-out infinite alternate;
+  animation: alertTypeBreath 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: transform, text-shadow;
+}
+.alert.is-simulacro .alert__type {
+  animation-name: alertTypeBreathBlue;
 }
 
-@keyframes smoothZoom {
-  from { transform: scale(1); }
-  to { transform: scale(1.05); }
-}
-
+/* ── Reloj / hora activa ── */
 .alert__time {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.2);
-  padding: 0.4rem 1.5rem;
-  border-radius: 15px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 0.45rem 1.5rem;
+  border-radius: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
 }
 
-/* Recomendaciones coloridas */
+/* ── Recomendaciones ── */
 .alert__recs {
   width: 100%;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
 
 .alert__recs-title {
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  color: #fff;
+  color: rgba(255,255,255,0.75);
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  margin-bottom: 1.5rem;
+  letter-spacing: 0.2em;
+  margin-bottom: 1rem;
 }
 
 .alert__recs-list {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.8rem;
+  gap: 0.65rem;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
 .alert__recs-list li {
-  background: #fff;
-  color: #ff0055;
-  padding: 0.8rem 1.5rem;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+  padding: 0.7rem 1.25rem;
   border-radius: 50px;
-  font-size: 1rem;
-  font-weight: 700;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  font-size: 0.92rem;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.alert.is-simulacro .alert__recs-list li {
-  color: #0055ff;
+  backdrop-filter: blur(8px);
 }
 
 .alert__recs-list li::before {
-  content: "✨";
+  content: "▸";
+  font-size: 0.8em;
+  opacity: 0.7;
 }
 
-/* Botón de desbloqueo vibrante */
+/* ── Botón desbloquear / cerrar ── */
 .alert__unlock {
   position: absolute;
   bottom: 2.5rem;
-  padding: 1.2rem 4rem;
+  padding: 1rem 3.5rem;
   background: #fff;
-  color: #000;
+  color: #1a0002;
   border-radius: 50px;
   font-weight: 800;
-  font-size: 1rem;
+  font-size: 0.95rem;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   border: none;
   cursor: pointer;
-  box-shadow: 0 15px 30px rgba(0,0,0,0.2);
-  transition: transform 0.2s;
+  animation: alertUnlockPulse 1.8s ease-in-out infinite;
+  will-change: transform, box-shadow;
 }
+.alert__unlock:active { transform: scale(0.96) !important; }
 
-.alert__unlock:active {
-  transform: scale(0.95);
+.alert.is-simulacro .alert__unlock {
+  color: #00103f;
 }
 
 .alert__close {
   position: absolute;
-  top: 1.5rem;
-  right: 1.5rem;
-  width: 3.5rem;
-  height: 3.5rem;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  top: 1.25rem;
+  right: 1.25rem;
+  width: 3rem;
+  height: 3rem;
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(255,255,255,0.85);
   border-radius: 50%;
   display: grid;
   place-items: center;
   cursor: pointer;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.15s ease;
 }
+.alert__close:hover { background: rgba(0,0,0,0.5); }
 
+/* ── Responsive ── */
 @media (max-width: 600px) {
-  .alert__card { padding: 2rem 1rem; border-radius: 25px; }
-  .alert__type { font-size: 3.5rem; }
-  .alert__recs-list li { font-size: 0.85rem; padding: 0.6rem 1rem; }
+  .alert__card { padding: 2rem 1.25rem; border-radius: 24px; gap: 1.15rem; }
+  .alert__type { font-size: clamp(2.5rem, 14vw, 4rem); }
+  .alert__recs-list li { font-size: 0.82rem; padding: 0.6rem 1rem; }
+  .alert__unlock { padding: 0.9rem 2.5rem; font-size: 0.88rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .alert, .alert__type, .alert::before { animation: none; }
+  .alert,
+  .alert.is-simulacro,
+  .alert__type,
+  .alert__tag,
+  .alert__unlock,
+  .alert::before { animation: none; }
 }
