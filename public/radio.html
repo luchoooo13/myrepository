@@ -275,40 +275,21 @@ body {
   gap: 8px;
   width: min(480px, 96vw);
 }
-.demo-label {
-  font-size: 0.55rem;
-  letter-spacing: 0.3em;
-  color: rgba(57,255,106,0.3);
-  text-transform: uppercase;
-  text-align: center;
-}
 .demo-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   justify-content: center;
 }
-.demo-trigger {
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  padding: 5px 12px;
-  border-radius: 4px;
-  border: 1px solid rgba(57,255,106,0.2);
-  background: rgba(57,255,106,0.05);
-  color: rgba(57,255,106,0.7);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.demo-trigger:hover {
-  background: rgba(57,255,106,0.1);
-  border-color: rgba(57,255,106,0.4);
-  color: var(--green);
-}
 .demo-trigger.is-stop {
-  border-color: rgba(255,59,59,0.4);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  padding: 8px 20px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,59,59,0.4);
   background: rgba(255,59,59,0.08);
   color: rgba(255,100,100,0.85);
+  cursor: pointer;
+  transition: all 0.15s;
 }
 .demo-trigger.is-stop:hover {
   background: rgba(255,59,59,0.15);
@@ -394,13 +375,7 @@ body {
 </div>
 
 <div class="demo-panel">
-  <div class="demo-label">— Disparar alerta de prueba —</div>
   <div class="demo-buttons">
-    <button class="demo-trigger" onclick="triggerAlert('incendio','Incendio')">🔴 Incendio</button>
-    <button class="demo-trigger" onclick="triggerAlert('sismo','Sismo')">🟣 Sismo</button>
-    <button class="demo-trigger" onclick="triggerAlert('simulacro','Simulacro')">🔵 Simulacro</button>
-    <button class="demo-trigger" onclick="triggerAlert('evacuacion','Evacuación')">🟠 Evacuación</button>
-    <button class="demo-trigger" onclick="triggerAlert('intruso','Intruso')">⚫ Intruso</button>
     <button class="demo-trigger is-stop" onclick="stopAlert()">■ Detener alerta</button>
   </div>
   <div class="status-line" id="statusLine">— Hacer click en cualquier lugar para activar el sistema —</div>
@@ -453,47 +428,32 @@ function playChannelOpen() {
 let squelchNodes = [], squelchInterval = null;
 function startSquelchCode() {
   stopSquelchCode();
-  const pattern = [770, 1060, 770, 1450, 770];
-  const interval = 0.22;
+  // Midland Midland Squelch / SAME Alert Tones (approx frequencies)
+  const pattern = [853, 960, 853, 960];
+  const interval = 0.15; // Faster for Midland style
   let t = AC.currentTime;
   function schedulePattern() {
     pattern.forEach((freq, i) => {
       const osc = AC.createOscillator(); const g = AC.createGain();
-      osc.type = 'square'; osc.frequency.value = freq;
-      const dist = AC.createWaveShaper(); dist.curve = makeDistortionCurve(15); dist.oversample = '2x';
+      osc.type = 'sine'; // Midland uses sine waves for alert tones
+      osc.frequency.value = freq;
       g.gain.setValueAtTime(0.001, t + i * interval);
-      g.gain.linearRampToValueAtTime(0.18, t + i * interval + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.001, t + i * interval + 0.19);
-      osc.connect(dist); dist.connect(g); g.connect(AC.destination);
-      osc.start(t + i * interval); osc.stop(t + i * interval + 0.21);
+      g.gain.linearRampToValueAtTime(0.25, t + i * interval + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * interval + 0.14);
+      osc.connect(g); g.connect(AC.destination);
+      osc.start(t + i * interval); osc.stop(t + i * interval + 0.15);
       squelchNodes.push(osc);
     });
-    for (let j = 0; j < pattern.length - 1; j++) {
-      const noise = AC.createBufferSource();
-      const buf2 = AC.createBuffer(1, Math.floor(AC.sampleRate * 0.04), AC.sampleRate);
-      const dd = buf2.getChannelData(0);
-      for (let k = 0; k < dd.length; k++) dd[k] = Math.random() * 2 - 1;
-      noise.buffer = buf2;
-      const ng = AC.createGain(); ng.gain.value = 0.06;
-      noise.connect(ng); ng.connect(AC.destination);
-      noise.start(t + j * interval + 0.18);
-    }
-    t += pattern.length * interval + 0.35;
+    t += pattern.length * interval + 0.2;
   }
   schedulePattern();
-  squelchInterval = setInterval(() => { t = AC.currentTime; schedulePattern(); }, (pattern.length * interval + 0.35) * 1000);
+  squelchInterval = setInterval(() => { t = AC.currentTime; schedulePattern(); }, (pattern.length * interval + 0.2) * 1000);
 }
 
 function stopSquelchCode() {
   if (squelchInterval) { clearInterval(squelchInterval); squelchInterval = null; }
   squelchNodes.forEach(n => { try { n.stop(); } catch {} });
   squelchNodes = [];
-}
-
-function makeDistortionCurve(amount) {
-  const n = 256, curve = new Float32Array(n);
-  for (let i = 0; i < n; i++) { const x = i * 2 / n - 1; curve[i] = ((Math.PI + amount) * x) / (Math.PI + amount * Math.abs(x)); }
-  return curve;
 }
 
 /* ── SPEECH ── */
@@ -508,18 +468,18 @@ function getRadioVoice() {
 function speak(text, priority = false) {
   if (alertMode && !priority) return;
   const u = new SpeechSynthesisUtterance(text);
-  u.voice = getRadioVoice(); u.rate = 0.88; u.pitch = 0.85; u.volume = 0.9;
+  u.voice = getRadioVoice(); u.rate = 0.92; u.pitch = 0.85; u.volume = 0.9;
   u.onstart = () => { isSpeaking = true; vuAnimateVoice(true); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.005, AC.currentTime + 0.05); };
   u.onend = () => { isSpeaking = false; vuAnimateVoice(false); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.03, AC.currentTime + 0.1); playSquelchBurst(0.08, 0.2); processQueue(); };
   u.onerror = () => { isSpeaking = false; processQueue(); };
   if (isSpeaking) { if (priority) speechQueue.unshift(u); else speechQueue.push(u); }
-  else { playSquelchBurst(0.06, 0.15); setTimeout(() => synth.speak(u), 80); }
+  else { playSquelchBurst(0.06, 0.15); setTimeout(() => synth.speak(u), 50); }
 }
 
 function processQueue() {
   if (speechQueue.length > 0 && !isSpeaking) {
     const next = speechQueue.shift();
-    setTimeout(() => synth.speak(next), 100);
+    setTimeout(() => synth.speak(next), 50); // Less silence
   }
 }
 
@@ -691,7 +651,7 @@ function startMonitor() {
       updateTicker(phrase());
       speak(phrase());
     }
-  }, 14000);
+  }, 6000); // Reduced silence (was 14000)
   startSpeakerAnim();
   document.getElementById('powerLed').className = 'radio__led is-on';
   document.getElementById('badgeSQ').className = 'lcd__badge active';
@@ -745,7 +705,7 @@ function triggerAlert(type, label) {
   setTimeout(() => {
     const msg = getAlertVoiceMessage(type, label);
     speakAlertMessage(msg);
-  }, 1800);
+  }, 1200); // Reduced delay for alert message
 }
 
 function getAlertVoiceMessage(type, label) {
@@ -764,7 +724,7 @@ function speakAlertMessage(msg) {
   utterance.voice = getRadioVoice();
   utterance.rate = 0.82; utterance.pitch = 0.8; utterance.volume = 1.0;
   utterance.onstart = () => { stopSquelchCode(); startSpeakerAnim(); };
-  utterance.onend = () => { if (alertMode) setTimeout(() => { if (alertMode) startSquelchCode(); }, 400); };
+  utterance.onend = () => { if (alertMode) setTimeout(() => { if (alertMode) startSquelchCode(); }, 300); };
   synth.speak(utterance);
 }
 
@@ -790,7 +750,7 @@ function stopAlert() {
   ticker.textContent = 'Alerta finalizada. Sistema restaurado.';
 
   vuAnimateVoice(false);
-  setTimeout(() => { speak('Alerta finalizada. Sistema restaurado.', true); }, 600);
+  setTimeout(() => { speak('Alerta finalizada. Sistema restaurado.', true); }, 400);
 }
 
 if (typeof io !== 'undefined') {
