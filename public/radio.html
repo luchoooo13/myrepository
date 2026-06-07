@@ -179,7 +179,7 @@ body {
 .lcd__info { margin-top: 10px; font-size: 0.68rem; color: rgba(77,255,124,0.65); letter-spacing: 0.06em; line-height: 1.6; min-height: 32px; }
 .lcd__info span { color: var(--lcd-text); }
 
-.radio__controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.radio__controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .knob-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .knob-label { font-size: 0.5rem; letter-spacing: 0.22em; color: #3a453a; text-transform: uppercase; }
 .knob {
@@ -305,6 +305,13 @@ body {
   text-align: center;
   width: min(480px, 96vw);
 }
+
+.volume-display {
+  font-size: 0.65rem;
+  color: rgba(77,255,124,0.7);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
 </style>
 </head>
 <body>
@@ -346,13 +353,16 @@ body {
     </div>
 
     <div class="radio__controls">
+      <div class="slider-group">
+        <div class="slider-label">SIRENA</div>
+        <input type="range" id="sirenVolumeSlider" min="0" max="100" value="100" style="width:100%;cursor:pointer;">
+        <div class="volume-display" id="sirenVolumeDisplay">100 %</div>
+      </div>
       <div><div class="knob-group"><div class="knob" id="knobVol"></div><div class="knob-label">VOL</div></div></div>
-      <div><div class="knob-group"><div class="knob" id="knobSq"></div><div class="knob-label">SQL</div></div></div>
-      <div style="grid-column: 1 / -1;">
-        <div class="slider-group">
-          <div class="slider-label">CH SELECT</div>
-          <div class="slider-track"><div class="slider-thumb" id="sliderThumb"></div></div>
-        </div>
+      <div class="slider-group">
+        <div class="slider-label">VOZ</div>
+        <input type="range" id="voiceVolumeSlider" min="0" max="100" value="100" style="width:100%;cursor:pointer;">
+        <div class="volume-display" id="voiceVolumeDisplay">100 %</div>
       </div>
     </div>
 
@@ -382,7 +392,7 @@ body {
 </div>
 
 <script>
-/* ── AUDIO ENGINE ── */
+/* ── AUDIO ENGINE (OPTIMIZADO) ── */
 const AC = new (window.AudioContext || window.webkitAudioContext)();
 document.addEventListener('click', () => { if (AC.state === 'suspended') AC.resume(); }, { once: true });
 
@@ -429,6 +439,8 @@ function playChannelOpen() {
 let alertBuffer = null;
 let alertSource = null;
 let watchdogInterval = null;
+let sirenVolume = 100;
+let voiceVolume = 100;
 
 async function loadAlertSound() {
   try {
@@ -444,26 +456,27 @@ loadAlertSound();
 function startSquelchCode() {
   if (!alertBuffer || !alertMode) return;
   
-  // Clean previous source if any
   if (alertSource) {
     try { alertSource.stop(); } catch(e) {}
     alertSource = null;
   }
 
-  // Ensure AudioContext is running (important for mobile)
   if (AC.state === 'suspended') AC.resume();
 
   alertSource = AC.createBufferSource();
   alertSource.buffer = alertBuffer;
   alertSource.loop = true;
-  alertSource.connect(AC.destination);
+  
+  const gainNode = AC.createGain();
+  gainNode.gain.value = sirenVolume / 100;
+  
+  alertSource.connect(gainNode);
+  gainNode.connect(AC.destination);
   alertSource.start(0);
 
-  // Audio Watchdog: Ensure sound is playing every 2 seconds
   if (!watchdogInterval) {
     watchdogInterval = setInterval(() => {
       if (alertMode && (!alertSource || AC.state !== 'running')) {
-        console.warn("Audio watchdog: restarting alert sound...");
         startSquelchCode();
       }
     }, 2000);
@@ -478,7 +491,7 @@ function stopSquelchCode() {
   }
 }
 
-/* ── SPEECH ── */
+/* ── SPEECH (OPTIMIZADO) ── */
 const synth = window.speechSynthesis;
 let speechQueue = [], isSpeaking = false, alertMode = false;
 
@@ -490,7 +503,7 @@ function getRadioVoice() {
 function speak(text, priority = false) {
   if (alertMode && !priority) return;
   const u = new SpeechSynthesisUtterance(text);
-  u.voice = getRadioVoice(); u.rate = 1.0; u.pitch = 0.85; u.volume = 0.9;
+  u.voice = getRadioVoice(); u.rate = 1.0; u.pitch = 0.85; u.volume = voiceVolume / 100;
   u.onstart = () => { isSpeaking = true; vuAnimateVoice(true); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.005, AC.currentTime + 0.05); };
   u.onend = () => { isSpeaking = false; vuAnimateVoice(false); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.03, AC.currentTime + 0.1); processQueue(); };
   u.onerror = () => { isSpeaking = false; processQueue(); };
@@ -498,9 +511,10 @@ function speak(text, priority = false) {
   if (isSpeaking) {
     if (priority) speechQueue.unshift(u);
     else speechQueue.push(u);
-  } else {
     if (!priority) playSquelchBurst(0.06, 0.15);
     setTimeout(() => synth.speak(u), 50);
+  } else {
+    synth.speak(u);
   }
 }
 
@@ -518,9 +532,9 @@ function cancelSpeech() {
   vuAnimateVoice(false);
 }
 
-/* ── UI ELEMENTS ── */
+/* ── UI ELEMENTS (OPTIMIZADO) ── */
 const vuMeter = document.getElementById('vuMeter');
-const VU_BARS = 20;
+const VU_BARS = 16;
 for (let i = 0; i < VU_BARS; i++) {
   const b = document.createElement('div');
   b.className = 'lcd__vu-bar';
@@ -542,10 +556,10 @@ function vuAnimateVoice(on) {
 function animateVU() {
   const bars = vuMeter.querySelectorAll('.lcd__vu-bar');
   const level = alertMode
-    ? Math.floor(Math.random() * VU_BARS * 0.9) + Math.floor(VU_BARS * 0.1)
-    : Math.floor(Math.random() * VU_BARS * 0.75) + 3;
+    ? Math.floor(Math.random() * VU_BARS * 0.8) + Math.floor(VU_BARS * 0.2)
+    : Math.floor(Math.random() * VU_BARS * 0.6) + 3;
   bars.forEach((b, i) => {
-    const ht = Math.max(3, Math.random() * 18);
+    const ht = Math.max(3, Math.random() * 16);
     b.style.height = ht + 'px';
     const cls = alertMode ? (alertType === 'simulacro' ? 'is-simulacro-on' : 'is-alert-on') : 'is-on';
     b.className = 'lcd__vu-bar ' + (i < level ? cls : '');
@@ -566,18 +580,18 @@ function startPassiveVU() {
   passiveVU = setInterval(() => {
     if (vuVoiceMode || alertMode) return;
     const bars = vuMeter.querySelectorAll('.lcd__vu-bar');
-    const level = Math.floor(Math.sin(step * 0.18) * 3 + 4);
+    const level = Math.floor(Math.sin(step * 0.18) * 2 + 3);
     bars.forEach((b, i) => {
-      b.style.height = (i < level ? (4 + Math.random() * 4) : 3) + 'px';
+      b.style.height = (i < level ? (4 + Math.random() * 3) : 3) + 'px';
       b.className = 'lcd__vu-bar';
     });
     step++;
-  }, 200);
+  }, 250);
 }
 startPassiveVU();
 
 const speakerGrid = document.getElementById('speakerGrid');
-const DOTS_COUNT = 100;
+const DOTS_COUNT = 60;
 for (let i = 0; i < DOTS_COUNT; i++) {
   const d = document.createElement('div');
   d.className = 'speaker-dot';
@@ -594,7 +608,7 @@ function animateSpeaker(on) {
   if (alertMode) {
     cls = alertType === 'simulacro' ? 'speaker-dot is-simulacro' : 'speaker-dot is-alert';
   }
-  const activeDots = Math.floor(Math.random() * 30) + 10;
+  const activeDots = Math.floor(Math.random() * 20) + 5;
   dots.forEach(d => d.className = 'speaker-dot');
   const indices = Array.from({length: DOTS_COUNT}, (_,i) => i).sort(() => Math.random() - 0.5).slice(0, activeDots);
   indices.forEach(i => { dots[i].className = cls; });
@@ -603,7 +617,7 @@ function animateSpeaker(on) {
 let speakerAnim = null;
 function startSpeakerAnim() {
   if (speakerAnim) clearInterval(speakerAnim);
-  speakerAnim = setInterval(() => animateSpeaker(true), 100);
+  speakerAnim = setInterval(() => animateSpeaker(true), 150);
 }
 function stopSpeakerAnim() {
   clearInterval(speakerAnim);
@@ -612,7 +626,7 @@ function stopSpeakerAnim() {
 }
 
 const speakerWave = document.getElementById('speakerWave');
-const WAVE_BARS = 30;
+const WAVE_BARS = 20;
 for (let i = 0; i < WAVE_BARS; i++) {
   const b = document.createElement('div');
   b.className = 'wave-bar';
@@ -626,17 +640,17 @@ function startWaveAnim() {
     const bars = speakerWave.querySelectorAll('.wave-bar');
     bars.forEach((b, i) => {
       const h = alertMode
-        ? 4 + Math.abs(Math.sin(t * 0.3 + i * 0.4)) * 18 + Math.random() * 5
-        : 2 + Math.abs(Math.sin(t * 0.15 + i * 0.3)) * 10;
+        ? 4 + Math.abs(Math.sin(t * 0.25 + i * 0.35)) * 14 + Math.random() * 3
+        : 2 + Math.abs(Math.sin(t * 0.12 + i * 0.25)) * 8;
       b.style.height = h + 'px';
       if (alertMode) {
-        b.style.background = alertType === 'simulacro' ? `rgba(0,123,255,${0.3 + Math.random() * 0.4})` : `rgba(255,59,59,${0.3 + Math.random() * 0.4})`;
+        b.style.background = alertType === 'simulacro' ? `rgba(0,123,255,${0.25 + Math.random() * 0.3})` : `rgba(255,59,59,${0.25 + Math.random() * 0.3})`;
       } else {
-        b.style.background = `rgba(57,255,106,${0.15 + Math.random() * 0.3})`;
+        b.style.background = `rgba(57,255,106,${0.1 + Math.random() * 0.2})`;
       }
     });
     t++;
-  }, 60);
+  }, 100);
 }
 startWaveAnim();
 
@@ -731,7 +745,6 @@ function triggerAlert(type, label) {
 
   vuAnimateVoice(true);
 
-  // Periodic voice message during alert
   function repeatVoice() {
     if (!alertMode) return;
     const msg = getAlertVoiceMessage(type, label);
@@ -755,7 +768,7 @@ function getAlertVoiceMessage(type, label) {
 function speakAlertMessage(msg) {
   const utterance = new SpeechSynthesisUtterance(msg);
   utterance.voice = getRadioVoice();
-  utterance.rate = 0.9; utterance.pitch = 0.8; utterance.volume = 1.0;
+  utterance.rate = 0.9; utterance.pitch = 0.8; utterance.volume = voiceVolume / 100;
   utterance.onstart = () => { startSpeakerAnim(); };
   utterance.onend = () => { };
   synth.speak(utterance);
@@ -811,6 +824,29 @@ document.getElementById('btnLight').addEventListener('click', () => {
   setTimeout(() => { radio.style.background = ''; }, 800);
 });
 document.getElementById('btnCall').addEventListener('click', () => { if (AC.state === 'suspended') AC.resume(); playSquelchBurst(0.12, 0.4); });
+
+/* ── CONTROLES DE VOLUMEN ── */
+const sirenVolumeSlider = document.getElementById('sirenVolumeSlider');
+const sirenVolumeDisplay = document.getElementById('sirenVolumeDisplay');
+const voiceVolumeSlider = document.getElementById('voiceVolumeSlider');
+const voiceVolumeDisplay = document.getElementById('voiceVolumeDisplay');
+
+sirenVolumeSlider.addEventListener('input', () => {
+  sirenVolume = parseInt(sirenVolumeSlider.value, 10);
+  sirenVolumeDisplay.textContent = sirenVolume + ' %';
+  if (alertSource) {
+    const gainNode = AC.createGain();
+    gainNode.gain.value = sirenVolume / 100;
+  }
+});
+
+voiceVolumeSlider.addEventListener('input', () => {
+  voiceVolume = parseInt(voiceVolumeSlider.value, 10);
+  voiceVolumeDisplay.textContent = voiceVolume + ' %';
+  if (synth && synth.speaking) {
+    synth.cancel();
+  }
+});
 
 let started = false;
 document.body.addEventListener('click', () => { if (!started) { started = true; startMonitor(); } }, { capture: true });
