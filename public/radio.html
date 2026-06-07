@@ -428,6 +428,7 @@ function playChannelOpen() {
 /* ── REAL ALERT AUDIO (Web Audio API for Gapless Loop) ── */
 let alertBuffer = null;
 let alertSource = null;
+let watchdogInterval = null;
 
 async function loadAlertSound() {
   try {
@@ -441,19 +442,36 @@ async function loadAlertSound() {
 loadAlertSound();
 
 function startSquelchCode() {
-  if (!alertBuffer) return;
-  stopSquelchCode();
+  if (!alertBuffer || !alertMode) return;
+  
+  // Clean previous source if any
+  if (alertSource) {
+    try { alertSource.stop(); } catch(e) {}
+    alertSource = null;
+  }
+
+  // Ensure AudioContext is running (important for mobile)
+  if (AC.state === 'suspended') AC.resume();
+
   alertSource = AC.createBufferSource();
   alertSource.buffer = alertBuffer;
   alertSource.loop = true;
-  // Gapless loop adjustment
-  alertSource.loopStart = 0;
-  alertSource.loopEnd = alertBuffer.duration;
   alertSource.connect(AC.destination);
   alertSource.start(0);
+
+  // Audio Watchdog: Ensure sound is playing every 2 seconds
+  if (!watchdogInterval) {
+    watchdogInterval = setInterval(() => {
+      if (alertMode && (!alertSource || AC.state !== 'running')) {
+        console.warn("Audio watchdog: restarting alert sound...");
+        startSquelchCode();
+      }
+    }, 2000);
+  }
 }
 
 function stopSquelchCode() {
+  if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
   if (alertSource) {
     try { alertSource.stop(); } catch(e) {}
     alertSource = null;
@@ -679,6 +697,8 @@ function updateTicker(text) {
 }
 
 let alertType = '';
+let repeatVoiceTimeout = null;
+
 function triggerAlert(type, label) {
   if (AC.state === 'suspended') AC.resume();
   alertMode = true;
@@ -716,7 +736,7 @@ function triggerAlert(type, label) {
     if (!alertMode) return;
     const msg = getAlertVoiceMessage(type, label);
     speakAlertMessage(msg);
-    setTimeout(repeatVoice, 15000);
+    repeatVoiceTimeout = setTimeout(repeatVoice, 15000);
   }
   setTimeout(repeatVoice, 2000);
 }
@@ -744,6 +764,7 @@ function speakAlertMessage(msg) {
 function stopAlert() {
   alertMode = false;
   alertType = '';
+  if (repeatVoiceTimeout) { clearTimeout(repeatVoiceTimeout); repeatVoiceTimeout = null; }
   stopSquelchCode();
   cancelSpeech();
   playSquelchBurst(0.22, 0.5);
