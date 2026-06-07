@@ -425,18 +425,39 @@ function playChannelOpen() {
   });
 }
 
-/* ── REAL ALERT AUDIO ── */
-let alertAudio = new Audio('alert_sound.mp3');
-alertAudio.loop = true;
+/* ── REAL ALERT AUDIO (Web Audio API for Gapless Loop) ── */
+let alertBuffer = null;
+let alertSource = null;
+
+async function loadAlertSound() {
+  try {
+    const response = await fetch('alert_sound.mp3');
+    const arrayBuffer = await response.arrayBuffer();
+    alertBuffer = await AC.decodeAudioData(arrayBuffer);
+  } catch (e) {
+    console.error("Error loading alert sound:", e);
+  }
+}
+loadAlertSound();
 
 function startSquelchCode() {
-  alertAudio.currentTime = 0;
-  alertAudio.play().catch(e => console.error("Error playing alert sound:", e));
+  if (!alertBuffer) return;
+  stopSquelchCode();
+  alertSource = AC.createBufferSource();
+  alertSource.buffer = alertBuffer;
+  alertSource.loop = true;
+  // Gapless loop adjustment
+  alertSource.loopStart = 0;
+  alertSource.loopEnd = alertBuffer.duration;
+  alertSource.connect(AC.destination);
+  alertSource.start(0);
 }
 
 function stopSquelchCode() {
-  alertAudio.pause();
-  alertAudio.currentTime = 0;
+  if (alertSource) {
+    try { alertSource.stop(); } catch(e) {}
+    alertSource = null;
+  }
 }
 
 /* ── SPEECH ── */
