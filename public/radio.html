@@ -426,28 +426,54 @@ function playChannelOpen() {
 }
 
 let squelchNodes = [], squelchInterval = null;
+
+function playMidlandAlertTone() {
+  const osc = AC.createOscillator();
+  const g = AC.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 1050; // Midland/NOAA Alert Tone
+  g.gain.setValueAtTime(0, AC.currentTime);
+  g.gain.linearRampToValueAtTime(0.5, AC.currentTime + 0.1);
+  osc.connect(g);
+  g.connect(AC.destination);
+  osc.start();
+  return { osc, g };
+}
+
 function startSquelchCode() {
   stopSquelchCode();
-  // Midland SAME "Squark" Digital Burst simulation
-  const burstDuration = 0.6;
+  // Midland SAME "Squark" Digital Burst simulation - Cleaner digital sound
+  const burstDuration = 0.5;
   function playSquark() {
     const buf = AC.createBuffer(1, AC.sampleRate * burstDuration, AC.sampleRate);
     const d = buf.getChannelData(0);
-    // SAME uses FSK, but we can simulate the digital "squark" with filtered noise + fast frequency shifts
     for (let i = 0; i < d.length; i++) {
-      const freq = (i % 400 < 200) ? 2083 : 1562.5; // SAME frequencies
-      d[i] = Math.sin(2 * Math.PI * freq * (i / AC.sampleRate)) * (Math.random() > 0.5 ? 1 : -1);
+      // Cleaner FSK-like sound
+      const freq = (i % 300 < 150) ? 2083.3 : 1562.5; 
+      d[i] = Math.sin(2 * Math.PI * freq * (i / AC.sampleRate)) * 0.8;
+      // Add a bit of "digital" harshness
+      if (Math.random() > 0.98) d[i] *= 1.5;
     }
     const src = AC.createBufferSource(); src.buffer = buf;
-    const g = AC.createGain(); g.gain.value = 0.4;
-    const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 1800; bpf.Q.value = 2;
+    const g = AC.createGain(); g.gain.value = 0.35;
+    const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 1800; bpf.Q.value = 5;
     src.connect(bpf); bpf.connect(g); g.connect(AC.destination);
     src.start();
     squelchNodes.push(src);
   }
   
+  // Initial triple burst like real SAME
   playSquark();
-  squelchInterval = setInterval(() => { if(alertMode) playSquark(); }, 1000);
+  setTimeout(playSquark, 700);
+  setTimeout(playSquark, 1400);
+  
+  // Continuous siren-like alert tone after initial bursts
+  setTimeout(() => {
+    if (alertMode) {
+      const alert = playMidlandAlertTone();
+      squelchNodes.push(alert.osc);
+    }
+  }, 2100);
 }
 
 function stopSquelchCode() {
@@ -485,7 +511,7 @@ function speak(text, priority = false) {
 function processQueue() {
   if (speechQueue.length > 0 && !isSpeaking) {
     const next = speechQueue.shift();
-    synth.speak(next); // Immediate next phrase
+    synth.speak(next);
   }
 }
 
@@ -657,7 +683,7 @@ function startMonitor() {
       updateTicker(phrase());
       speak(phrase());
     }
-  }, 2000); // Check for next phrase every 2 seconds
+  }, 2000);
   startSpeakerAnim();
   document.getElementById('powerLed').className = 'radio__led is-on';
   document.getElementById('badgeSQ').className = 'lcd__badge active';
@@ -703,15 +729,16 @@ function triggerAlert(type, label) {
   ticker.textContent = `⬛ ${isSim ? 'SIMULACRO' : 'ALERTA'}: ${label.toUpperCase()} — CÓDIGO SQUELCH ACTIVO `;
 
   cancelSpeech();
-  // Midland SAME start is a series of 3 digital bursts
+  // Midland SAME start sequence
   startSquelchCode();
 
   vuAnimateVoice(true);
 
+  // Wait for the bursts and the alert tone before speaking
   setTimeout(() => {
     const msg = getAlertVoiceMessage(type, label);
     speakAlertMessage(msg);
-  }, 2000);
+  }, 6000); // 6 seconds of Midland alert tone
 }
 
 function getAlertVoiceMessage(type, label) {
