@@ -425,59 +425,18 @@ function playChannelOpen() {
   });
 }
 
-let squelchNodes = [], alertLoopTimeout = null;
+/* ── REAL ALERT AUDIO ── */
+let alertAudio = new Audio('alert_sound.mp3');
+alertAudio.loop = true;
 
-function playSAMEDigitalBurst(startTime) {
-  const duration = 0.5;
-  const buf = AC.createBuffer(1, AC.sampleRate * duration, AC.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) {
-    const freq = (i % 200 < 100) ? 2083.3 : 1562.5;
-    d[i] = Math.sin(2 * Math.PI * freq * (i / AC.sampleRate));
-    d[i] = d[i] > 0 ? 0.8 : -0.8;
-  }
-  const src = AC.createBufferSource(); src.buffer = buf;
-  const g = AC.createGain(); g.gain.value = 0.4;
-  const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 1800; bpf.Q.value = 2;
-  src.connect(bpf); bpf.connect(g); g.connect(AC.destination);
-  src.start(startTime);
-  squelchNodes.push(src);
-}
-
-function playAttentionTone(startTime, duration) {
-  const osc1 = AC.createOscillator();
-  const osc2 = AC.createOscillator();
-  const g = AC.createGain();
-  osc1.frequency.value = 853; osc2.frequency.value = 1050;
-  g.gain.setValueAtTime(0, startTime);
-  g.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
-  g.gain.setValueAtTime(0.3, startTime + duration - 0.05);
-  g.gain.linearRampToValueAtTime(0, startTime + duration);
-  osc1.connect(g); osc2.connect(g); g.connect(AC.destination);
-  osc1.start(startTime); osc2.start(startTime);
-  osc1.stop(startTime + duration); osc2.stop(startTime + duration);
-  squelchNodes.push(osc1, osc2);
-}
-
-function startAlertLoop() {
-  if (!alertMode) return;
-  stopSquelchCode();
-  let t = AC.currentTime;
-  
-  // Sequence: 3 bursts (0.7s each) + 4s attention tone = ~6.1s total
-  for (let i = 0; i < 3; i++) playSAMEDigitalBurst(t + i * 0.7);
-  playAttentionTone(t + 2.1, 4);
-  
-  // Loop the sequence every 6.5 seconds
-  alertLoopTimeout = setTimeout(() => {
-    if (alertMode) startAlertLoop();
-  }, 6500);
+function startSquelchCode() {
+  alertAudio.currentTime = 0;
+  alertAudio.play().catch(e => console.error("Error playing alert sound:", e));
 }
 
 function stopSquelchCode() {
-  if (alertLoopTimeout) { clearTimeout(alertLoopTimeout); alertLoopTimeout = null; }
-  squelchNodes.forEach(n => { try { n.stop(); } catch {} });
-  squelchNodes = [];
+  alertAudio.pause();
+  alertAudio.currentTime = 0;
 }
 
 /* ── SPEECH ── */
@@ -727,17 +686,18 @@ function triggerAlert(type, label) {
   ticker.textContent = `⬛ ${isSim ? 'SIMULACRO' : 'ALERTA'}: ${label.toUpperCase()} — CÓDIGO SQUELCH ACTIVO `;
 
   cancelSpeech();
-  startAlertLoop();
+  startSquelchCode();
 
   vuAnimateVoice(true);
 
-  // Initial voice message after first sequence
-  setTimeout(() => {
-    if (alertMode) {
-      const msg = getAlertVoiceMessage(type, label);
-      speakAlertMessage(msg);
-    }
-  }, 6500);
+  // Periodic voice message during alert
+  function repeatVoice() {
+    if (!alertMode) return;
+    const msg = getAlertVoiceMessage(type, label);
+    speakAlertMessage(msg);
+    setTimeout(repeatVoice, 15000);
+  }
+  setTimeout(repeatVoice, 2000);
 }
 
 function getAlertVoiceMessage(type, label) {
@@ -756,14 +716,7 @@ function speakAlertMessage(msg) {
   utterance.voice = getRadioVoice();
   utterance.rate = 0.9; utterance.pitch = 0.8; utterance.volume = 1.0;
   utterance.onstart = () => { startSpeakerAnim(); };
-  utterance.onend = () => { 
-    if (alertMode) {
-      // Keep loop going, next voice will trigger after next sequence if still in alert
-      setTimeout(() => {
-        if (alertMode) speakAlertMessage(msg);
-      }, 13000); // Wait two cycles before repeating voice to let the loop be heard
-    }
-  };
+  utterance.onend = () => { };
   synth.speak(utterance);
 }
 
