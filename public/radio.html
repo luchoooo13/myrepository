@@ -428,26 +428,26 @@ function playChannelOpen() {
 let squelchNodes = [], squelchInterval = null;
 function startSquelchCode() {
   stopSquelchCode();
-  // Midland Midland Squelch / SAME Alert Tones (approx frequencies)
-  const pattern = [853, 960, 853, 960];
-  const interval = 0.15; // Faster for Midland style
-  let t = AC.currentTime;
-  function schedulePattern() {
-    pattern.forEach((freq, i) => {
-      const osc = AC.createOscillator(); const g = AC.createGain();
-      osc.type = 'sine'; // Midland uses sine waves for alert tones
-      osc.frequency.value = freq;
-      g.gain.setValueAtTime(0.001, t + i * interval);
-      g.gain.linearRampToValueAtTime(0.25, t + i * interval + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.001, t + i * interval + 0.14);
-      osc.connect(g); g.connect(AC.destination);
-      osc.start(t + i * interval); osc.stop(t + i * interval + 0.15);
-      squelchNodes.push(osc);
-    });
-    t += pattern.length * interval + 0.2;
+  // Midland SAME "Squark" Digital Burst simulation
+  const burstDuration = 0.6;
+  function playSquark() {
+    const buf = AC.createBuffer(1, AC.sampleRate * burstDuration, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    // SAME uses FSK, but we can simulate the digital "squark" with filtered noise + fast frequency shifts
+    for (let i = 0; i < d.length; i++) {
+      const freq = (i % 400 < 200) ? 2083 : 1562.5; // SAME frequencies
+      d[i] = Math.sin(2 * Math.PI * freq * (i / AC.sampleRate)) * (Math.random() > 0.5 ? 1 : -1);
+    }
+    const src = AC.createBufferSource(); src.buffer = buf;
+    const g = AC.createGain(); g.gain.value = 0.4;
+    const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 1800; bpf.Q.value = 2;
+    src.connect(bpf); bpf.connect(g); g.connect(AC.destination);
+    src.start();
+    squelchNodes.push(src);
   }
-  schedulePattern();
-  squelchInterval = setInterval(() => { t = AC.currentTime; schedulePattern(); }, (pattern.length * interval + 0.2) * 1000);
+  
+  playSquark();
+  squelchInterval = setInterval(() => { if(alertMode) playSquark(); }, 1000);
 }
 
 function stopSquelchCode() {
@@ -468,18 +468,24 @@ function getRadioVoice() {
 function speak(text, priority = false) {
   if (alertMode && !priority) return;
   const u = new SpeechSynthesisUtterance(text);
-  u.voice = getRadioVoice(); u.rate = 0.92; u.pitch = 0.85; u.volume = 0.9;
+  u.voice = getRadioVoice(); u.rate = 1.0; u.pitch = 0.85; u.volume = 0.9;
   u.onstart = () => { isSpeaking = true; vuAnimateVoice(true); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.005, AC.currentTime + 0.05); };
-  u.onend = () => { isSpeaking = false; vuAnimateVoice(false); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.03, AC.currentTime + 0.1); playSquelchBurst(0.08, 0.2); processQueue(); };
+  u.onend = () => { isSpeaking = false; vuAnimateVoice(false); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.03, AC.currentTime + 0.1); processQueue(); };
   u.onerror = () => { isSpeaking = false; processQueue(); };
-  if (isSpeaking) { if (priority) speechQueue.unshift(u); else speechQueue.push(u); }
-  else { playSquelchBurst(0.06, 0.15); setTimeout(() => synth.speak(u), 50); }
+  
+  if (isSpeaking) {
+    if (priority) speechQueue.unshift(u);
+    else speechQueue.push(u);
+  } else {
+    if (!priority) playSquelchBurst(0.06, 0.15);
+    setTimeout(() => synth.speak(u), 50);
+  }
 }
 
 function processQueue() {
   if (speechQueue.length > 0 && !isSpeaking) {
     const next = speechQueue.shift();
-    setTimeout(() => synth.speak(next), 50); // Less silence
+    synth.speak(next); // Immediate next phrase
   }
 }
 
@@ -645,13 +651,13 @@ function startMonitor() {
     speak('Sistema de alertas activo. Monitor iniciado. Escuchando canal principal.');
   }, 600);
   monitorInterval = setInterval(() => {
-    if (!alertMode) {
+    if (!alertMode && !isSpeaking) {
       const phrase = monitorPhrases[phraseIndex % monitorPhrases.length];
       phraseIndex++;
       updateTicker(phrase());
       speak(phrase());
     }
-  }, 6000); // Reduced silence (was 14000)
+  }, 2000); // Check for next phrase every 2 seconds
   startSpeakerAnim();
   document.getElementById('powerLed').className = 'radio__led is-on';
   document.getElementById('badgeSQ').className = 'lcd__badge active';
@@ -697,15 +703,15 @@ function triggerAlert(type, label) {
   ticker.textContent = `⬛ ${isSim ? 'SIMULACRO' : 'ALERTA'}: ${label.toUpperCase()} — CÓDIGO SQUELCH ACTIVO `;
 
   cancelSpeech();
-  playSquelchBurst(0.35, 0.8);
-  setTimeout(() => { startSquelchCode(); }, 380);
+  // Midland SAME start is a series of 3 digital bursts
+  startSquelchCode();
 
   vuAnimateVoice(true);
 
   setTimeout(() => {
     const msg = getAlertVoiceMessage(type, label);
     speakAlertMessage(msg);
-  }, 1200); // Reduced delay for alert message
+  }, 2000);
 }
 
 function getAlertVoiceMessage(type, label) {
@@ -722,9 +728,9 @@ function getAlertVoiceMessage(type, label) {
 function speakAlertMessage(msg) {
   const utterance = new SpeechSynthesisUtterance(msg);
   utterance.voice = getRadioVoice();
-  utterance.rate = 0.82; utterance.pitch = 0.8; utterance.volume = 1.0;
+  utterance.rate = 0.9; utterance.pitch = 0.8; utterance.volume = 1.0;
   utterance.onstart = () => { stopSquelchCode(); startSpeakerAnim(); };
-  utterance.onend = () => { if (alertMode) setTimeout(() => { if (alertMode) startSquelchCode(); }, 300); };
+  utterance.onend = () => { if (alertMode) setTimeout(() => { if (alertMode) startSquelchCode(); }, 500); };
   synth.speak(utterance);
 }
 
