@@ -4,314 +4,115 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SchoolAlerts — Radio Monitor</title>
-<!-- socket.io DEBE cargarse antes del script de la página -->
 <script src="/socket.io/socket.io.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=B612+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:        #0c0e0c;
-  --panel:     #111411;
-  --panel-2:   #161a16;
-  --bezel:     #1a1e1a;
-  --border:    #2a302a;
-  --green:     #39ff6a;
-  --green-dim: rgba(57,255,106,0.18);
-  --green-glow:rgba(57,255,106,0.45);
-  --amber:     #ffb830;
-  --amber-dim: rgba(255,184,48,0.18);
-  --red:       #ff3b3b;
-  --red-dim:   rgba(255,59,59,0.22);
-  --blue:      #007bff;
-  --blue-dim:  rgba(0,123,255,0.22);
-  --lcd:       #0a1a0a;
-  --lcd-text:  #4dff7c;
-  --lcd-dim:   #1a3d1a;
-  --mono:      "Share Tech Mono", "B612 Mono", monospace;
-  --orb:       "Orbitron", sans-serif;
+  --bg: #0c0e0c; --panel: #111411; --bezel: #1a1e1a; --border: #2a302a;
+  --green: #39ff6a; --green-glow: rgba(57,255,106,0.45); --red: #ff3b3b; --blue: #007bff;
+  --lcd: #0a1a0a; --lcd-text: #4dff7c; --lcd-dim: #1a3d1a;
+  --mono: "Share Tech Mono", "B612 Mono", monospace; --orb: "Orbitron", sans-serif;
 }
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  background: #070907;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  font-family: var(--mono);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-}
-
-.radio-wrapper {
-  position: relative;
-  margin-top: 50px;
-}
-
+body { background: #070907; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: var(--mono); }
+.radio-wrapper { position: relative; margin-top: 50px; }
 .radio {
-  width: min(480px, 96vw);
-  background: linear-gradient(170deg, #1e231e 0%, #131513 40%, #0e100e 100%);
-  border-radius: 18px 18px 14px 14px;
-  border: 1.5px solid #2e352e;
-  box-shadow:
-    0 0 0 1px #0a0c0a,
-    0 8px 60px rgba(0,0,0,0.9),
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    inset 0 -2px 0 rgba(0,0,0,0.5);
-  padding: 20px 18px 24px;
-  position: relative;
-  user-select: none;
+  width: min(480px, 96vw); background: linear-gradient(170deg, #1e231e 0%, #131513 40%, #0e100e 100%);
+  border-radius: 18px 18px 14px 14px; border: 1.5px solid #2e352e;
+  box-shadow: 0 0 0 1px #0a0c0a, 0 8px 60px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 0 rgba(0,0,0,0.5);
+  padding: 20px 18px 24px; position: relative; user-select: none;
 }
-
-.radio::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 8px; right: 8px;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, #3a453a 20%, #505a50 50%, #3a453a 80%, transparent);
-  border-radius: 0 0 2px 2px;
-}
-
-.radio__brand {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-.radio__brand-name {
-  font-family: var(--orb);
-  font-size: 0.7rem;
-  font-weight: 900;
-  letter-spacing: 0.35em;
-  color: #3a453a;
-  text-transform: uppercase;
-}
-.radio__brand-model {
-  font-family: var(--orb);
-  font-size: 0.58rem;
-  letter-spacing: 0.2em;
-  color: #2a302a;
-}
+.radio::before { content: ""; position: absolute; top: 0; left: 8px; right: 8px; height: 3px;
+  background: linear-gradient(90deg, transparent, #3a453a 20%, #505a50 50%, #3a453a 80%, transparent); border-radius: 0 0 2px 2px; }
+.radio__brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.radio__brand-name { font-family: var(--orb); font-size: 0.7rem; font-weight: 900; letter-spacing: 0.35em; color: #3a453a; text-transform: uppercase; }
+.radio__brand-model { font-family: var(--orb); font-size: 0.58rem; letter-spacing: 0.2em; color: #2a302a; }
 .radio__indicator { display: flex; align-items: center; gap: 6px; }
-.radio__led {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: #1a3a1a; box-shadow: none;
-  transition: background 0.3s, box-shadow 0.3s;
-}
+.radio__led { width: 7px; height: 7px; border-radius: 50%; background: #1a3a1a; transition: background 0.3s, box-shadow 0.3s; }
 .radio__led.is-on { background: var(--green); box-shadow: 0 0 6px var(--green), 0 0 14px rgba(57,255,106,0.5); }
 .radio__led.is-alert { background: var(--red); box-shadow: 0 0 6px var(--red), 0 0 14px rgba(255,59,59,0.6); animation: ledBlink 0.4s steps(1) infinite; }
 .radio__led.is-simulacro { background: var(--blue); box-shadow: 0 0 6px var(--blue), 0 0 14px rgba(0,123,255,0.6); animation: ledBlink 0.4s steps(1) infinite; }
-
 @keyframes ledBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-
 .radio__lcd {
-  background: var(--lcd);
-  border-radius: 6px;
-  border: 1.5px solid #0d1a0d;
-  padding: 10px 12px;
-  margin-bottom: 14px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), inset 0 0 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(57,255,106,0.04);
+  background: var(--lcd); border-radius: 6px; border: 1.5px solid #0d1a0d; padding: 10px 12px; margin-bottom: 14px;
+  position: relative; overflow: hidden; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), inset 0 0 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(57,255,106,0.04);
   min-height: 130px;
 }
-.radio__lcd::after {
-  content: ""; position: absolute; inset: 0;
+.radio__lcd::after { content: ""; position: absolute; inset: 0;
   background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.22) 2px, rgba(0,0,0,0.22) 4px);
-  pointer-events: none; z-index: 10;
-}
-.radio__lcd::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 40%;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.03), transparent);
-  z-index: 11; pointer-events: none;
-}
-
+  pointer-events: none; z-index: 10; }
+.radio__lcd::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.03), transparent); z-index: 11; pointer-events: none; }
 .lcd__top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
-.lcd__freq {
-  font-family: var(--orb); font-size: 1.5rem; font-weight: 700;
-  color: var(--lcd-text); letter-spacing: 0.04em;
-  text-shadow: 0 0 8px var(--green-glow), 0 0 20px rgba(57,255,106,0.25);
-  font-variant-numeric: tabular-nums; transition: color 0.3s;
-}
+.lcd__freq { font-family: var(--orb); font-size: 1.5rem; font-weight: 700; color: var(--lcd-text); letter-spacing: 0.04em;
+  text-shadow: 0 0 8px var(--green-glow), 0 0 20px rgba(57,255,106,0.25); font-variant-numeric: tabular-nums; transition: color 0.3s; }
 .lcd__freq.is-alert { color: var(--red); text-shadow: 0 0 8px rgba(255,59,59,0.8), 0 0 20px rgba(255,59,59,0.4); }
 .lcd__freq.is-simulacro { color: var(--blue); text-shadow: 0 0 8px rgba(0,123,255,0.8), 0 0 20px rgba(0,123,255,0.4); }
-
-.lcd__mode {
-  font-size: 0.6rem; letter-spacing: 0.25em; color: var(--lcd-dim);
-  border: 1px solid var(--lcd-dim); padding: 1px 5px; border-radius: 2px;
-}
+.lcd__mode { font-size: 0.6rem; letter-spacing: 0.25em; color: var(--lcd-dim); border: 1px solid var(--lcd-dim); padding: 1px 5px; border-radius: 2px; }
 .lcd__mode.is-alert { color: var(--red); border-color: rgba(255,59,59,0.5); animation: ledBlink 0.4s steps(1) infinite; }
 .lcd__mode.is-simulacro { color: var(--blue); border-color: rgba(0,123,255,0.5); animation: ledBlink 0.4s steps(1) infinite; }
-
-.lcd__ticker-wrapper {
-  border-top: 1px solid #162016; margin-top: 6px; padding-top: 6px;
-  overflow: hidden; height: 1.4rem; position: relative;
-}
-.lcd__ticker {
-  font-size: 0.78rem; color: var(--lcd-text); opacity: 0.85;
-  white-space: nowrap; display: inline-block;
-  animation: ticker 28s linear infinite; letter-spacing: 0.04em;
-}
+.lcd__ticker-wrapper { border-top: 1px solid #162016; margin-top: 6px; padding-top: 6px; overflow: hidden; height: 1.4rem; position: relative; }
+.lcd__ticker { font-size: 0.78rem; color: var(--lcd-text); opacity: 0.85; white-space: nowrap; display: inline-block;
+  animation: ticker 28s linear infinite; letter-spacing: 0.04em; }
 .lcd__ticker.is-alert { color: var(--red); opacity: 1; animation: none; }
 .lcd__ticker.is-simulacro { color: var(--blue); opacity: 1; animation: none; }
-
 @keyframes ticker { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-
 .lcd__status-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
-.lcd__badge {
-  font-size: 0.55rem; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--lcd-dim); border: 1px solid #162016; padding: 1px 5px; border-radius: 2px;
-}
+.lcd__badge { font-size: 0.55rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--lcd-dim); border: 1px solid #162016; padding: 1px 5px; border-radius: 2px; }
 .lcd__badge.active { color: var(--green); border-color: rgba(57,255,106,0.4); }
 .lcd__badge.alert { color: var(--red); border-color: rgba(255,59,59,0.5); animation: ledBlink 0.6s steps(1) infinite; }
 .lcd__badge.simulacro { color: var(--blue); border-color: rgba(0,123,255,0.5); animation: ledBlink 0.6s steps(1) infinite; }
-
-.lcd__clock-display {
-  margin-left: auto; font-family: var(--orb); font-size: 0.65rem;
-  color: rgba(77,255,124,0.6); font-variant-numeric: tabular-nums; letter-spacing: 0.06em;
-}
-
+.lcd__clock-display { margin-left: auto; font-family: var(--orb); font-size: 0.65rem; color: rgba(77,255,124,0.6); font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
 .lcd__vu { margin-top: 8px; display: flex; gap: 2px; align-items: flex-end; height: 18px; }
 .lcd__vu-bar { flex: 1; border-radius: 1px; background: var(--lcd-dim); transition: height 0.12s ease, background 0.12s; height: 4px; }
 .lcd__vu-bar.is-on { background: var(--green); box-shadow: 0 0 4px rgba(57,255,106,0.5); }
 .lcd__vu-bar.is-alert-on { background: var(--red); box-shadow: 0 0 4px rgba(255,59,59,0.6); }
 .lcd__vu-bar.is-simulacro-on { background: var(--blue); box-shadow: 0 0 4px rgba(0,123,255,0.6); }
-
 .lcd__info { margin-top: 10px; font-size: 0.68rem; color: rgba(77,255,124,0.65); letter-spacing: 0.06em; line-height: 1.6; min-height: 32px; }
 .lcd__info span { color: var(--lcd-text); }
-
 .radio__controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-.knob-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.knob-label { font-size: 0.5rem; letter-spacing: 0.22em; color: #3a453a; text-transform: uppercase; }
-.knob {
-  width: 44px; height: 44px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #3a3e3a, #1a1e1a 60%, #0e100e);
-  border: 1.5px solid #2a302a;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -1px 0 rgba(0,0,0,0.5);
-  position: relative; cursor: pointer; transition: transform 0.15s;
-}
-.knob:active { transform: scale(0.96); }
-.knob::after {
-  content: ""; position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
-  width: 3px; height: 8px; background: #4a554a; border-radius: 2px;
-}
-
 .slider-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .slider-label { font-size: 0.5rem; letter-spacing: 0.22em; color: #3a453a; text-transform: uppercase; }
-.slider-track {
-  width: 100%; height: 6px; background: #111411; border-radius: 3px;
-  border: 1px solid #222822; position: relative; box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
-}
-.slider-thumb {
-  position: absolute; top: 50%; transform: translate(-50%, -50%);
-  width: 14px; height: 14px; border-radius: 3px;
-  background: radial-gradient(circle at 40% 35%, #4a4e4a, #2a2e2a);
-  border: 1px solid #3a3e3a; box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-  cursor: pointer; left: 70%; transition: left 0.2s;
-}
-
-.radio__speaker {
-  background: #0d100d; border-radius: 8px; border: 1px solid #1a1e1a;
-  padding: 12px 10px; margin-bottom: 12px;
-  box-shadow: inset 0 3px 8px rgba(0,0,0,0.6); position: relative; overflow: hidden;
-}
-.speaker-grid { display: grid; grid-template-columns: repeat(20, 1fr); grid-template-rows: repeat(5, 1fr); gap: 4px; padding: 2px; }
-.speaker-dot { width: 4px; height: 4px; border-radius: 50%; background: #1a201a; box-shadow: inset 0 1px 0 rgba(0,0,0,0.8); transition: background 0.08s, box-shadow 0.08s; }
-.speaker-dot.is-active { background: var(--green); box-shadow: 0 0 4px var(--green-glow); }
-.speaker-dot.is-alert { background: var(--red); box-shadow: 0 0 4px rgba(255,59,59,0.7); }
-.speaker-dot.is-simulacro { background: var(--blue); box-shadow: 0 0 4px rgba(0,123,255,0.7); }
-
-.speaker-wave { position: absolute; bottom: 8px; left: 10px; right: 10px; height: 24px; display: flex; align-items: center; gap: 2px; pointer-events: none; }
-.wave-bar { flex: 1; border-radius: 1px; background: rgba(57,255,106,0.25); height: 4px; transform-origin: center; transition: height 0.08s ease; }
-
+input[type="range"] { width: 100%; cursor: pointer; }
+.volume-display { font-size: 0.65rem; color: rgba(77,255,124,0.7); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.knob { width: 44px; height: 44px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #3a3e3a, #1a1e1a 60%, #0e100e);
+  border: 1.5px solid #2a302a; box-shadow: 0 3px 8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -1px 0 rgba(0,0,0,0.5);
+  position: relative; cursor: pointer; transition: transform 0.15s; }
+.knob:active { transform: scale(0.96); }
+.knob::after { content: ""; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 3px; height: 8px; background: #4a554a; border-radius: 2px; }
+.radio__speaker { background: #0d100d; border-radius: 8px; border: 1px solid #1a1e1a; padding: 12px 10px; margin-bottom: 12px;
+  box-shadow: inset 0 3px 8px rgba(0,0,0,0.6); position: relative; overflow: hidden; }
+.speaker-grid { display: grid; grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(4, 1fr); gap: 3px; padding: 2px; }
+.speaker-dot { width: 3px; height: 3px; border-radius: 50%; background: #1a201a; transition: background 0.08s, box-shadow 0.08s; }
+.speaker-dot.is-active { background: var(--green); box-shadow: 0 0 3px var(--green-glow); }
+.speaker-dot.is-alert { background: var(--red); box-shadow: 0 0 3px rgba(255,59,59,0.7); }
+.speaker-dot.is-simulacro { background: var(--blue); box-shadow: 0 0 3px rgba(0,123,255,0.7); }
 .radio__buttons { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
 .radio-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
-.radio-btn__cap {
-  width: 100%; height: 22px;
-  background: linear-gradient(to bottom, #2a302a, #1e231e);
-  border-radius: 4px; border: 1px solid #3a3e3a; border-bottom: 2px solid #0a0c0a;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
-  display: grid; place-items: center; font-size: 0.55rem; letter-spacing: 0.14em;
-  color: #4a554a; text-transform: uppercase; transition: transform 0.08s, box-shadow 0.08s; position: relative;
-}
+.radio-btn__cap { width: 100%; height: 22px; background: linear-gradient(to bottom, #2a302a, #1e231e); border-radius: 4px; border: 1px solid #3a3e3a; border-bottom: 2px solid #0a0c0a;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06); display: grid; place-items: center; font-size: 0.55rem; letter-spacing: 0.14em;
+  color: #4a554a; text-transform: uppercase; transition: transform 0.08s, box-shadow 0.08s; }
 .radio-btn__cap:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0,0,0,0.5); border-bottom-width: 1px; }
 .radio-btn__cap.is-active { background: linear-gradient(to bottom, #1a2e1a, #142414); color: var(--green); box-shadow: 0 0 8px rgba(57,255,106,0.25), inset 0 1px 0 rgba(57,255,106,0.1); border-color: rgba(57,255,106,0.3); }
 .radio-btn__label { font-size: 0.45rem; letter-spacing: 0.14em; color: #2a302a; text-transform: uppercase; }
-
-.squelch-overlay {
-  position: absolute; inset: 0; border-radius: 18px;
-  background: rgba(255,0,0,0.06); z-index: 5; pointer-events: none;
-  opacity: 0; transition: opacity 0.3s;
-}
+.squelch-overlay { position: absolute; inset: 0; border-radius: 18px; background: rgba(255,0,0,0.06); z-index: 5; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
 .squelch-overlay.is-active { opacity: 1; animation: squelchFlicker 0.15s steps(1) infinite; }
 .squelch-overlay.is-simulacro { background: rgba(0,123,255,0.06); }
 @keyframes squelchFlicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-
-.alert-banner {
-  position: absolute; top: -60px; left: 0; right: 0;
-  background: var(--red); color: #fff; font-family: var(--orb);
-  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase;
-  padding: 0.6rem 1rem; border-radius: 8px 8px 0 0; text-align: center;
-  opacity: 0; transition: opacity 0.3s, top 0.3s; z-index: 20;
-  box-shadow: 0 -4px 20px rgba(255,0,0,0.4);
-}
+.alert-banner { position: absolute; top: -60px; left: 0; right: 0; background: var(--red); color: #fff; font-family: var(--orb);
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; padding: 0.6rem 1rem; border-radius: 8px 8px 0 0;
+  text-align: center; opacity: 0; transition: opacity 0.3s, top 0.3s; z-index: 20; box-shadow: 0 -4px 20px rgba(255,0,0,0.4); }
 .alert-banner.is-visible { opacity: 1; top: -44px; }
 .alert-banner.is-simulacro { background: var(--blue); box-shadow: 0 -4px 20px rgba(0,123,255,0.4); }
-
-.radio__antenna {
-  position: absolute; top: -58px; right: 20px;
-  width: 4px; height: 60px;
-  background: linear-gradient(to top, #2a302a, #3a453a);
-  border-radius: 2px; transform-origin: bottom center; transform: rotate(8deg);
-}
-.radio__antenna::after {
-  content: ""; position: absolute; top: -2px; left: 50%; transform: translateX(-50%);
-  width: 6px; height: 6px; border-radius: 50%; background: #3a453a;
-}
-
-.demo-panel {
-  margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: min(480px, 96vw);
-}
-.demo-buttons {
-  display: flex;
-  justify-content: center;
-}
-.demo-trigger.is-stop {
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.1em;
-  padding: 8px 20px;
-  border-radius: 4px;
-  border: 1px solid rgba(255,59,59,0.4);
-  background: rgba(255,59,59,0.08);
-  color: rgba(255,100,100,0.85);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.demo-trigger.is-stop:hover {
-  background: rgba(255,59,59,0.15);
-  color: var(--red);
-}
-
-.status-line {
-  margin-top: 14px;
-  font-size: 0.55rem;
-  letter-spacing: 0.25em;
-  color: rgba(57,255,106,0.3);
-  text-transform: uppercase;
-  text-align: center;
-  width: min(480px, 96vw);
-}
-
-.volume-display {
-  font-size: 0.65rem;
-  color: rgba(77,255,124,0.7);
-  margin-top: 2px;
-  font-variant-numeric: tabular-nums;
-}
+.radio__antenna { position: absolute; top: -58px; right: 20px; width: 4px; height: 60px; background: linear-gradient(to top, #2a302a, #3a453a);
+  border-radius: 2px; transform-origin: bottom center; transform: rotate(8deg); }
+.radio__antenna::after { content: ""; position: absolute; top: -2px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; border-radius: 50%; background: #3a453a; }
+.demo-panel { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; width: min(480px, 96vw); }
+.demo-buttons { display: flex; justify-content: center; }
+.demo-trigger.is-stop { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.1em; padding: 8px 20px; border-radius: 4px;
+  border: 1px solid rgba(255,59,59,0.4); background: rgba(255,59,59,0.08); color: rgba(255,100,100,0.85); cursor: pointer; transition: all 0.15s; }
+.demo-trigger.is-stop:hover { background: rgba(255,59,59,0.15); color: var(--red); }
+.status-line { margin-top: 14px; font-size: 0.55rem; letter-spacing: 0.25em; color: rgba(57,255,106,0.3); text-transform: uppercase; text-align: center; width: min(480px, 96vw); }
 </style>
 </head>
 <body>
@@ -319,10 +120,8 @@ body {
 <div class="radio-wrapper" id="radioWrapper">
   <div class="alert-banner" id="alertBanner">⬛ CÓDIGO SQUELCH — EMERGENCIA ACTIVA</div>
   <div class="radio__antenna"></div>
-
   <div class="radio" id="radioBody">
     <div class="squelch-overlay" id="squelchOverlay"></div>
-
     <div class="radio__brand">
       <span class="radio__brand-name">SchoolAlerts</span>
       <div class="radio__indicator">
@@ -331,7 +130,6 @@ body {
       </div>
       <span class="radio__brand-model">MK-RADIO · MOD.3</span>
     </div>
-
     <div class="radio__lcd">
       <div class="lcd__top">
         <div class="lcd__freq" id="lcdFreq">462.562</div>
@@ -347,39 +145,30 @@ body {
         <div class="lcd__clock-display" id="lcdClock">--:--:--</div>
       </div>
       <div class="lcd__vu" id="vuMeter"></div>
-      <div class="lcd__info" id="lcdInfo">
-        CANAL: <span>01 · PRINCIPAL</span> &nbsp;|&nbsp; POT: <span>5W</span> &nbsp;|&nbsp; CTX: <span>-</span>
-      </div>
+      <div class="lcd__info" id="lcdInfo">CANAL: <span>01 · PRINCIPAL</span> &nbsp;|&nbsp; POT: <span>5W</span> &nbsp;|&nbsp; CTX: <span>-</span></div>
     </div>
-
     <div class="radio__controls">
       <div class="slider-group">
         <div class="slider-label">SIRENA</div>
-        <input type="range" id="sirenVolumeSlider" min="0" max="100" value="100" style="width:100%;cursor:pointer;">
+        <input type="range" id="sirenVolumeSlider" min="0" max="100" value="100">
         <div class="volume-display" id="sirenVolumeDisplay">100 %</div>
       </div>
-      <div><div class="knob-group"><div class="knob" id="knobVol"></div><div class="knob-label">VOL</div></div></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><div class="knob" id="knobVol"></div><div style="font-size:0.5rem;letter-spacing:0.22em;color:#3a453a;text-transform:uppercase;">VOL</div></div>
       <div class="slider-group">
         <div class="slider-label">VOZ</div>
-        <input type="range" id="voiceVolumeSlider" min="0" max="100" value="100" style="width:100%;cursor:pointer;">
+        <input type="range" id="voiceVolumeSlider" min="0" max="100" value="100">
         <div class="volume-display" id="voiceVolumeDisplay">100 %</div>
       </div>
     </div>
-
     <div class="radio__speaker">
       <div class="speaker-grid" id="speakerGrid"></div>
-      <div class="speaker-wave" id="speakerWave"></div>
     </div>
-
     <div class="radio__buttons">
       <div class="radio-btn"><div class="radio-btn__cap is-active" id="btnMonitor">MON</div><div class="radio-btn__label">monitor</div></div>
       <div class="radio-btn"><div class="radio-btn__cap" id="btnScan">SCAN</div><div class="radio-btn__label">escanear</div></div>
       <div class="radio-btn"><div class="radio-btn__cap" id="btnVox">VOX</div><div class="radio-btn__label">voz activa</div></div>
       <div class="radio-btn"><div class="radio-btn__cap" id="btnLight">LIGHT</div><div class="radio-btn__label">luz</div></div>
-      <div class="radio-btn radio-btn--big">
-        <div class="radio-btn__cap" id="btnCall" style="width:44px;height:44px;border-radius:50%;font-size:0.65rem;">PTT</div>
-        <div class="radio-btn__label">transmitir</div>
-      </div>
+      <div class="radio-btn"><div class="radio-btn__cap" id="btnCall" style="width:44px;height:44px;border-radius:50%;font-size:0.65rem;">PTT</div><div class="radio-btn__label">transmitir</div></div>
     </div>
   </div>
 </div>
@@ -392,11 +181,14 @@ body {
 </div>
 
 <script>
-/* ── AUDIO ENGINE (OPTIMIZADO) ── */
 const AC = new (window.AudioContext || window.webkitAudioContext)();
 document.addEventListener('click', () => { if (AC.state === 'suspended') AC.resume(); }, { once: true });
 
-let noiseNode = null, noiseGain = null;
+let noiseNode = null, noiseGain = null, alertBuffer = null, alertSource = null, watchdogInterval = null;
+let sirenVolume = 100, voiceVolume = 100, alertMode = false, alertType = '', isSpeaking = false;
+let speechQueue = [], phraseIndex = 0, monitorInterval = null, repeatVoiceTimeout = null;
+let vuAnimFrame = null, vuVoiceMode = false, speakerAnim = null, passiveVU = null;
+
 function startCarrierNoise(volume = 0.04) {
   if (noiseNode) return;
   const bufSize = AC.sampleRate * 2;
@@ -435,45 +227,27 @@ function playChannelOpen() {
   });
 }
 
-/* ── REAL ALERT AUDIO (Web Audio API for Gapless Loop) ── */
-let alertBuffer = null;
-let alertSource = null;
-let watchdogInterval = null;
-let sirenVolume = 100;
-let voiceVolume = 100;
-
 async function loadAlertSound() {
   try {
     const response = await fetch('alert_sound.mp3');
     const arrayBuffer = await response.arrayBuffer();
     alertBuffer = await AC.decodeAudioData(arrayBuffer);
-  } catch (e) {
-    console.error("Error loading alert sound:", e);
-  }
+  } catch (e) { console.error("Error loading alert sound:", e); }
 }
 loadAlertSound();
 
 function startSquelchCode() {
   if (!alertBuffer || !alertMode) return;
-  
-  if (alertSource) {
-    try { alertSource.stop(); } catch(e) {}
-    alertSource = null;
-  }
-
+  if (alertSource) { try { alertSource.stop(); } catch(e) {} alertSource = null; }
   if (AC.state === 'suspended') AC.resume();
-
   alertSource = AC.createBufferSource();
   alertSource.buffer = alertBuffer;
   alertSource.loop = true;
-  
   const gainNode = AC.createGain();
   gainNode.gain.value = sirenVolume / 100;
-  
   alertSource.connect(gainNode);
   gainNode.connect(AC.destination);
   alertSource.start(0);
-
   if (!watchdogInterval) {
     watchdogInterval = setInterval(() => {
       if (alertMode && (!alertSource || AC.state !== 'running')) {
@@ -485,16 +259,10 @@ function startSquelchCode() {
 
 function stopSquelchCode() {
   if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
-  if (alertSource) {
-    try { alertSource.stop(); } catch(e) {}
-    alertSource = null;
-  }
+  if (alertSource) { try { alertSource.stop(); } catch(e) {} alertSource = null; }
 }
 
-/* ── SPEECH (OPTIMIZADO) ── */
 const synth = window.speechSynthesis;
-let speechQueue = [], isSpeaking = false, alertMode = false;
-
 function getRadioVoice() {
   const voices = synth.getVoices();
   return voices.find(v => v.lang.startsWith('es')) || voices.find(v => v.default) || voices[0];
@@ -507,59 +275,37 @@ function speak(text, priority = false) {
   u.onstart = () => { isSpeaking = true; vuAnimateVoice(true); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.005, AC.currentTime + 0.05); };
   u.onend = () => { isSpeaking = false; vuAnimateVoice(false); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.03, AC.currentTime + 0.1); processQueue(); };
   u.onerror = () => { isSpeaking = false; processQueue(); };
-  
-  if (isSpeaking) {
-    if (priority) speechQueue.unshift(u);
-    else speechQueue.push(u);
-    if (!priority) playSquelchBurst(0.06, 0.15);
-    setTimeout(() => synth.speak(u), 50);
-  } else {
-    synth.speak(u);
-  }
+  if (isSpeaking) { if (priority) speechQueue.unshift(u); else speechQueue.push(u); if (!priority) playSquelchBurst(0.06, 0.15); setTimeout(() => synth.speak(u), 50); }
+  else synth.speak(u);
 }
 
 function processQueue() {
-  if (speechQueue.length > 0 && !isSpeaking) {
-    const next = speechQueue.shift();
-    synth.speak(next);
-  }
+  if (speechQueue.length > 0 && !isSpeaking) { const next = speechQueue.shift(); synth.speak(next); }
 }
 
 function cancelSpeech() {
-  synth.cancel();
-  speechQueue = [];
-  isSpeaking = false;
-  vuAnimateVoice(false);
+  synth.cancel(); speechQueue = []; isSpeaking = false; vuAnimateVoice(false);
 }
 
-/* ── UI ELEMENTS (OPTIMIZADO) ── */
 const vuMeter = document.getElementById('vuMeter');
-const VU_BARS = 16;
+const VU_BARS = 12;
 for (let i = 0; i < VU_BARS; i++) {
   const b = document.createElement('div');
   b.className = 'lcd__vu-bar';
   vuMeter.appendChild(b);
 }
 
-let vuAnimFrame = null;
-let vuVoiceMode = false;
-
 function vuAnimateVoice(on) {
   vuVoiceMode = on;
   if (on) animateVU();
-  else {
-    cancelAnimationFrame(vuAnimFrame);
-    resetVU();
-  }
+  else { cancelAnimationFrame(vuAnimFrame); resetVU(); }
 }
 
 function animateVU() {
   const bars = vuMeter.querySelectorAll('.lcd__vu-bar');
-  const level = alertMode
-    ? Math.floor(Math.random() * VU_BARS * 0.8) + Math.floor(VU_BARS * 0.2)
-    : Math.floor(Math.random() * VU_BARS * 0.6) + 3;
+  const level = alertMode ? Math.floor(Math.random() * VU_BARS * 0.8) + Math.floor(VU_BARS * 0.2) : Math.floor(Math.random() * VU_BARS * 0.6) + 2;
   bars.forEach((b, i) => {
-    const ht = Math.max(3, Math.random() * 16);
+    const ht = Math.max(3, Math.random() * 14);
     b.style.height = ht + 'px';
     const cls = alertMode ? (alertType === 'simulacro' ? 'is-simulacro-on' : 'is-alert-on') : 'is-on';
     b.className = 'lcd__vu-bar ' + (i < level ? cls : '');
@@ -568,25 +314,21 @@ function animateVU() {
 }
 
 function resetVU() {
-  vuMeter.querySelectorAll('.lcd__vu-bar').forEach(b => {
-    b.style.height = '4px';
-    b.className = 'lcd__vu-bar';
-  });
+  vuMeter.querySelectorAll('.lcd__vu-bar').forEach(b => { b.style.height = '4px'; b.className = 'lcd__vu-bar'; });
 }
 
-let passiveVU = null;
 function startPassiveVU() {
   let step = 0;
   passiveVU = setInterval(() => {
     if (vuVoiceMode || alertMode) return;
     const bars = vuMeter.querySelectorAll('.lcd__vu-bar');
-    const level = Math.floor(Math.sin(step * 0.18) * 2 + 3);
+    const level = Math.floor(Math.sin(step * 0.18) * 2 + 2);
     bars.forEach((b, i) => {
-      b.style.height = (i < level ? (4 + Math.random() * 3) : 3) + 'px';
+      b.style.height = (i < level ? (3 + Math.random() * 2) : 3) + 'px';
       b.className = 'lcd__vu-bar';
     });
     step++;
-  }, 250);
+  }, 300);
 }
 startPassiveVU();
 
@@ -600,59 +342,25 @@ for (let i = 0; i < DOTS_COUNT; i++) {
 
 function animateSpeaker(on) {
   const dots = speakerGrid.querySelectorAll('.speaker-dot');
-  if (!on) {
-    dots.forEach(d => d.className = 'speaker-dot');
-    return;
-  }
+  if (!on) { dots.forEach(d => d.className = 'speaker-dot'); return; }
   let cls = 'speaker-dot is-active';
-  if (alertMode) {
-    cls = alertType === 'simulacro' ? 'speaker-dot is-simulacro' : 'speaker-dot is-alert';
-  }
-  const activeDots = Math.floor(Math.random() * 20) + 5;
+  if (alertMode) cls = alertType === 'simulacro' ? 'speaker-dot is-simulacro' : 'speaker-dot is-alert';
+  const activeDots = Math.floor(Math.random() * 15) + 3;
   dots.forEach(d => d.className = 'speaker-dot');
   const indices = Array.from({length: DOTS_COUNT}, (_,i) => i).sort(() => Math.random() - 0.5).slice(0, activeDots);
   indices.forEach(i => { dots[i].className = cls; });
 }
 
-let speakerAnim = null;
 function startSpeakerAnim() {
   if (speakerAnim) clearInterval(speakerAnim);
-  speakerAnim = setInterval(() => animateSpeaker(true), 150);
+  speakerAnim = setInterval(() => animateSpeaker(true), 200);
 }
+
 function stopSpeakerAnim() {
   clearInterval(speakerAnim);
   speakerAnim = null;
   animateSpeaker(false);
 }
-
-const speakerWave = document.getElementById('speakerWave');
-const WAVE_BARS = 20;
-for (let i = 0; i < WAVE_BARS; i++) {
-  const b = document.createElement('div');
-  b.className = 'wave-bar';
-  speakerWave.appendChild(b);
-}
-
-let waveAnim = null;
-function startWaveAnim() {
-  let t = 0;
-  waveAnim = setInterval(() => {
-    const bars = speakerWave.querySelectorAll('.wave-bar');
-    bars.forEach((b, i) => {
-      const h = alertMode
-        ? 4 + Math.abs(Math.sin(t * 0.25 + i * 0.35)) * 14 + Math.random() * 3
-        : 2 + Math.abs(Math.sin(t * 0.12 + i * 0.25)) * 8;
-      b.style.height = h + 'px';
-      if (alertMode) {
-        b.style.background = alertType === 'simulacro' ? `rgba(0,123,255,${0.25 + Math.random() * 0.3})` : `rgba(255,59,59,${0.25 + Math.random() * 0.3})`;
-      } else {
-        b.style.background = `rgba(57,255,106,${0.1 + Math.random() * 0.2})`;
-      }
-    });
-    t++;
-  }, 100);
-}
-startWaveAnim();
 
 const lcdClock = document.getElementById('lcdClock');
 function updateClock() {
@@ -677,9 +385,6 @@ const monitorPhrases = [
   () => `Aviso general: próxima actualización de protocolo a las quince horas.`,
 ];
 
-let phraseIndex = 0;
-let monitorInterval = null;
-
 function startMonitor() {
   startCarrierNoise();
   playChannelOpen();
@@ -690,8 +395,9 @@ function startMonitor() {
     if (!alertMode && !isSpeaking) {
       const phrase = monitorPhrases[phraseIndex % monitorPhrases.length];
       phraseIndex++;
-      updateTicker(phrase());
-      speak(phrase());
+      const text = phrase();
+      document.getElementById('lcdTicker').textContent = text;
+      speak(text);
     }
   }, 2000);
   startSpeakerAnim();
@@ -700,78 +406,44 @@ function startMonitor() {
   document.getElementById('badgeVOX').className = 'lcd__badge active';
 }
 
-function updateTicker(text) {
-  const t = document.getElementById('lcdTicker');
-  if (!t.classList.contains('is-alert') && !t.classList.contains('is-simulacro')) {
-    t.textContent = text;
-    t.style.animation = 'none';
-    t.offsetHeight;
-    t.style.animation = '';
-  }
-}
-
-let alertType = '';
-let repeatVoiceTimeout = null;
-
 function triggerAlert(type, label) {
   if (AC.state === 'suspended') AC.resume();
   alertMode = true;
   alertType = type;
-
   const isSim = type === 'simulacro';
   const cls = isSim ? 'is-simulacro' : 'is-alert';
-
   document.getElementById('lcdFreq').className = 'lcd__freq ' + cls;
   document.getElementById('lcdMode').textContent = isSim ? '⬛ SIMULACRO' : '⬛ EMERGENCIA';
   document.getElementById('lcdMode').className = 'lcd__mode ' + cls;
   document.getElementById('alertLed').className = 'radio__led ' + (isSim ? 'is-simulacro' : 'is-alert');
   document.getElementById('badgeALERT').className = 'lcd__badge ' + (isSim ? 'simulacro' : 'alert');
-  
-  const overlay = document.getElementById('squelchOverlay');
-  overlay.className = 'squelch-overlay is-active' + (isSim ? ' is-simulacro' : '');
-  
+  document.getElementById('squelchOverlay').className = 'squelch-overlay is-active' + (isSim ? ' is-simulacro' : '');
   const banner = document.getElementById('alertBanner');
   banner.textContent = isSim ? `⬛ SIMULACRO — ${label.toUpperCase()} EN CURSO` : `⬛ CÓDIGO SQUELCH — ${label.toUpperCase()} EN CURSO`;
   banner.className = 'alert-banner is-visible' + (isSim ? ' is-simulacro' : '');
-  
   document.getElementById('statusLine').textContent = `▶ Alerta activa: ${label}`;
-
   const ticker = document.getElementById('lcdTicker');
   ticker.className = 'lcd__ticker ' + cls;
   ticker.textContent = `⬛ ${isSim ? 'SIMULACRO' : 'ALERTA'}: ${label.toUpperCase()} — CÓDIGO SQUELCH ACTIVO `;
-
   cancelSpeech();
   startSquelchCode();
-
   vuAnimateVoice(true);
-
   function repeatVoice() {
     if (!alertMode) return;
-    const msg = getAlertVoiceMessage(type, label);
-    speakAlertMessage(msg);
+    const msgs = { incendio: 'Atención, atención. Se ha detectado un incendio. Active el protocolo de evacuación de inmediato.',
+      sismo: 'Alerta sísmica. Agáchese, cúbrase y sosténgase. Aléjese de ventanas.',
+      simulacro: 'Atención. Se inicia simulacro de emergencia. Seguir el protocolo como si fuera una emergencia real.',
+      evacuacion: 'Atención general. Evacúe el edificio de inmediato de forma ordenada.',
+      intruso: 'Código de seguridad activado. Permanezca en su lugar. Asegure puertas y ventanas.' };
+    const msg = msgs[type] || `Alerta de ${label}. Siga las instrucciones del personal autorizado.`;
+    const utterance = new SpeechSynthesisUtterance(msg);
+    utterance.voice = getRadioVoice();
+    utterance.rate = 0.9; utterance.pitch = 0.8; utterance.volume = voiceVolume / 100;
+    utterance.onstart = () => { startSpeakerAnim(); };
+    synth.speak(utterance);
     repeatVoiceTimeout = setTimeout(repeatVoice, 15000);
   }
   setTimeout(repeatVoice, 2000);
-}
-
-function getAlertVoiceMessage(type, label) {
-  const msgs = {
-    incendio:   'Atención, atención. Se ha detectado un incendio. Active el protocolo de evacuación de inmediato.',
-    sismo:      'Alerta sísmica. Agáchese, cúbrase y sosténgase. Aléjese de ventanas.',
-    simulacro:  'Atención. Se inicia simulacro de emergencia. Seguir el protocolo como si fuera una emergencia real.',
-    evacuacion: 'Atención general. Evacúe el edificio de inmediato de forma ordenada.',
-    intruso:    'Código de seguridad activado. Permanezca en su lugar. Asegure puertas y ventanas.',
-  };
-  return msgs[type] || `Alerta de ${label}. Siga las instrucciones del personal autorizado.`;
-}
-
-function speakAlertMessage(msg) {
-  const utterance = new SpeechSynthesisUtterance(msg);
-  utterance.voice = getRadioVoice();
-  utterance.rate = 0.9; utterance.pitch = 0.8; utterance.volume = voiceVolume / 100;
-  utterance.onstart = () => { startSpeakerAnim(); };
-  utterance.onend = () => { };
-  synth.speak(utterance);
 }
 
 function stopAlert() {
@@ -782,7 +454,6 @@ function stopAlert() {
   cancelSpeech();
   playSquelchBurst(0.22, 0.5);
   playChannelOpen();
-
   document.getElementById('lcdFreq').className = 'lcd__freq';
   document.getElementById('lcdMode').textContent = 'FM · RX';
   document.getElementById('lcdMode').className = 'lcd__mode';
@@ -791,11 +462,9 @@ function stopAlert() {
   document.getElementById('squelchOverlay').className = 'squelch-overlay';
   document.getElementById('alertBanner').className = 'alert-banner';
   document.getElementById('statusLine').textContent = '— Sistema restaurado —';
-
   const ticker = document.getElementById('lcdTicker');
   ticker.className = 'lcd__ticker';
   ticker.textContent = 'Alerta finalizada. Sistema restaurado.';
-
   vuAnimateVoice(false);
   setTimeout(() => { speak('Alerta finalizada. Sistema restaurado.', true); }, 400);
 }
@@ -825,27 +494,14 @@ document.getElementById('btnLight').addEventListener('click', () => {
 });
 document.getElementById('btnCall').addEventListener('click', () => { if (AC.state === 'suspended') AC.resume(); playSquelchBurst(0.12, 0.4); });
 
-/* ── CONTROLES DE VOLUMEN ── */
-const sirenVolumeSlider = document.getElementById('sirenVolumeSlider');
-const sirenVolumeDisplay = document.getElementById('sirenVolumeDisplay');
-const voiceVolumeSlider = document.getElementById('voiceVolumeSlider');
-const voiceVolumeDisplay = document.getElementById('voiceVolumeDisplay');
-
-sirenVolumeSlider.addEventListener('input', () => {
-  sirenVolume = parseInt(sirenVolumeSlider.value, 10);
-  sirenVolumeDisplay.textContent = sirenVolume + ' %';
-  if (alertSource) {
-    const gainNode = AC.createGain();
-    gainNode.gain.value = sirenVolume / 100;
-  }
+document.getElementById('sirenVolumeSlider').addEventListener('input', (e) => {
+  sirenVolume = parseInt(e.target.value, 10);
+  document.getElementById('sirenVolumeDisplay').textContent = sirenVolume + ' %';
 });
 
-voiceVolumeSlider.addEventListener('input', () => {
-  voiceVolume = parseInt(voiceVolumeSlider.value, 10);
-  voiceVolumeDisplay.textContent = voiceVolume + ' %';
-  if (synth && synth.speaking) {
-    synth.cancel();
-  }
+document.getElementById('voiceVolumeSlider').addEventListener('input', (e) => {
+  voiceVolume = parseInt(e.target.value, 10);
+  document.getElementById('voiceVolumeDisplay').textContent = voiceVolume + ' %';
 });
 
 let started = false;

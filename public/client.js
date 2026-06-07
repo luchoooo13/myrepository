@@ -13,6 +13,7 @@
   });
   socket.on("alert:stop", () => {
     dismissedStartedAt = 0;
+    currentAlert = null;
     hideAlert();
   });
 
@@ -125,7 +126,6 @@
       sirenAudio.src = wanted;
       sirenAudio.__src = wanted;
     }
-    // Aplicar volumen de sirena
     if (sirenAudio) {
       const vol = (settings.sirenVolume || 100) / 100;
       sirenAudio.volume = Math.max(0, Math.min(1, vol));
@@ -177,7 +177,6 @@
     } else if (voiceAudio.src.indexOf(src) === -1) {
       voiceAudio.src = src;
     }
-    // Aplicar volumen de voz
     if (voiceAudio) {
       const vol = (settings.voiceVolume || 100) / 100;
       voiceAudio.volume = Math.max(0, Math.min(1, vol));
@@ -257,13 +256,14 @@
     if (remaining0 <= 0) { hideAlert(); return; }
 
     const update = () => {
+      if (!currentAlert) return;
       const remaining = alert.endsAt - Date.now();
       alertTimeEl.textContent = formatRemaining(remaining);
       if (remaining <= 0) hideAlert();
     };
     update();
     if (tickTimer) clearInterval(tickTimer);
-    tickTimer = setInterval(update, 250);
+    tickTimer = setInterval(update, 500);
 
     const muteSound = !!alert.muteSound;
     const muteVoice = !!alert.muteVoice;
@@ -388,8 +388,6 @@
   }
 
   // --- Socket ---------------------------------------------------------------
-  let lastPongAt = Date.now();
-
   socket.on("connect", () => {
     socket.emit("role:client", { clientId: CLIENT_ID });
     const silent = isInSilentWindow();
@@ -397,10 +395,6 @@
     else if (isPaused()) reportClientState("paused");
     else if (silent) reportClientState("silenced");
     else reportClientState("idle");
-  });
-
-  socket.on("disconnect", () => {
-    // Mantener el estado actual
   });
 
   let lastClientState = "idle";
@@ -414,22 +408,15 @@
   function addLocalHistoryEntry(alert) {
     try {
       const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      history.unshift({
-        type: alert.type,
-        label: alert.label,
-        startedAt: alert.startedAt,
-        endsAt: alert.endsAt,
-      });
+      history.unshift({ type: alert.type, label: alert.label, startedAt: alert.startedAt, endsAt: alert.endsAt });
       localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
     } catch { }
   }
 
   // --- Reconexión para iOS -------------------------------------------------
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      if (socket && socket.disconnected) {
-        socket.connect();
-      }
+    if (document.visibilityState === "visible" && socket && socket.disconnected) {
+      socket.connect();
     }
   });
 
