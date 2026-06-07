@@ -425,59 +425,69 @@ function playChannelOpen() {
   });
 }
 
-let squelchNodes = [], squelchInterval = null;
+let squelchNodes = [];
 
-function playMidlandAlertTone() {
-  const osc = AC.createOscillator();
+function playSAMEDigitalBurst(startTime) {
+  const duration = 0.5;
+  const buf = AC.createBuffer(1, AC.sampleRate * duration, AC.sampleRate);
+  const d = buf.getChannelData(0);
+  // SAME uses AFSK with 2083.3 Hz and 1562.5 Hz
+  for (let i = 0; i < d.length; i++) {
+    const freq = (i % 200 < 100) ? 2083.3 : 1562.5;
+    d[i] = Math.sin(2 * Math.PI * freq * (i / AC.sampleRate));
+    // Digital character
+    d[i] = d[i] > 0 ? 0.8 : -0.8;
+  }
+  const src = AC.createBufferSource(); src.buffer = buf;
+  const g = AC.createGain(); g.gain.value = 0.4;
+  const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 1800; bpf.Q.value = 2;
+  src.connect(bpf); bpf.connect(g); g.connect(AC.destination);
+  src.start(startTime);
+  squelchNodes.push(src);
+}
+
+function playAttentionTone(startTime, duration) {
+  // Dual tone attention signal: 853 Hz + 1050 Hz
+  const osc1 = AC.createOscillator();
+  const osc2 = AC.createOscillator();
   const g = AC.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = 1050; // Midland/NOAA Alert Tone
-  g.gain.setValueAtTime(0, AC.currentTime);
-  g.gain.linearRampToValueAtTime(0.5, AC.currentTime + 0.1);
-  osc.connect(g);
+  
+  osc1.frequency.value = 853;
+  osc2.frequency.value = 1050;
+  g.gain.setValueAtTime(0, startTime);
+  g.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
+  g.gain.setValueAtTime(0.3, startTime + duration - 0.05);
+  g.gain.linearRampToValueAtTime(0, startTime + duration);
+  
+  osc1.connect(g);
+  osc2.connect(g);
   g.connect(AC.destination);
-  osc.start();
-  return { osc, g };
+  
+  osc1.start(startTime);
+  osc2.start(startTime);
+  osc1.stop(startTime + duration);
+  osc2.stop(startTime + duration);
+  
+  squelchNodes.push(osc1, osc2);
 }
 
 function startSquelchCode() {
   stopSquelchCode();
-  // Midland SAME "Squark" Digital Burst simulation - Cleaner digital sound
-  const burstDuration = 0.5;
-  function playSquark() {
-    const buf = AC.createBuffer(1, AC.sampleRate * burstDuration, AC.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) {
-      // Cleaner FSK-like sound
-      const freq = (i % 300 < 150) ? 2083.3 : 1562.5; 
-      d[i] = Math.sin(2 * Math.PI * freq * (i / AC.sampleRate)) * 0.8;
-      // Add a bit of "digital" harshness
-      if (Math.random() > 0.98) d[i] *= 1.5;
-    }
-    const src = AC.createBufferSource(); src.buffer = buf;
-    const g = AC.createGain(); g.gain.value = 0.35;
-    const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 1800; bpf.Q.value = 5;
-    src.connect(bpf); bpf.connect(g); g.connect(AC.destination);
-    src.start();
-    squelchNodes.push(src);
+  let t = AC.currentTime;
+  
+  // 1. Headers (3 bursts)
+  for (let i = 0; i < 3; i++) {
+    playSAMEDigitalBurst(t + i * 0.7);
   }
   
-  // Initial triple burst like real SAME
-  playSquark();
-  setTimeout(playSquark, 700);
-  setTimeout(playSquark, 1400);
+  // 2. Attention Tone (4 seconds)
+  playAttentionTone(t + 2.1, 4);
   
-  // Continuous siren-like alert tone after initial bursts
-  setTimeout(() => {
-    if (alertMode) {
-      const alert = playMidlandAlertTone();
-      squelchNodes.push(alert.osc);
-    }
-  }, 2100);
+  // 3. EOM (3 bursts) - optional, but let's stick to the sequence
+  // We'll speak after the attention tone
 }
 
 function stopSquelchCode() {
-  if (squelchInterval) { clearInterval(squelchInterval); squelchInterval = null; }
   squelchNodes.forEach(n => { try { n.stop(); } catch {} });
   squelchNodes = [];
 }
@@ -729,16 +739,15 @@ function triggerAlert(type, label) {
   ticker.textContent = `⬛ ${isSim ? 'SIMULACRO' : 'ALERTA'}: ${label.toUpperCase()} — CÓDIGO SQUELCH ACTIVO `;
 
   cancelSpeech();
-  // Midland SAME start sequence
   startSquelchCode();
 
   vuAnimateVoice(true);
 
-  // Wait for the bursts and the alert tone before speaking
+  // Start speaking after headers + attention tone (approx 6.5s)
   setTimeout(() => {
     const msg = getAlertVoiceMessage(type, label);
     speakAlertMessage(msg);
-  }, 6000); // 6 seconds of Midland alert tone
+  }, 6500);
 }
 
 function getAlertVoiceMessage(type, label) {
@@ -756,8 +765,16 @@ function speakAlertMessage(msg) {
   const utterance = new SpeechSynthesisUtterance(msg);
   utterance.voice = getRadioVoice();
   utterance.rate = 0.9; utterance.pitch = 0.8; utterance.volume = 1.0;
-  utterance.onstart = () => { stopSquelchCode(); startSpeakerAnim(); };
-  utterance.onend = () => { if (alertMode) setTimeout(() => { if (alertMode) startSquelchCode(); }, 500); };
+  utterance.onstart = () => { startSpeakerAnim(); };
+  utterance.onend = () => { 
+    if (alertMode) {
+       // After voice, play EOM headers (3 bursts)
+       let t = AC.currentTime;
+       for (let i = 0; i < 3; i++) {
+         playSAMEDigitalBurst(t + i * 0.7);
+       }
+    }
+  };
   synth.speak(utterance);
 }
 
