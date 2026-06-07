@@ -425,17 +425,15 @@ function playChannelOpen() {
   });
 }
 
-let squelchNodes = [];
+let squelchNodes = [], alertLoopTimeout = null;
 
 function playSAMEDigitalBurst(startTime) {
   const duration = 0.5;
   const buf = AC.createBuffer(1, AC.sampleRate * duration, AC.sampleRate);
   const d = buf.getChannelData(0);
-  // SAME uses AFSK with 2083.3 Hz and 1562.5 Hz
   for (let i = 0; i < d.length; i++) {
     const freq = (i % 200 < 100) ? 2083.3 : 1562.5;
     d[i] = Math.sin(2 * Math.PI * freq * (i / AC.sampleRate));
-    // Digital character
     d[i] = d[i] > 0 ? 0.8 : -0.8;
   }
   const src = AC.createBufferSource(); src.buffer = buf;
@@ -447,47 +445,37 @@ function playSAMEDigitalBurst(startTime) {
 }
 
 function playAttentionTone(startTime, duration) {
-  // Dual tone attention signal: 853 Hz + 1050 Hz
   const osc1 = AC.createOscillator();
   const osc2 = AC.createOscillator();
   const g = AC.createGain();
-  
-  osc1.frequency.value = 853;
-  osc2.frequency.value = 1050;
+  osc1.frequency.value = 853; osc2.frequency.value = 1050;
   g.gain.setValueAtTime(0, startTime);
   g.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
   g.gain.setValueAtTime(0.3, startTime + duration - 0.05);
   g.gain.linearRampToValueAtTime(0, startTime + duration);
-  
-  osc1.connect(g);
-  osc2.connect(g);
-  g.connect(AC.destination);
-  
-  osc1.start(startTime);
-  osc2.start(startTime);
-  osc1.stop(startTime + duration);
-  osc2.stop(startTime + duration);
-  
+  osc1.connect(g); osc2.connect(g); g.connect(AC.destination);
+  osc1.start(startTime); osc2.start(startTime);
+  osc1.stop(startTime + duration); osc2.stop(startTime + duration);
   squelchNodes.push(osc1, osc2);
 }
 
-function startSquelchCode() {
+function startAlertLoop() {
+  if (!alertMode) return;
   stopSquelchCode();
   let t = AC.currentTime;
   
-  // 1. Headers (3 bursts)
-  for (let i = 0; i < 3; i++) {
-    playSAMEDigitalBurst(t + i * 0.7);
-  }
-  
-  // 2. Attention Tone (4 seconds)
+  // Sequence: 3 bursts (0.7s each) + 4s attention tone = ~6.1s total
+  for (let i = 0; i < 3; i++) playSAMEDigitalBurst(t + i * 0.7);
   playAttentionTone(t + 2.1, 4);
   
-  // 3. EOM (3 bursts) - optional, but let's stick to the sequence
-  // We'll speak after the attention tone
+  // Loop the sequence every 6.5 seconds
+  alertLoopTimeout = setTimeout(() => {
+    if (alertMode) startAlertLoop();
+  }, 6500);
 }
 
 function stopSquelchCode() {
+  if (alertLoopTimeout) { clearTimeout(alertLoopTimeout); alertLoopTimeout = null; }
   squelchNodes.forEach(n => { try { n.stop(); } catch {} });
   squelchNodes = [];
 }
@@ -739,14 +727,16 @@ function triggerAlert(type, label) {
   ticker.textContent = `⬛ ${isSim ? 'SIMULACRO' : 'ALERTA'}: ${label.toUpperCase()} — CÓDIGO SQUELCH ACTIVO `;
 
   cancelSpeech();
-  startSquelchCode();
+  startAlertLoop();
 
   vuAnimateVoice(true);
 
-  // Start speaking after headers + attention tone (approx 6.5s)
+  // Initial voice message after first sequence
   setTimeout(() => {
-    const msg = getAlertVoiceMessage(type, label);
-    speakAlertMessage(msg);
+    if (alertMode) {
+      const msg = getAlertVoiceMessage(type, label);
+      speakAlertMessage(msg);
+    }
   }, 6500);
 }
 
@@ -768,11 +758,10 @@ function speakAlertMessage(msg) {
   utterance.onstart = () => { startSpeakerAnim(); };
   utterance.onend = () => { 
     if (alertMode) {
-       // After voice, play EOM headers (3 bursts)
-       let t = AC.currentTime;
-       for (let i = 0; i < 3; i++) {
-         playSAMEDigitalBurst(t + i * 0.7);
-       }
+      // Keep loop going, next voice will trigger after next sequence if still in alert
+      setTimeout(() => {
+        if (alertMode) speakAlertMessage(msg);
+      }, 13000); // Wait two cycles before repeating voice to let the loop be heard
     }
   };
   synth.speak(utterance);
