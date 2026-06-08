@@ -116,6 +116,7 @@ public class AlertService extends Service {
     private Runnable pendingTestStop;
     private volatile long dismissedStartedAt = 0;
     private String lastReportedState = "idle";
+    private long serverTimeOffsetMs = 0;
 
     @Override
     public void onCreate() {
@@ -264,6 +265,7 @@ public class AlertService extends Service {
                     }
                 });
                 identifyToServer();
+                syncServerTime();
                 lastReportedState = "idle";
                 if (alertActive) reportClientState("alerting");
                 cancelBadConnectionNotification(); // Restablece notificacion al conectar
@@ -317,10 +319,45 @@ public class AlertService extends Service {
 
     private void disconnectSocket() {
         cancelNetPingLoop();
+        cancelTimeSyncLoop();
         if (socket != null) {
             try { socket.off(); socket.disconnect(); } catch (Exception ignored) {}
             socket = null;
         }
+    }
+
+    private final Runnable timeSyncTick = new Runnable() {
+        @Override public void run() { syncServerTime(); main.postDelayed(this, 5 * 60 * 1000); }
+    };
+    private void scheduleTimeSyncLoop() { main.removeCallbacks(timeSyncTick); main.post(timeSyncTick); }
+    private void cancelTimeSyncLoop() { main.removeCallbacks(timeSyncTick); }
+
+    private void syncServerTime() {
+        if (serverOrigin == null) return;
+        new Thread(() -> {
+            try {
+                long t0 = System.currentTimeMillis();
+                java.net.URL url = new java.net.URL(serverOrigin + "/time");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                if (conn.getResponseCode() == 200) {
+                    java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(conn.getInputStream()));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = in.readLine()) != null) sb.append(line);
+                    in.close();
+                    JSONObject res = new JSONObject(sb.toString());
+                    long serverNow = res.getLong("now");
+                    long t1 = System.currentTimeMillis();
+                    long latency = (t1 - t0) / 2;
+                    serverTimeOffsetMs = serverNow - (t0 + latency);
+                    Log.d(TAG, "[time-sync] offset=" + serverTimeOffsetMs + "ms");
+                    scheduleTimeSyncLoop();
+                }
+            } catch (Exception e) { Log.w(TAG, "[time-sync] fallo: " + e.getMessage()); }
+        }).start();
     }
 
     private static final long NET_PING_INTERVAL_MS = 15_000L;
@@ -416,7 +453,7 @@ public class AlertService extends Service {
 
         try {
             SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-            if (sp.getLong(KEY_PAUSED_UNTIL, 0) > System.currentTimeMillis()) return;
+            if (sp.getLong(KEY_PAUSED_UNTIL, 0) > (System.currentTimeMillis() + serverTimeOffsetMs)) return;
         } catch (Exception ignored) {}
 
         if (isInSilentWindowNow()) return;
@@ -525,7 +562,7 @@ public class AlertService extends Service {
         }
         alertActive = true; currentAlertStartedAt = startedAt; currentAlertType = type;
         currentAlertDurationMs = durationMs > 0 ? durationMs : 60000L;
-        currentAlertEndsAt = endsAt > 0 ? endsAt : (System.currentTimeMillis() + currentAlertDurationMs);
+        currentAlertEndsAt = endsAt > 0 ? endsAt : (System.currentTimeMillis() + serverTimeOffsetMs + currentAlertDurationMs);
         acquireWakeLock();
 
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -839,6 +876,7 @@ public class AlertService extends Service {
         open.putExtra(AlertActivity.EXTRA_LABEL, label);
         open.putExtra(AlertActivity.EXTRA_ENDS_AT, currentAlertEndsAt);
         open.putExtra(AlertActivity.EXTRA_DURATION_MS, currentAlertDurationMs);
+        open.putExtra("server_time_offset", serverTimeOffsetMs);
         if (recommendations != null && recommendations.length > 0) open.putExtra(AlertActivity.EXTRA_RECOMMENDATIONS, recommendations);
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent content = PendingIntent.getActivity(this, 1, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -850,7 +888,7 @@ public class AlertService extends Service {
         // setWhen() + setUsesChronometer(true) + setChronometerCountDown(true)
         // dibuja un reloj regresivo en la barra de estado sin ningún trabajo extra.
         long endsAtForNotif = currentAlertEndsAt > 0
-                ? currentAlertEndsAt
+                ? (currentAlertEndsAt - serverTimeOffsetMs)
                 : (System.currentTimeMillis() + currentAlertDurationMs);
 
         NotificationCompat.Builder nb = new NotificationCompat.Builder(this, CHANNEL_ALERT)
@@ -885,6 +923,7 @@ public class AlertService extends Service {
         i.putExtra(AlertActivity.EXTRA_LABEL, label);
         i.putExtra(AlertActivity.EXTRA_ENDS_AT, currentAlertEndsAt);
         i.putExtra(AlertActivity.EXTRA_DURATION_MS, currentAlertDurationMs);
+        i.putExtra("server_time_offset", serverTimeOffsetMs);
         if (recommendations != null && recommendations.length > 0) i.putExtra(AlertActivity.EXTRA_RECOMMENDATIONS, recommendations);
         i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         try { startActivity(i); } catch (Exception e) { Log.w(TAG, "startActivity falló: " + e.getMessage()); }

@@ -88,6 +88,7 @@ public class AlertActivity extends Activity {
     private Runnable countdownTick;
     private long alertEndsAt     = 0;
     private long alertDurationMs = 60000L;
+    private long serverTimeOffsetMs = 0;
 
     // ------------------------------------------------------------------
     // Ciclo de vida
@@ -211,9 +212,10 @@ public class AlertActivity extends Activity {
     // ------------------------------------------------------------------
 
     private void buildUi() {
+        serverTimeOffsetMs = getIntent().getLongExtra("server_time_offset", 0L);
         alertEndsAt = getIntent().getLongExtra(
                 EXTRA_ENDS_AT,
-                System.currentTimeMillis() + 60000L
+                System.currentTimeMillis() + serverTimeOffsetMs + 60000L
         );
 
         alertDurationMs = getIntent().getLongExtra(
@@ -858,7 +860,7 @@ public class AlertActivity extends Activity {
         stopCountdown();
         countdownTick = new Runnable() {
             @Override public void run() {
-                long remaining = alertEndsAt - System.currentTimeMillis();
+                long remaining = alertEndsAt - (System.currentTimeMillis() + serverTimeOffsetMs);
                 if (remaining < 0) remaining = 0;
 
                 // Número: salto discreto al inicio de cada segundo

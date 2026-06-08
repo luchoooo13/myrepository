@@ -106,6 +106,7 @@ const alertBody = document.getElementById("alertBody");
   const CLIENT_ID_KEY = "alertas.clientid.v1";
   const NOTIFS_KEY = "alertas.notifs.v1";
   let unreadNotifs = 0;
+  let serverOffsetMs = 0;
   
   function getOrCreateClientId() {
     try {
@@ -120,6 +121,21 @@ const alertBody = document.getElementById("alertBody");
   }
   const CLIENT_ID = getOrCreateClientId();
   const HISTORY_MAX = 50;
+
+  async function syncWithServer() {
+    try {
+      const t0 = Date.now();
+      const r = await fetch("/time", { cache: "no-store" });
+      if (!r.ok) return;
+      const j = await r.json();
+      const t1 = Date.now();
+      const latency = (t1 - t0) / 2;
+      serverOffsetMs = j.now - (t0 + latency);
+      console.log("[time-sync] offset =", serverOffsetMs, "ms");
+    } catch (e) { console.warn("[time-sync] fallo:", e); }
+  }
+  syncWithServer();
+  setInterval(syncWithServer, 5 * 60 * 1000);
 
   function sirenVolumeMultiplier(type) {
     if (type === "intruso") return 0;
@@ -839,11 +855,13 @@ function mostrarMensajeOverlay(text) {
     applyStrobeClass(); overlay.hidden = false;
     if (app) app.setAttribute("aria-hidden", "true");
 
-    const remaining0 = alert.endsAt - Date.now();
+    const nowReal = Date.now() + serverOffsetMs;
+    const remaining0 = alert.endsAt - nowReal;
     if (remaining0 <= 0) { hideAlert(); return; }
 
     const update = () => {
-      const remaining = alert.endsAt - Date.now();
+      const nowRealUpdate = Date.now() + serverOffsetMs;
+      const remaining = alert.endsAt - nowRealUpdate;
       alertTimeEl.textContent = formatRemaining(remaining);
       if (remaining <= 0) hideAlert();
     };
