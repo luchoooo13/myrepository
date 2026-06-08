@@ -14,7 +14,8 @@
     showAlert(alert);
   });
   socket.on("alert:stop", () => {
-    dismissedStartedAt = 0;
+    // No reseteamos dismissedStartedAt aquí para evitar re-disparos accidentales
+    // Simplemente ocultamos la UI, pero la sirena sigue sonando por diseño (persistente)
     hideAlert();
   });
 
@@ -858,7 +859,7 @@ function mostrarMensajeOverlay(text) {
         const sirenSrc = alert.sirenUrl || (alert.type !== "simulacro" ? (SIREN_TONES[settings.sirenTone] || SIREN_SRC) : null);
         startSiren(sirenSrc);
       }
-      if ((enabled || alert.__runLocally) && !muteVoice) startSpeakingLoop(alert);
+      // Eliminado: startSpeakingLoop(alert) por solicitud del usuario
       if (!muteVibration) startVibration();
     }
     if (!muteSound && !muteVoice && !muteVibration) reportClientState("alerting");
@@ -885,15 +886,19 @@ function mostrarMensajeOverlay(text) {
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
     overlay.hidden = true;
     if (app) app.removeAttribute("aria-hidden");
-    renderAlertRecs([]); stopSiren(); stopSpeakingLoop(); stopVibration(); refreshAlertUnlockHint();
+    // Nota: stopSiren() se eliminó de aquí para que la sirena sea persistente hasta que se cierre manualmente.
+    renderAlertRecs([]); stopSpeakingLoop(); stopVibration(); refreshAlertUnlockHint();
     if (isPaused()) reportClientState("paused");
     else if (isInSilentWindow()) reportClientState("silenced");
     else reportClientState("idle");
   }
 
   function dismissLocally() {
-    if (!currentAlert) return;
-    if (currentAlert.startedAt) dismissedStartedAt = currentAlert.startedAt;
+    // Si hay una alerta activa, guardamos su timestamp para no re-dispararla
+    if (currentAlert && currentAlert.startedAt) dismissedStartedAt = currentAlert.startedAt;
+    
+    // Al cerrar manualmente, SÍ detenemos la sirena
+    stopSiren();
     hideAlert();
   }
 
