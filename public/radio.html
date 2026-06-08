@@ -175,7 +175,7 @@ input[type="range"] { width: 100%; cursor: pointer; }
 
 <div class="demo-panel">
   <div class="demo-buttons">
-    <button class="demo-trigger is-stop" onclick="stopAlert()">■ Detener alerta</button>
+    <button class="demo-trigger is-stop" onclick="stopAlert(true)">■ Detener alerta (Manual)</button>
   </div>
   <div class="status-line" id="statusLine">— Hacer click en cualquier lugar para activar el sistema —</div>
 </div>
@@ -428,51 +428,45 @@ function triggerAlert(type, label) {
   cancelSpeech();
   startSquelchCode();
   vuAnimateVoice(true);
-  function repeatVoice() {
-    if (!alertMode) return;
-    const msgs = { incendio: 'Atención, atención. Se ha detectado un incendio. Active el protocolo de evacuación de inmediato.',
-      sismo: 'Alerta sísmica. Agáchese, cúbrase y sosténgase. Aléjese de ventanas.',
-      simulacro: 'Atención. Se inicia simulacro de emergencia. Seguir el protocolo como si fuera una emergencia real.',
-      evacuacion: 'Atención general. Evacúe el edificio de inmediato de forma ordenada.',
-      intruso: 'Código de seguridad activado. Permanezca en su lugar. Asegure puertas y ventanas.' };
-    const msg = msgs[type] || `Alerta de ${label}. Siga las instrucciones del personal autorizado.`;
-    const utterance = new SpeechSynthesisUtterance(msg);
-    utterance.voice = getRadioVoice();
-    utterance.rate = 0.9; utterance.pitch = 0.8; utterance.volume = voiceVolume / 100;
-    utterance.onstart = () => { startSpeakerAnim(); };
-    synth.speak(utterance);
-    repeatVoiceTimeout = setTimeout(repeatVoice, 15000);
-  }
-  setTimeout(repeatVoice, 2000);
+  // Eliminado: repeatVoice() por solicitud del usuario para que no suene la voz en alertas
 }
 
-function stopAlert() {
-  alertMode = false;
-  alertType = '';
-  if (repeatVoiceTimeout) { clearTimeout(repeatVoiceTimeout); repeatVoiceTimeout = null; }
-  stopSquelchCode();
-  cancelSpeech();
-  playSquelchBurst(0.22, 0.5);
-  playChannelOpen();
-  document.getElementById('lcdFreq').className = 'lcd__freq';
-  document.getElementById('lcdMode').textContent = 'FM · RX';
-  document.getElementById('lcdMode').className = 'lcd__mode';
-  document.getElementById('alertLed').className = 'radio__led';
-  document.getElementById('badgeALERT').className = 'lcd__badge';
-  document.getElementById('squelchOverlay').className = 'squelch-overlay';
-  document.getElementById('alertBanner').className = 'alert-banner';
-  document.getElementById('statusLine').textContent = '— Sistema restaurado —';
-  const ticker = document.getElementById('lcdTicker');
-  ticker.className = 'lcd__ticker';
-  ticker.textContent = 'Alerta finalizada. Sistema restaurado.';
-  vuAnimateVoice(false);
-  setTimeout(() => { speak('Alerta finalizada. Sistema restaurado.', true); }, 400);
+function stopAlert(manual = false) {
+  // Solo detenemos la sirena si es un cierre manual
+  if (manual) {
+    alertMode = false;
+    alertType = '';
+    if (repeatVoiceTimeout) { clearTimeout(repeatVoiceTimeout); repeatVoiceTimeout = null; }
+    stopSquelchCode();
+    cancelSpeech();
+    playSquelchBurst(0.22, 0.5);
+    playChannelOpen();
+    document.getElementById('lcdFreq').className = 'lcd__freq';
+    document.getElementById('lcdMode').textContent = 'FM · RX';
+    document.getElementById('lcdMode').className = 'lcd__mode';
+    document.getElementById('alertLed').className = 'radio__led';
+    document.getElementById('badgeALERT').className = 'lcd__badge';
+    document.getElementById('squelchOverlay').className = 'squelch-overlay';
+    document.getElementById('alertBanner').className = 'alert-banner';
+    document.getElementById('statusLine').textContent = '— Sistema restaurado —';
+    const ticker = document.getElementById('lcdTicker');
+    ticker.className = 'lcd__ticker';
+    ticker.textContent = 'Alerta finalizada. Sistema restaurado.';
+    vuAnimateVoice(false);
+    setTimeout(() => { speak('Alerta finalizada. Sistema restaurado.', true); }, 400);
+  } else {
+    // Si no es manual (ej: alert:stop del servidor), solo cambiamos el estado visual del banner/ticker
+    // pero la sirena sigue sonando (alertMode sigue siendo true para el watchdog)
+    document.getElementById('statusLine').textContent = '▶ Alerta finalizada en servidor · Sirena activa localmente';
+    const ticker = document.getElementById('lcdTicker');
+    ticker.textContent = 'ALERTA FINALIZADA EN SERVIDOR — SIRENA ACTIVA HASTA CIERRE MANUAL';
+  }
 }
 
 if (typeof io !== 'undefined') {
   const socket = io();
   socket.on('alert:start', (data) => triggerAlert(data.type, data.label || data.type));
-  socket.on('alert:stop', () => stopAlert());
+  socket.on('alert:stop', () => stopAlert(false));
 }
 
 document.getElementById('btnMonitor').addEventListener('click', () => { if (AC.state === 'suspended') AC.resume(); playChannelOpen(); });
