@@ -175,7 +175,7 @@ input[type="range"] { width: 100%; cursor: pointer; }
 
 <div class="demo-panel">
   <div class="demo-buttons">
-    <button class="demo-trigger is-stop" onclick="stopAlert(true)">■ Detener alerta (Manual)</button>
+    <button class="demo-trigger is-stop" onclick="stopAlert()">■ Detener alerta</button>
   </div>
   <div class="status-line" id="statusLine">— Hacer click en cualquier lugar para activar el sistema —</div>
 </div>
@@ -275,8 +275,16 @@ function speak(text, priority = false) {
   u.onstart = () => { isSpeaking = true; vuAnimateVoice(true); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.005, AC.currentTime + 0.05); };
   u.onend = () => { isSpeaking = false; vuAnimateVoice(false); if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0.03, AC.currentTime + 0.1); processQueue(); };
   u.onerror = () => { isSpeaking = false; processQueue(); };
-  if (isSpeaking) { if (priority) speechQueue.unshift(u); else speechQueue.push(u); if (!priority) playSquelchBurst(0.06, 0.15); setTimeout(() => synth.speak(u), 50); }
-  else synth.speak(u);
+  
+  if (priority) {
+    cancelSpeech();
+    synth.speak(u);
+  } else if (isSpeaking) {
+    speechQueue.push(u);
+    playSquelchBurst(0.06, 0.15);
+  } else {
+    synth.speak(u);
+  }
 }
 
 function processQueue() {
@@ -431,42 +439,33 @@ function triggerAlert(type, label) {
   // Eliminado: repeatVoice() por solicitud del usuario para que no suene la voz en alertas
 }
 
-function stopAlert(manual = false) {
-  // Solo detenemos la sirena si es un cierre manual
-  if (manual) {
-    alertMode = false;
-    alertType = '';
-    if (repeatVoiceTimeout) { clearTimeout(repeatVoiceTimeout); repeatVoiceTimeout = null; }
-    stopSquelchCode();
-    cancelSpeech();
-    playSquelchBurst(0.22, 0.5);
-    playChannelOpen();
-    document.getElementById('lcdFreq').className = 'lcd__freq';
-    document.getElementById('lcdMode').textContent = 'FM · RX';
-    document.getElementById('lcdMode').className = 'lcd__mode';
-    document.getElementById('alertLed').className = 'radio__led';
-    document.getElementById('badgeALERT').className = 'lcd__badge';
-    document.getElementById('squelchOverlay').className = 'squelch-overlay';
-    document.getElementById('alertBanner').className = 'alert-banner';
-    document.getElementById('statusLine').textContent = '— Sistema restaurado —';
-    const ticker = document.getElementById('lcdTicker');
-    ticker.className = 'lcd__ticker';
-    ticker.textContent = 'Alerta finalizada. Sistema restaurado.';
-    vuAnimateVoice(false);
-    setTimeout(() => { speak('Alerta finalizada. Sistema restaurado.', true); }, 400);
-  } else {
-    // Si no es manual (ej: alert:stop del servidor), solo cambiamos el estado visual del banner/ticker
-    // pero la sirena sigue sonando (alertMode sigue siendo true para el watchdog)
-    document.getElementById('statusLine').textContent = '▶ Alerta finalizada en servidor · Sirena activa localmente';
-    const ticker = document.getElementById('lcdTicker');
-    ticker.textContent = 'ALERTA FINALIZADA EN SERVIDOR — SIRENA ACTIVA HASTA CIERRE MANUAL';
-  }
+function stopAlert() {
+  alertMode = false;
+  alertType = '';
+  if (repeatVoiceTimeout) { clearTimeout(repeatVoiceTimeout); repeatVoiceTimeout = null; }
+  stopSquelchCode();
+  cancelSpeech();
+  playSquelchBurst(0.22, 0.5);
+  playChannelOpen();
+  document.getElementById('lcdFreq').className = 'lcd__freq';
+  document.getElementById('lcdMode').textContent = 'FM · RX';
+  document.getElementById('lcdMode').className = 'lcd__mode';
+  document.getElementById('alertLed').className = 'radio__led';
+  document.getElementById('badgeALERT').className = 'lcd__badge';
+  document.getElementById('squelchOverlay').className = 'squelch-overlay';
+  document.getElementById('alertBanner').className = 'alert-banner';
+  document.getElementById('statusLine').textContent = '— Sistema restaurado —';
+  const ticker = document.getElementById('lcdTicker');
+  ticker.className = 'lcd__ticker';
+  ticker.textContent = 'Alerta finalizada. Sistema restaurado.';
+  vuAnimateVoice(false);
+  setTimeout(() => { speak('Alerta finalizada. Sistema restaurado.', true); }, 400);
 }
 
 if (typeof io !== 'undefined') {
   const socket = io();
   socket.on('alert:start', (data) => triggerAlert(data.type, data.label || data.type));
-  socket.on('alert:stop', () => stopAlert(false));
+  socket.on('alert:stop', () => stopAlert());
 }
 
 document.getElementById('btnMonitor').addEventListener('click', () => { if (AC.state === 'suspended') AC.resume(); playChannelOpen(); });
