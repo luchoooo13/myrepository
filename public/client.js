@@ -8,7 +8,9 @@
   // ── alert:start / alert:stop — registrados al tope para no perder
   // el evento que el server emite en io.on("connection") antes de que
   // el código de abajo termine de registrar sus propios listeners.
-  socket.on("alert:start", (alert) => {
+  socket.on("alert:start", async (alert) => {
+    // Esperamos a que la sincronización de tiempo haya terminado al menos una vez
+    if (syncPromise) await syncPromise;
     if (isPaused()) { if (!alert.__test) addLocalHistoryEntry(alert); return; }
     if (!alert.__test && isInSilentWindow()) { reportClientState("silenced"); addLocalHistoryEntry(alert); return; }
     showAlert(alert);
@@ -134,7 +136,8 @@ const alertBody = document.getElementById("alertBody");
       console.log("[time-sync] offset =", serverOffsetMs, "ms");
     } catch (e) { console.warn("[time-sync] fallo:", e); }
   }
-  syncWithServer();
+  // Sincronización inicial antes de permitir alertas
+  let syncPromise = syncWithServer();
   setInterval(syncWithServer, 5 * 60 * 1000);
 
   function sirenVolumeMultiplier(type) {
@@ -1262,7 +1265,19 @@ socket.on("connect", () => {
   function sendNetPing() { try { pendingNetPingT0 = Date.now(); socket.emit("client:ping", { t0: pendingNetPingT0 }); } catch { } }
   socket.on("client:pong", (payload) => {
     if (!payload || typeof payload.t0 !== "number") return;
-    const rtt = Date.now() - payload.t0; if (rtt < 0) return; lastPongAt = Date.now();
+    const now = Date.now();
+    const rtt = now - payload.t0; if (rtt < 0) return; lastPongAt = now;
+
+    // Si el servidor mandó su tiempo t1, podemos ajustar el offset
+    if (payload.t1) {
+      const latency = rtt / 2;
+      const newOffset = payload.t1 - (payload.t0 + latency);
+      // Filtro simple para evitar saltos bruscos si el RTT es muy alto
+      if (rtt < 1000) {
+        serverOffsetMs = Math.round(newOffset);
+      }
+    }
+
     if (rtt >= CONN_CRITICAL_RTT) setConnQuality("critical"); else if (rtt >= CONN_WARN_RTT) setConnQuality("weak"); else setConnQuality("good");
     let effectiveType = null;
     try { const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection; if (conn && typeof conn.effectiveType === "string") effectiveType = conn.effectiveType; } catch { }

@@ -898,7 +898,8 @@ io.on("connection", (socket) => {
 
   socket.on("client:ping", (payload) => {
     const t0 = payload && typeof payload.t0 === "number" ? payload.t0 : 0;
-    try { socket.emit("client:pong", { t0, t1: Date.now() }); } catch {}
+    // Usamos realNow() para que el t1 sea el tiempo corregido del servidor (NTP)
+    try { socket.emit("client:pong", { t0, t1: realNow() }); } catch {}
   });
 
   socket.on("client:netinfo", (data = {}) => {

@@ -301,9 +301,18 @@ public class AlertService extends Service {
                 try {
                     JSONObject p = (JSONObject) args[0];
                     long t0 = p.optLong("t0", 0);
+                    long t1 = p.optLong("t1", 0);
                     if (t0 <= 0) return;
-                    long rtt = System.currentTimeMillis() - t0;
+                    long now = System.currentTimeMillis();
+                    long rtt = now - t0;
                     if (rtt < 0 || rtt > 60000) return;
+
+                    // Si el servidor mandó su tiempo t1, podemos ajustar el offset
+                    if (t1 > 0 && rtt < 1000) {
+                        long latency = rtt / 2;
+                        serverTimeOffsetMs = t1 - (t0 + latency);
+                    }
+
                     JSONObject out = new JSONObject();
                     out.put("rttMs", rtt);
                     socket.emit("client:netinfo", out);
@@ -327,14 +336,18 @@ public class AlertService extends Service {
     }
 
     private final Runnable timeSyncTick = new Runnable() {
-        @Override public void run() { syncServerTime(); main.postDelayed(this, 5 * 60 * 1000); }
+        @Override public void run() { syncServerTime(); }
     };
-    private void scheduleTimeSyncLoop() { main.removeCallbacks(timeSyncTick); main.post(timeSyncTick); }
+    private void scheduleTimeSyncLoop(long delayMs) {
+        main.removeCallbacks(timeSyncTick);
+        main.postDelayed(timeSyncTick, delayMs);
+    }
     private void cancelTimeSyncLoop() { main.removeCallbacks(timeSyncTick); }
 
     private void syncServerTime() {
         if (serverOrigin == null) return;
         new Thread(() -> {
+            boolean success = false;
             try {
                 long t0 = System.currentTimeMillis();
                 java.net.URL url = new java.net.URL(serverOrigin + "/time");
@@ -354,9 +367,12 @@ public class AlertService extends Service {
                     long latency = (t1 - t0) / 2;
                     serverTimeOffsetMs = serverNow - (t0 + latency);
                     Log.d(TAG, "[time-sync] offset=" + serverTimeOffsetMs + "ms");
-                    scheduleTimeSyncLoop();
+                    success = true;
                 }
             } catch (Exception e) { Log.w(TAG, "[time-sync] fallo: " + e.getMessage()); }
+
+            // Si falló, reintentar pronto (15s). Si tuvo éxito, esperar 5 min.
+            scheduleTimeSyncLoop(success ? 5 * 60 * 1000 : 15 * 1000);
         }).start();
     }
 
