@@ -1,9 +1,11 @@
 // Archivo: client.js
 (function () {
-  const socket = io();
-  socket.io.opts.reconnection = true;
-    socket.io.opts.reconnectionAttempts = Infinity;
-    socket.io.opts.reconnectionDelay = 1000;
+  const socket = io({
+    transports: ['websocket'], // Forzamos WebSocket para máxima velocidad
+    reconnection: true,
+    reconnectionDelay: 500,
+    reconnectionDelayMax: 2000
+  });
 
   // ── alert:start / alert:stop — registrados al tope para no perder
   // el evento que el server emite en io.on("connection") antes de que

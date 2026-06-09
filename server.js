@@ -436,24 +436,7 @@ function startAlert(payload) {
   const override = ALERT_OVERRIDES[payload.type] || {};
   const recForType = recommendations[payload.type] || null;
 
-  const dedupByDevice = new Map();
-  for (const info of clientsInfo.values()) {
-    const key = info.clientId || ("sock:" + info.id);
-    const prev = dedupByDevice.get(key);
-    if (!prev) { dedupByDevice.set(key, info); continue; }
-    const pPrev = STATE_PRIORITY[prev.state] || 0;
-    const pCur  = STATE_PRIORITY[info.state]  || 0;
-    if (pCur > pPrev) dedupByDevice.set(key, info);
-    else if (pCur === pPrev && info.lastSeen > prev.lastSeen) dedupByDevice.set(key, info);
-  }
-  let recipients = 0, silenced = 0, paused = 0;
-  const deviceNames = [];
-  for (const info of dedupByDevice.values()) {
-    if (info.state === "paused") paused++;
-    else if (info.state === "silenced") silenced++;
-    else { recipients++; if (info.name) deviceNames.push(info.name); }
-  }
-
+  // --- OPTIMIZACIÓN: Emitir primero, procesar después ---
   const historyId = nextHistoryId++;
   currentAlert = {
     type: payload.type, label: payload.label,
@@ -464,13 +447,37 @@ function startAlert(payload) {
     voiceText: payload.type !== "simulacro" && payload.type !== "custom"
       ? (voiceTexts[payload.type] || DEFAULT_VOICE_TEXTS[payload.type] || "") : "",
   };
-  pushAlertHistory({
-    id: historyId, type: currentAlert.type, label: currentAlert.label,
-    startedAt: currentAlert.startedAt, endedAt: null, endedReason: null, durationMs: null,
-    triggeredBy: currentAlert.triggeredBy, triggeredByName: payload.triggeredByName || null,
-    recipients, silenced, paused, deviceNames, recommendations: currentAlert.recommendations,
-  });
+
+  // Emitimos INMEDIATAMENTE. No esperamos a dedupByDevice ni al historial.
   io.emit("alert:start", currentAlert);
+
+  // Procesamos el historial y estadísticas en segundo plano (asíncronamente)
+  setImmediate(() => {
+    const dedupByDevice = new Map();
+    for (const info of clientsInfo.values()) {
+      const key = info.clientId || ("sock:" + info.id);
+      const prev = dedupByDevice.get(key);
+      if (!prev) { dedupByDevice.set(key, info); continue; }
+      const pPrev = STATE_PRIORITY[prev.state] || 0;
+      const pCur  = STATE_PRIORITY[info.state]  || 0;
+      if (pCur > pPrev) dedupByDevice.set(key, info);
+      else if (pCur === pPrev && info.lastSeen > prev.lastSeen) dedupByDevice.set(key, info);
+    }
+    let recipients = 0, silenced = 0, paused = 0;
+    const deviceNames = [];
+    for (const info of dedupByDevice.values()) {
+      if (info.state === "paused") paused++;
+      else if (info.state === "silenced") silenced++;
+      else { recipients++; if (info.name) deviceNames.push(info.name); }
+    }
+
+    pushAlertHistory({
+      id: historyId, type: currentAlert.type, label: currentAlert.label,
+      startedAt: currentAlert.startedAt, endedAt: null, endedReason: null, durationMs: null,
+      triggeredBy: currentAlert.triggeredBy, triggeredByName: payload.triggeredByName || null,
+      recipients, silenced, paused, deviceNames, recommendations: currentAlert.recommendations,
+    });
+  });
   sendPushToAll({
     title: "🚨 ALERTA: " + (currentAlert.label || currentAlert.type),
     body: "Abrí SchoolAlerts para ver la alerta en pantalla completa.",

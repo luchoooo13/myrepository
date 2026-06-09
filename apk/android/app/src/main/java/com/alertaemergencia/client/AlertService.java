@@ -243,9 +243,11 @@ public class AlertService extends Service {
         try {
             IO.Options opts = new IO.Options();
             opts.reconnection = true;
-            opts.reconnectionDelay = 500;
-            opts.reconnectionDelayMax = 3000;
-            opts.timeout = 4000;
+            opts.reconnectionDelay = 200; // Más agresivo
+            opts.reconnectionDelayMax = 1000;
+            opts.timeout = 5000;
+            // Forzamos WebSocket para evitar el delay del polling de Socket.io
+            opts.transports = new String[]{"websocket"};
             socket = IO.socket(URI.create(serverOrigin), opts);
 
             socket.on(Socket.EVENT_CONNECT, args -> {

@@ -25,7 +25,10 @@
   const hostToken = tokenMeta ? tokenMeta.content : "";
   const isAdmin = hostRole === "admin";
 
-  const socket = io({ auth: { token: hostToken } });
+  const socket = io({ 
+    auth: { token: hostToken },
+    transports: ['websocket'] // Forzamos WebSocket para que el disparo sea instantáneo
+  });
 
   socket.on("alert:start",  (alert) => showCurrent(alert));
   socket.on("alert:stop",   ()      => hideCurrent());
@@ -461,13 +464,11 @@ currentType.innerHTML = `${icon} ${alert.label || alert.type}`;
           return;
         }
 
-        // Todos los demás tipos: mostrar picker → confirmar
+        // Todos los demás tipos: mostrar picker → DISPARO DIRECTO
         showDurationPicker(btn, alert, (durationMs) => {
-          if (!window.confirm(`¿Enviar alerta de "${alert.label}" por ${durationMs/1000|0}s a todos los clientes?`)) {
-            btn.disabled = false; return;
-          }
+          // Eliminamos window.confirm para que sea instantáneo al elegir la duración
           socket.emit("alert:trigger", { type: alert.type, label: alert.label, durationMs });
-          setTimeout(() => { btn.disabled = false; }, 2000);
+          setTimeout(() => { btn.disabled = false; }, 1000);
         });
       });
       grid.appendChild(btn);
