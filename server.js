@@ -436,6 +436,7 @@ function startAlert(payload) {
   const override = ALERT_OVERRIDES[payload.type] || {};
   const recForType = recommendations[payload.type] || null;
 
+  // --- OPTIMIZACIÓN: Emitir primero, procesar después ---
   const historyId = nextHistoryId++;
   currentAlert = {
     type: payload.type, label: payload.label,
@@ -447,8 +448,10 @@ function startAlert(payload) {
       ? (voiceTexts[payload.type] || DEFAULT_VOICE_TEXTS[payload.type] || "") : "",
   };
 
+  // Emitimos INMEDIATAMENTE. No esperamos a dedupByDevice ni al historial.
   io.emit("alert:start", currentAlert);
 
+  // Procesamos el historial y estadísticas en segundo plano (asíncronamente)
   setImmediate(() => {
     const dedupByDevice = new Map();
     for (const info of clientsInfo.values()) {
@@ -475,7 +478,6 @@ function startAlert(payload) {
       recipients, silenced, paused, deviceNames, recommendations: currentAlert.recommendations,
     });
   });
-
   sendPushToAll({
     title: "🚨 ALERTA: " + (currentAlert.label || currentAlert.type),
     body: "Abrí SchoolAlerts para ver la alerta en pantalla completa.",
@@ -635,8 +637,10 @@ setInterval(() => {
 // RUTAS HTTP
 // ─────────────────────────────────────────────
 
+// Logging middleware
 app.use((req, res, next) => { addMonitorLog("good", `${req.method} ${req.url}`); next(); });
 
+// CMD alert (API externa)
 app.post('/api/cmd-alert', (req, res) => {
   const data = req.body;
   console.log("Servidor: Recibí comando API, emitiendo...", data);
@@ -644,6 +648,7 @@ app.post('/api/cmd-alert', (req, res) => {
   res.status(200).send("Alerta disparada");
 });
 
+// Auth
 app.post("/host-login", (req, res) => {
   const pwd = req.body && typeof req.body.password === "string" ? req.body.password : "";
   let role = null;
@@ -685,6 +690,7 @@ app.post("/host/change-password", (req, res) => {
   res.json({ ok: true });
 });
 
+// Páginas principales
 app.get("/host-login", (_req, res) => {
   res.set("Cache-Control", "no-cache, no-store, must-revalidate");
   res.sendFile(path.join(__dirname, "public", "host-login.html"));
@@ -711,17 +717,21 @@ app.get("/client", (_req, res) => {
 });
 app.get("/client.html", (_req, res) => { res.redirect("/client"); });
 
+// ── RADIO MONITOR ──────────────────────────────
 app.get("/radio", (_req, res) => {
   res.set("Cache-Control", "no-cache, no-store, must-revalidate");
   res.sendFile(path.join(__dirname, "public", "radio.html"));
 });
 
+// ── MONITOR ────────────────────────────────────
 app.get("/monitor", (_req, res) => {
   res.sendFile(path.join(__dirname, "monitor.html"));
 });
 
+// / → redirige a /client
 app.get("/", (_req, res) => { res.redirect("/client"); });
 
+// API
 app.get("/time", (_req, res) => { res.set("Cache-Control", "no-store"); res.json({ now: realNow() }); });
 app.get("/recommendations", (_req, res) => { res.set("Cache-Control", "no-store"); res.json({ recommendations: serializeRecommendations() }); });
 app.get("/alerts-history", (_req, res) => { res.set("Cache-Control", "no-store"); res.json({ history: alertsHistory }); });
@@ -812,6 +822,7 @@ app.get("/tts", async (req, res) => {
   } catch (err) { console.error("TTS error:", err.message); res.status(502).send("tts error"); }
 });
 
+// Static — SIEMPRE AL FINAL, después de todas las rutas
 app.use(express.static(path.join(__dirname, "public"), {
   setHeaders: (res, filePath) => { if (/\.(html|js|json|css)$/i.test(filePath)) res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate"); },
   index: false,
@@ -822,11 +833,6 @@ app.use(express.static(path.join(__dirname, "public"), {
 // ─────────────────────────────────────────────
 const clientSockets = new Set();
 function broadcastClientCount() { io.emit("clients:count", { count: clientSockets.size }); }
-
-// ── NUEVO: debounce push de conexión débil/caída ──────────────────────────
-const connWarnPushSentAt = new Map(); // clientId → timestamp último push
-const CONN_WARN_PUSH_COOLDOWN_MS = 5 * 60 * 1000; // 5 min entre pushes del mismo dispositivo
-// ─────────────────────────────────────────────────────────────────────────
 
 io.use((socket, next) => {
   const token = socket.handshake && socket.handshake.auth && typeof socket.handshake.auth.token === "string" ? socket.handshake.auth.token : null;
@@ -911,24 +917,8 @@ io.on("connection", (socket) => {
     client.netinfo.at = Date.now();
     if (client.clientId) netinfoByClientId.set(client.clientId, client.netinfo);
     broadcastClients();
-    if (client.rttMs > 3500) {
-      addMonitorLog("bad", `MALA CONEXIÓN ${client.clientId || socket.id} (${client.rttMs}ms)`);
-      // ── NUEVO: push iOS cuando RTT es crítico ──────────────────────────
-      if (client.clientId) {
-        const last = connWarnPushSentAt.get(client.clientId) || 0;
-        if (Date.now() - last > CONN_WARN_PUSH_COOLDOWN_MS) {
-          connWarnPushSentAt.set(client.clientId, Date.now());
-          sendPushToAll({
-            title: "⚠️ Señal muy débil — " + (client.name || client.clientId),
-            body: "Este dispositivo tiene señal crítica (" + client.rttMs + "ms). Las alertas podrían no llegar.",
-            tag: "conn-warn-" + client.clientId,
-          }).catch(() => {});
-        }
-      }
-      // ───────────────────────────────────────────────────────────────────
-    } else if (client.rttMs > 1200) {
-      addMonitorLog("warn", `Conexión lenta ${client.clientId || socket.id} (${client.rttMs}ms)`);
-    }
+    if (client.rttMs > 3500) addMonitorLog("bad", `MALA CONEXIÓN ${client.clientId || socket.id} (${client.rttMs}ms)`);
+    else if (client.rttMs > 1200) addMonitorLog("warn", `Conexión lenta ${client.clientId || socket.id} (${client.rttMs}ms)`);
     io.to("monitor").emit("client:netinfo", { rttMs: client.rttMs, effectiveType: client.netinfo && client.netinfo.effectiveType, clientId: client.clientId, name: client.name, id: socket.id });
   });
 
@@ -952,24 +942,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     if (clientSockets.delete(socket.id)) broadcastClientCount();
     const info = clientsInfo.get(socket.id);
-    if (info) {
-      rememberDevice(info);
-      clientsInfo.delete(socket.id);
-      broadcastClients();
-      // ── NUEVO: push iOS cuando el dispositivo cliente se desconecta ────
-      if (info.clientId && !isHost(socket)) {
-        const last = connWarnPushSentAt.get(info.clientId) || 0;
-        if (Date.now() - last > CONN_WARN_PUSH_COOLDOWN_MS) {
-          connWarnPushSentAt.set(info.clientId, Date.now());
-          sendPushToAll({
-            title: "📵 Sin conexión — " + (info.name || info.clientId),
-            body: "Este dispositivo se desconectó del servidor y no recibirá alertas.",
-            tag: "conn-warn-" + info.clientId,
-          }).catch(() => {});
-        }
-      }
-      // ───────────────────────────────────────────────────────────────────
-    }
+    if (info) { rememberDevice(info); clientsInfo.delete(socket.id); broadcastClients(); }
     addMonitorLog("warn", `Socket desconectado ${socket.id}`);
   });
 
