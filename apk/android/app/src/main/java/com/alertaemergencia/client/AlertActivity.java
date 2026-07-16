@@ -867,10 +867,9 @@ public class AlertActivity extends Activity {
                 int secs = (int)(remaining / 1000);
                 if (countdownRing != null) countdownRing.setSeconds(secs);
 
-                if (remaining == 0) {
-                    if (countdownRing != null) countdownRing.jumpToFraction(0f);
-                    return;
-                }
+                // CORRECCIÓN: Solo mostrar el contador, NO cerrar automáticamente
+                // El cierre debe venir del servidor via BroadcastReceiver (ACTION_CLOSE)
+                // Esto evita desincronismos por diferencias en sincronización NTP vs HTTP
 
                 // Fracción al inicio de este segundo y al inicio del siguiente.
                 // El arco se anima suavemente de fracNow → fracNext en 1 s exacto.
