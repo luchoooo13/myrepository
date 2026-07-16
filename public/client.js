@@ -864,11 +864,14 @@ function mostrarMensajeOverlay(text) {
     const remaining0 = alert.endsAt - nowReal;
     if (remaining0 <= 0) { hideAlert(); return; }
 
+    // CORRECCIÓN: Usar endsAt del servidor pero NUNCA cerrar antes que alert:stop
+    // Esto evita desincronismos por diferencias en sincronización NTP vs HTTP
     const update = () => {
       const nowRealUpdate = Date.now() + serverOffsetMs;
       const remaining = alert.endsAt - nowRealUpdate;
       alertTimeEl.textContent = formatRemaining(remaining);
-      if (remaining <= 0) hideAlert();
+      // Solo mostrar el contador, pero NO cerrar automáticamente
+      // El cierre debe venir del servidor via alert:stop
     };
     update();
     if (tickTimer) clearInterval(tickTimer);
