@@ -97,6 +97,7 @@ public class AlertService extends Service {
     // Timestamps de la alerta activa — usados para el countdown en la UI.
     private long currentAlertEndsAt    = 0;
     private long currentAlertDurationMs = 60000L;
+    private long currentHistoryId = 0;
 
     // ── TTS nativo del dispositivo ────────────────────────────────────────
     // Usamos el motor de síntesis instalado en el dispositivo (Google TTS,
@@ -294,6 +295,16 @@ public class AlertService extends Service {
             }));
 
             socket.on("alert:start", onAlertStart);
+            socket.on("alert:update", args -> {
+                // Actualización silenciosa de datos secundarios (recs, voiceText)
+                if (args.length > 0 && args[0] instanceof JSONObject) {
+                    JSONObject alert = (JSONObject) args[0];
+                    // Si ya estamos alertando y es la misma alerta, actualizamos datos
+                    if (alertActive && alert.optLong("historyId") == currentHistoryId) {
+                        // Podríamos actualizar recs aquí si fuera necesario
+                    }
+                }
+            });
             socket.on("alert:stop", args -> main.post(() -> stopAlertMedia("server-stop")));
 
             scheduleNetPingLoop();
@@ -481,7 +492,8 @@ public class AlertService extends Service {
         final String sirenUrl = (sirenUrlRaw == null || sirenUrlRaw.isEmpty() || "null".equals(sirenUrlRaw))
                 ? null : absolutizeUrl(sirenUrlRaw);
 
-        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt, durationMs, endsAt, recommendations, voiceText));
+        final long historyId = alert.optLong("historyId", 0);
+        main.post(() -> startAlertMedia(type, label, sirenUrl, skipVoice, startedAt, durationMs, endsAt, recommendations, voiceText, historyId));
     };
 
     private String[] extractStringArray(JSONObject obj, String key) {
@@ -573,12 +585,16 @@ public class AlertService extends Service {
         startAlertMedia(type, label, sirenUrl, skipVoice, startedAt, 60000L, 0L, recommendations, voiceText);
     }
     private void startAlertMedia(String type, String label, String sirenUrl, boolean skipVoice, long startedAt, long durationMs, long endsAt, String[] recommendations, String voiceText) {
+        startAlertMedia(type, label, sirenUrl, skipVoice, startedAt, durationMs, endsAt, recommendations, voiceText, 0);
+    }
+
+    private void startAlertMedia(String type, String label, String sirenUrl, boolean skipVoice, long startedAt, long durationMs, long endsAt, String[] recommendations, String voiceText, long historyId) {
         if (pendingTestStop != null) { main.removeCallbacks(pendingTestStop); pendingTestStop = null; }
         if (alertActive) {
             if (startedAt > 0 && startedAt == currentAlertStartedAt) return;
             stopAlertMedia("replaced-by-new-alert");
         }
-        alertActive = true; currentAlertStartedAt = startedAt; currentAlertType = type;
+        alertActive = true; currentAlertStartedAt = startedAt; currentAlertType = type; currentHistoryId = historyId;
         currentAlertDurationMs = durationMs > 0 ? durationMs : 60000L;
         currentAlertEndsAt = endsAt > 0 ? endsAt : (System.currentTimeMillis() + serverTimeOffsetMs + currentAlertDurationMs);
         acquireWakeLock();

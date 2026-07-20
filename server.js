@@ -436,20 +436,38 @@ function startAlert(payload) {
   const override = ALERT_OVERRIDES[payload.type] || {};
   const recForType = recommendations[payload.type] || null;
 
-  // --- OPTIMIZACIÓN: Emitir primero, procesar después ---
+  // --- OPTIMIZACIÓN EXTREMA: Emitir antes de construir el objeto completo ---
   const historyId = nextHistoryId++;
+  
+  // Payload mínimo para que el cliente empiece a sonar YA
+  const minimalAlert = {
+    type: payload.type,
+    label: payload.label,
+    startedAt: now,
+    endsAt: now + effectiveDuration,
+    durationMs: effectiveDuration,
+    sirenUrl: override.sirenUrl || null,
+    skipVoice: !!override.skipVoice,
+    historyId,
+    fast: true // Flag para que el cliente sepa que es una emisión de alta velocidad
+  };
+
+  // EMISIÓN ULTRA-RÁPIDA: Primero el evento al socket, luego el resto
+  io.emit("alert:start", minimalAlert);
+
   currentAlert = {
-    type: payload.type, label: payload.label,
-    startedAt: now, endsAt: now + effectiveDuration, durationMs: effectiveDuration,
-    sirenUrl: override.sirenUrl || null, skipVoice: !!override.skipVoice,
-    historyId, triggeredBy: payload.triggeredBy || "system",
+    ...minimalAlert,
+    triggeredBy: payload.triggeredBy || "system",
     recommendations: recForType && Array.isArray(recForType.lines) ? recForType.lines.slice() : [],
     voiceText: payload.type !== "simulacro" && payload.type !== "custom"
       ? (voiceTexts[payload.type] || DEFAULT_VOICE_TEXTS[payload.type] || "") : "",
   };
 
-  // Emitimos INMEDIATAMENTE. No esperamos a dedupByDevice ni al historial.
-  io.emit("alert:start", currentAlert);
+  // Si el cliente necesita el objeto completo (recs, voiceText), se lo mandamos en un segundo paso
+  // pero el audio ya debería estar sonando por el minimalAlert.
+  setImmediate(() => {
+    io.emit("alert:update", currentAlert);
+  });
 
   // Procesamos el historial y estadísticas en segundo plano (asíncronamente)
   setImmediate(() => {

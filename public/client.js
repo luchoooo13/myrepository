@@ -10,13 +10,22 @@
   // ── alert:start / alert:stop — registrados al tope para no perder
   // el evento que el server emite en io.on("connection") antes de que
   // el código de abajo termine de registrar sus propios listeners.
-  socket.on("alert:start", async (alert) => {
-    // Esperamos a que la sincronización de tiempo haya terminado al menos una vez
-    if (syncPromise) await syncPromise;
+  socket.on("alert:start", (alert) => {
+    // OPTIMIZACIÓN: Reacción inmediata. No esperamos a syncPromise si es una alerta real.
+    // El audio y la UI deben aparecer YA.
     if (isPaused()) { if (!alert.__test) addLocalHistoryEntry(alert); return; }
     if (!alert.__test && isInSilentWindow()) { reportClientState("silenced"); addLocalHistoryEntry(alert); return; }
     showAlert(alert);
   });
+
+  socket.on("alert:update", (alert) => {
+    // Actualizamos recomendaciones y otros datos que llegaron después
+    if (currentAlert && currentAlert.historyId === alert.historyId) {
+      currentAlert = { ...currentAlert, ...alert };
+      renderAlertRecs(currentAlert.recommendations);
+    }
+  });
+
   socket.on("alert:stop", () => {
     dismissedStartedAt = 0;
     hideAlert();
